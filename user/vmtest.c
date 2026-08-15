@@ -1,6 +1,7 @@
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/vmstats.h"
+#include "kernel/swap.h"
 
 static int
 harness(void)
@@ -63,6 +64,14 @@ run(char *name)
     return controls();
   if(strcmp(name, "inherit") == 0)
     return inherit();
+  if(strcmp(name, "swapio") == 0)
+    return vmtestop(VM_TEST_SWAP_IO, 0);
+  if(strcmp(name, "swap-reuse") == 0)
+    return vmtestop(VM_TEST_SWAP_REUSE, 0);
+  if(strcmp(name, "swap-bounds") == 0)
+    return vmtestop(VM_TEST_SWAP_BOUNDS, 0);
+  if(strcmp(name, "swap-io-error") == 0)
+    return vmtestop(VM_TEST_SWAP_IO_ERROR, 0);
   if(strcmp(name, "all") == 0){
     if(harness() < 0 || controls() < 0 || inherit() < 0)
       return -1;

@@ -22,4 +22,15 @@ vmdebug_failinject(int type, int value)
   fail_value = value;
   return 0;
 }
+
+int
+vmdebug_should_fail(int type)
+{
+  if(fail_type != type || fail_value == 0)
+    return 0;
+  fail_value--;
+  if(fail_value == 0)
+    fail_type = VM_FAIL_NONE;
+  return 1;
+}
 #endif

@@ -107,6 +107,7 @@ extern uint64 sys_vmctl(void);
 extern uint64 sys_vmstats(void);
 extern uint64 sys_vmcheck(void);
 extern uint64 sys_vmfailinject(void);
+extern uint64 sys_vmtestop(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -138,6 +139,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_vmstats] sys_vmstats,
   [SYS_vmcheck] sys_vmcheck,
   [SYS_vmfailinject] sys_vmfailinject,
+  [SYS_vmtestop] sys_vmtestop,
   // clang-format on
 };
 

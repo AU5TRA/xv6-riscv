@@ -25,3 +25,4 @@
 #define SYS_vmstats 24
 #define SYS_vmcheck 25
 #define SYS_vmfailinject 26
+#define SYS_vmtestop 27

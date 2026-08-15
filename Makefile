@@ -1,5 +1,6 @@
 K=kernel
 U=user
+NSWAPSLOTS ?= 1024
 
 OBJS = \
   $K/entry.o \
@@ -14,6 +15,7 @@ OBJS = \
   $K/vm.o \
   $K/vmpage.o \
   $K/vmstate.o \
+  $K/swap.o \
   $K/proc.o \
   $K/swtch.o \
   $K/trampoline.o \
@@ -80,6 +82,7 @@ CFLAGS += -fno-builtin-free
 CFLAGS += -fno-builtin-memcpy -Wno-main
 CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
 CFLAGS += -I.
+CFLAGS += -DNSWAPSLOTS=$(NSWAPSLOTS)
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 ifdef VM_DEBUG
@@ -161,6 +164,7 @@ UPROGS=\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
+	truncate -s $$((2000 * 1024 + $(NSWAPSLOTS) * 4096)) fs.img
 
 -include kernel/*.d user/*.d
 

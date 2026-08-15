@@ -119,6 +119,19 @@ void            vmstate_snapshot(struct proc*, struct vmstats*);
 
 // vmdebug.c
 int             vmdebug_failinject(int, int);
+int             vmdebug_should_fail(int);
+
+// swap.c
+void            swap_init(void);
+int             swap_slot_alloc(void);
+int             swap_slot_get(int);
+int             swap_slot_put(int);
+int             swap_slot_valid(int);
+uint64          swap_free_slots(void);
+int             swap_page_read(int, uint64);
+int             swap_page_write(int, uint64);
+int             swap_check_invariants(void);
+int             swap_debug_test(int);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -196,6 +209,7 @@ void            plic_complete(int);
 // virtio_disk.c
 void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
+int             virtio_disk_raw_rw(uint64, void *, uint, int);
 void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array

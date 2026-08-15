@@ -160,3 +160,19 @@ sys_vmfailinject(void)
   return -1;
 #endif
 }
+
+uint64
+sys_vmtestop(void)
+{
+  int operation;
+  int argument;
+
+  argint(0, &operation);
+  argint(1, &argument);
+  (void)argument;
+#ifdef VM_DEBUG
+  return swap_debug_test(operation);
+#else
+  return -1;
+#endif
+}

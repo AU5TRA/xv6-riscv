@@ -47,6 +47,8 @@ static struct disk {
   // indexed by first descriptor index of chain.
   struct {
     struct buf *b;
+    void *chan;
+    int done;
     char status;
   } info[NUM];
 
@@ -212,11 +214,10 @@ alloc3_desc(int *idx)
   return 0;
 }
 
-void
-virtio_disk_rw(struct buf *b, int write)
+static int
+virtio_disk_transfer(uint64 sector, void *data, uint len, int write,
+                     struct buf *b)
 {
-  uint64 sector = b->blockno * (BSIZE / 512);
-
   acquire(&disk.vdisk_lock);
 
   // the spec's Section 5.2 says that legacy block operations use
@@ -252,8 +253,8 @@ virtio_disk_rw(struct buf *b, int write)
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];
 
-  disk.desc[idx[1]].addr = (uint64)b->data;
-  disk.desc[idx[1]].len = BSIZE;
+  disk.desc[idx[1]].addr = (uint64)data;
+  disk.desc[idx[1]].len = len;
   if (write)
     disk.desc[idx[1]].flags = 0; // device reads b->data
   else
@@ -262,14 +263,17 @@ virtio_disk_rw(struct buf *b, int write)
   disk.desc[idx[1]].next = idx[2];
 
   disk.info[idx[0]].status = 0xff; // device writes 0 on success
+  disk.info[idx[0]].done = 0;
   disk.desc[idx[2]].addr = (uint64)&disk.info[idx[0]].status;
   disk.desc[idx[2]].len = 1;
   disk.desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
   disk.desc[idx[2]].next = 0;
 
-  // record struct buf for virtio_disk_intr().
-  b->disk = 1;
+  // Record a completion channel for virtio_disk_intr().
   disk.info[idx[0]].b = b;
+  disk.info[idx[0]].chan = b ? (void *)b : (void *)&disk.info[idx[0]];
+  if(b)
+    b->disk = 1;
 
   // tell the device the first index in our chain of descriptors.
   disk.avail->ring[disk.avail->idx % NUM] = idx[0];
@@ -284,17 +288,36 @@ virtio_disk_rw(struct buf *b, int write)
   *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
 
   // Wait for virtio_disk_intr() to say request has finished.
-  while (b->disk == 1) {
-    sleep_prepare(b);
+  while (disk.info[idx[0]].done == 0) {
+    sleep_prepare(disk.info[idx[0]].chan);
     release(&disk.vdisk_lock);
     sleep();
     acquire(&disk.vdisk_lock);
   }
 
+  int result = disk.info[idx[0]].status == 0 ? 0 : -1;
   disk.info[idx[0]].b = 0;
+  disk.info[idx[0]].chan = 0;
   free_chain(idx[0]);
 
   release(&disk.vdisk_lock);
+  return result;
+}
+
+void
+virtio_disk_rw(struct buf *b, int write)
+{
+  uint64 sector = b->blockno * (BSIZE / 512);
+  if(virtio_disk_transfer(sector, b->data, BSIZE, write, b) < 0)
+    panic("virtio_disk_rw status");
+}
+
+int
+virtio_disk_raw_rw(uint64 sector, void *data, uint len, int write)
+{
+  if(data == 0 || len == 0 || len % 512 != 0)
+    return -1;
+  return virtio_disk_transfer(sector, data, len, write, 0);
 }
 
 void
@@ -319,12 +342,11 @@ virtio_disk_intr()
     io_fence();
     int id = disk.used->ring[disk.used_idx % NUM].id;
 
-    if (disk.info[id].status != 0)
-      panic("virtio_disk_intr status");
-
     struct buf *b = disk.info[id].b;
-    b->disk = 0; // disk is done with buf
-    wakeup(b);
+    if(b)
+      b->disk = 0; // disk is done with buf
+    disk.info[id].done = 1;
+    wakeup(disk.info[id].chan);
 
     disk.used_idx += 1;
   }

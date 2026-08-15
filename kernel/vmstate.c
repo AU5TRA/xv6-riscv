@@ -115,4 +115,5 @@ vmstate_snapshot(struct proc *p, struct vmstats *out)
   out->queued_prefetch = p->vm.queued_prefetch;
   out->inflight_io = p->vm.inflight_io;
   release(&p->vm.lock);
+  out->free_swap_slots = swap_free_slots();
 }

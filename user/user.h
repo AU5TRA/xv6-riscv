@@ -30,6 +30,7 @@ int vmctl(int, uint64);
 int vmstats(struct vmstats *);
 int vmcheck(void);
 int vmfailinject(int, int);
+int vmtestop(int, int);
 
 // ulib.c
 int stat(const char *, struct stat *);
