@@ -8,6 +8,8 @@
 #include "proc.h"
 #include "fs.h"
 #include "vmpage.h"
+#include "vm.h"
+#include "swap.h"
 
 /*
  * the kernel's page table.
@@ -203,8 +205,17 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
   for (a = va; a < va + npages * PGSIZE; a += PGSIZE) {
     if ((pte = walk(pagetable, a, 0)) == 0) // leaf page table entry allocated?
       continue;
-    if ((*pte & PTE_V) == 0) // has physical page been allocated?
+    if ((*pte & PTE_V) == 0){
+      if(*pte & PTE_SWAPPED){
+        if(*pte & PTE_BUSY)
+          panic("uvmunmap: busy");
+        int slot = PTE2SLOT(*pte);
+        if(swap_slot_put(slot) < 0)
+          panic("uvmunmap: swap slot");
+        *pte = 0;
+      }
       continue;
+    }
     if (do_free) {
       uint64 pa = PTE2PA(*pte);
       if(vm_frame_release(pa) < 0)
@@ -278,6 +289,8 @@ freewalk(pagetable_t pagetable)
       pagetable[i] = 0;
     } else if (pte & PTE_V) {
       panic("freewalk: leaf");
+    } else if(pte & (PTE_SWAPPED | PTE_BUSY)) {
+      panic("freewalk: swapped leaf");
     }
   }
   kfree((void *)pagetable);
@@ -313,14 +326,33 @@ uvmcopy(struct proc *oldp, struct proc *newp, pagetable_t old,
   for (i = 0; i < sz; i += PGSIZE) {
     if ((pte = walk(old, i, 0)) == 0)
       continue; // page table entry hasn't been allocated
-    if ((*pte & PTE_V) == 0)
-      continue; // physical page hasn't been allocated
+    if ((*pte & PTE_V) == 0){
+      if(*pte & PTE_BUSY)
+        goto err;
+      if(*pte & PTE_SWAPPED){
+        int slot = PTE2SLOT(*pte);
+        if(swap_slot_get(slot) < 0)
+          goto err;
+        pte_t *childpte = walk(new, i, 1);
+        if(childpte == 0 || *childpte != 0){
+          swap_slot_put(slot);
+          goto err;
+        }
+        *childpte = *pte;
+      }
+      continue;
+    }
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if (vm_frame_acquire(newp, new, i, VM_FRAME_CONSTRUCTION, &mem) !=
-        VM_FRAME_OK)
+    if(vm_frame_pin(pa) < 0)
       goto err;
+    if (vm_frame_acquire(newp, new, i, VM_FRAME_CONSTRUCTION, &mem) !=
+        VM_FRAME_OK){
+      vm_frame_unpin(pa);
+      goto err;
+    }
     memmove((void *)mem, (char *)pa, PGSIZE);
+    vm_frame_unpin(pa);
     if (mappages(new, i, PGSIZE, mem, flags) != 0) {
       vm_frame_release(mem);
       goto err;
@@ -363,7 +395,7 @@ copyout(pagetable_t pagetable, uint64 psz, uint64 dstva, char *src, uint64 len)
 
     pa0 = walkaddr(pagetable, va0);
     if (pa0 == 0) {
-      if ((pa0 = vmfault(pagetable, psz, va0, 0)) == 0) {
+      if ((pa0 = vmfault(pagetable, psz, va0, VM_ACCESS_WRITE)) == 0) {
         return -1;
       }
     }
@@ -372,6 +404,7 @@ copyout(pagetable_t pagetable, uint64 psz, uint64 dstva, char *src, uint64 len)
     // forbid copyout over read-only user text pages.
     if ((*pte & PTE_W) == 0)
       return -1;
+    *pte |= PTE_A | PTE_D;
 
     n = PGSIZE - (dstva - va0);
     if (n > len)
@@ -397,10 +430,13 @@ copyin(pagetable_t pagetable, uint64 psz, char *dst, uint64 srcva, uint64 len)
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
     if (pa0 == 0) {
-      if ((pa0 = vmfault(pagetable, psz, va0, 1)) == 0) {
+      if ((pa0 = vmfault(pagetable, psz, va0, VM_ACCESS_READ)) == 0) {
         return -1;
       }
     }
+    pte_t *pte = walk(pagetable, va0, 0);
+    if(pte)
+      *pte |= PTE_A;
     n = PGSIZE - (srcva - va0);
     if (n > len)
       n = len;
@@ -428,10 +464,13 @@ copyinstr(pagetable_t pagetable, uint64 psz, char *dst, uint64 srcva,
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
     if (pa0 == 0) {
-      if ((pa0 = vmfault(pagetable, psz, va0, 1)) == 0) {
+      if ((pa0 = vmfault(pagetable, psz, va0, VM_ACCESS_READ)) == 0) {
         return -1;
       }
     }
+    pte_t *pte = walk(pagetable, va0, 0);
+    if(pte)
+      *pte |= PTE_A;
     n = PGSIZE - (srcva - va0);
     if (n > max)
       n = max;
@@ -465,19 +504,82 @@ copyinstr(pagetable_t pagetable, uint64 psz, char *dst, uint64 srcva,
 // returns 0 if va is invalid or already mapped, or if
 // out of physical memory, and physical address if successful.
 uint64
-vmfault(pagetable_t pagetable, uint64 psz, uint64 va, int read)
+vmfault(pagetable_t pagetable, uint64 psz, uint64 va, int access)
 {
-  uint64 mem;
-
   if (va >= psz)
     return 0;
   va = PGROUNDDOWN(va);
-  if (ismapped(pagetable, va)) {
+  struct proc *p = myproc();
+  if(p == 0)
+    return 0;
+
+retry:
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte && (*pte & PTE_V)){
+    acquire(&p->vm.lock);
+    p->vm.stats.protection_faults++;
+    release(&p->vm.lock);
     return 0;
   }
-  struct proc *p = myproc();
-  if(p == 0 || vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) !=
-     VM_FRAME_OK)
+
+  if(pte && (*pte & PTE_SWAPPED)){
+    if(*pte & PTE_BUSY){
+      sleep_prepare(pte);
+      sleep();
+      goto retry;
+    }
+    uint flags = PTE_FLAGS(*pte) & ~(PTE_V | PTE_SWAPPED | PTE_BUSY);
+    int allowed = (flags & PTE_U) &&
+      ((access == VM_ACCESS_READ && (flags & PTE_R)) ||
+       (access == VM_ACCESS_WRITE && (flags & PTE_W)) ||
+       (access == VM_ACCESS_EXEC && (flags & PTE_X)));
+    if(!allowed){
+      acquire(&p->vm.lock);
+      p->vm.stats.protection_faults++;
+      release(&p->vm.lock);
+      return 0;
+    }
+    int slot = PTE2SLOT(*pte);
+    *pte |= PTE_BUSY;
+    uint64 mem;
+    if(vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) !=
+       VM_FRAME_OK){
+      *pte &= ~PTE_BUSY;
+      wakeup(pte);
+      return 0;
+    }
+    if(swap_page_read(slot, mem) < 0){
+      vm_frame_release(mem);
+      *pte = SLOT2PTE(slot) | flags | PTE_SWAPPED;
+      wakeup(pte);
+      return 0;
+    }
+    if((*pte & (PTE_SWAPPED | PTE_BUSY)) !=
+       (PTE_SWAPPED | PTE_BUSY) || PTE2SLOT(*pte) != slot){
+      vm_frame_release(mem);
+      wakeup(pte);
+      return 0;
+    }
+    uint accessed = PTE_A;
+    if(access == VM_ACCESS_WRITE)
+      accessed |= PTE_D;
+    *pte = PA2PTE(mem) | flags | accessed | PTE_V;
+    sfence_vma();
+    swap_slot_put(slot);
+    vm_frame_unpin(mem);
+    acquire(&p->vm.lock);
+    p->vm.stats.swap_faults++;
+    release(&p->vm.lock);
+    wakeup(pte);
+    return mem;
+  }
+
+  if(pte && *pte != 0)
+    return 0;
+  if(access == VM_ACCESS_EXEC)
+    return 0;
+  uint64 mem;
+  if(vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) != VM_FRAME_OK)
     return 0;
   memset((void *)mem, 0, PGSIZE);
   if (mappages(pagetable, va, PGSIZE, mem, PTE_W | PTE_U | PTE_R) != 0) {
@@ -485,6 +587,9 @@ vmfault(pagetable_t pagetable, uint64 psz, uint64 va, int read)
     return 0;
   }
   vm_frame_unpin(mem);
+  pte = walk(pagetable, va, 0);
+  if(pte)
+    *pte |= PTE_A | (access == VM_ACCESS_WRITE ? PTE_D : 0);
   acquire(&p->vm.lock);
   p->vm.stats.zero_faults++;
   release(&p->vm.lock);

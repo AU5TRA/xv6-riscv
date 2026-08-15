@@ -46,5 +46,6 @@ int vm_frame_pin(uint64);
 int vm_frame_unpin(uint64);
 int vm_frame_is_candidate(struct proc *, uint64);
 int vmpage_debug_test(int);
+int vm_reclaim_to_limit(struct proc *);
 
 #endif

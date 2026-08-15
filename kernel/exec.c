@@ -35,6 +35,8 @@ kexec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
+  uint64 saved_limit = VM_LIMIT_UNLIMITED;
+  int limit_relaxed = 0;
 
   begin_op();
 
@@ -55,6 +57,12 @@ kexec(char *path, char **argv)
 
   if ((pagetable = proc_pagetable(p)) == 0)
     goto bad;
+
+  acquire(&p->vm.lock);
+  saved_limit = p->vm.resident_limit;
+  p->vm.resident_limit = VM_LIMIT_UNLIMITED;
+  limit_relaxed = 1;
+  release(&p->vm.lock);
 
   // Load program into memory.
   for (i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
@@ -135,14 +143,26 @@ kexec(char *path, char **argv)
   p->sz = sz;
   p->trapframe->epc = elf.entry; // initial program counter = ulib.c:start()
   p->trapframe->sp = sp;         // initial stack pointer
-  vmstate_exec_reset(p);
   proc_freepagetable(oldpagetable, oldsz);
+
+  acquire(&p->vm.lock);
+  p->vm.resident_limit = saved_limit;
+  release(&p->vm.lock);
+  limit_relaxed = 0;
+  if(vm_reclaim_to_limit(p) < 0)
+    setkilled(p);
+  vmstate_exec_reset(p);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
 bad:
   if (pagetable)
     proc_freepagetable(pagetable, sz);
+  if(limit_relaxed){
+    acquire(&p->vm.lock);
+    p->vm.resident_limit = saved_limit;
+    release(&p->vm.lock);
+  }
   if (ip) {
     iunlockput(ip);
     end_op();

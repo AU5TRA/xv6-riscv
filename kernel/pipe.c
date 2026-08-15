@@ -78,32 +78,39 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
 {
   int i = 0;
   struct proc *pr = myproc();
+  char staging[PIPESIZE];
 
-  acquire(&pi->lock);
   while (i < n) {
-    if (pi->readopen == 0 || killed(pr)) {
-      release(&pi->lock);
-      return -1;
-    }
-    if (pi->nwrite == pi->nread + PIPESIZE) { //DOC: pipewrite-full
-      wakeup(&pi->nread);
-      sleep_prepare(&pi->nwrite);
-      release(&pi->lock);
-      sleep();
-      acquire(&pi->lock);
-    } else {
-      char ch;
-      if (copyin(pr->pagetable, pr->sz, &ch, addr + i, 1) == -1) {
-        if (i == 0)
-          i = -1;
-        break;
+    int count = n - i;
+    if(count > PIPESIZE)
+      count = PIPESIZE;
+
+    // User pages can fault and perform swap I/O.  Stage them without the
+    // pipe spinlock held, then preserve the usual pipe synchronization while
+    // committing the bytes.
+    if(copyin(pr->pagetable, pr->sz, staging, addr + i, count) < 0)
+      return i == 0 ? -1 : i;
+
+    acquire(&pi->lock);
+    for(int j = 0; j < count;){
+      if (pi->readopen == 0 || killed(pr)) {
+        release(&pi->lock);
+        return -1;
       }
-      pi->data[pi->nwrite++ % PIPESIZE] = ch;
-      i++;
+      if (pi->nwrite == pi->nread + PIPESIZE) { //DOC: pipewrite-full
+        wakeup(&pi->nread);
+        sleep_prepare(&pi->nwrite);
+        release(&pi->lock);
+        sleep();
+        acquire(&pi->lock);
+      } else {
+        pi->data[pi->nwrite++ % PIPESIZE] = staging[j++];
+        i++;
+      }
     }
+    wakeup(&pi->nread);
+    release(&pi->lock);
   }
-  wakeup(&pi->nread);
-  release(&pi->lock);
 
   return i;
 }
@@ -113,7 +120,7 @@ piperead(struct pipe *pi, uint64 addr, int n)
 {
   int i;
   struct proc *pr = myproc();
-  char ch;
+  char staging[PIPESIZE];
 
   acquire(&pi->lock);
   while (pi->nread == pi->nwrite && pi->writeopen) { //DOC: pipe-empty
@@ -126,18 +133,18 @@ piperead(struct pipe *pi, uint64 addr, int n)
     sleep();
     acquire(&pi->lock);
   }
-  for (i = 0; i < n; i++) { //DOC: piperead-copy
+  for (i = 0; i < n && i < PIPESIZE; i++) { //DOC: piperead-copy
     if (pi->nread == pi->nwrite)
       break;
-    ch = pi->data[pi->nread % PIPESIZE];
-    if (copyout(pr->pagetable, pr->sz, addr + i, &ch, 1) == -1) {
-      if (i == 0)
-        i = -1;
-      break;
-    }
-    pi->nread++;
+    staging[i] = pi->data[pi->nread++ % PIPESIZE];
   }
   wakeup(&pi->nwrite); //DOC: piperead-wakeup
   release(&pi->lock);
+
+  // As with pipewrite, swapped user pages must be faulted without holding a
+  // spinlock.  The bytes have already been removed from the pipe at this
+  // point, matching an ordinary read once the copy succeeds.
+  if(i != 0 && copyout(pr->pagetable, pr->sz, addr, staging, i) < 0)
+    return -1;
   return i;
 }

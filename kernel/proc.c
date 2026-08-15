@@ -272,12 +272,19 @@ kfork(void)
 
   vmstate_inherit(np, p);
 
+  // Copying a pageable address space may swap frames in or out and therefore
+  // sleep for disk I/O.  The new process is still private (USED, with no
+  // parent), so drop its scheduler lock during the copy.
+  release(&np->lock);
+
   // Copy user memory from parent to child.
   if (uvmcopy(p, np, p->pagetable, np->pagetable, p->sz) < 0) {
+    acquire(&np->lock);
     freeproc(np);
     release(&np->lock);
     return -1;
   }
+  acquire(&np->lock);
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -392,9 +399,22 @@ kwait(uint64 addr)
         if (pp->state == ZOMBIE) {
           // Found one.
           pid = pp->pid;
-          if (addr != 0 &&
-              copyout(p->pagetable, p->sz, addr, (char *)&pp->xstate,
-                      sizeof(pp->xstate)) < 0) {
+          int xstate = pp->xstate;
+
+          // A user status pointer may currently be swapped out.  Faulting it
+          // in can sleep for disk I/O, so do not hold process-table locks
+          // around copyout.  A process has a single thread and only its
+          // parent may reap it, making this zombie stable while unlocked.
+          release(&pp->lock);
+          release(&wait_lock);
+          int copy_failed = addr != 0 &&
+            copyout(p->pagetable, p->sz, addr, (char *)&xstate,
+                    sizeof(xstate)) < 0;
+          acquire(&wait_lock);
+          acquire(&pp->lock);
+          if(pp->parent != p || pp->state != ZOMBIE || pp->pid != pid)
+            panic("wait zombie changed");
+          if(copy_failed) {
             release(&pp->lock);
             release(&wait_lock);
             return -1;
