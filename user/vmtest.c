@@ -56,6 +56,27 @@ inherit(void)
 }
 
 static int
+limit_basic(void)
+{
+  struct vmstats before, after;
+  if(vmstats(&before) < 0 || before.resident_count + 8 >
+     VM_MAX_RESIDENT_LIMIT)
+    return -1;
+  if(vmctl(VM_SET_LIMIT, before.resident_count + 8) < 0)
+    return -1;
+  char *base = sbrk(8 * 4096);
+  if(base == SBRK_ERROR || sbrk(4096) != SBRK_ERROR)
+    return -1;
+  if(vmstats(&after) < 0 || after.resident_count != before.resident_count + 8 ||
+     after.resident_count > after.resident_limit)
+    return -1;
+  if(sbrk(-8 * 4096) == SBRK_ERROR || vmstats(&after) < 0 ||
+     after.resident_count != before.resident_count)
+    return -1;
+  return vmcheck();
+}
+
+static int
 run(char *name)
 {
   if(strcmp(name, "harness") == 0)
@@ -72,6 +93,12 @@ run(char *name)
     return vmtestop(VM_TEST_SWAP_BOUNDS, 0);
   if(strcmp(name, "swap-io-error") == 0)
     return vmtestop(VM_TEST_SWAP_IO_ERROR, 0);
+  if(strcmp(name, "limit-basic") == 0)
+    return limit_basic();
+  if(strcmp(name, "pin") == 0)
+    return vmtestop(VM_TEST_FRAME_PIN, 0);
+  if(strcmp(name, "metadata-reuse") == 0)
+    return vmtestop(VM_TEST_FRAME_METADATA, 0);
   if(strcmp(name, "all") == 0){
     if(harness() < 0 || controls() < 0 || inherit() < 0)
       return -1;

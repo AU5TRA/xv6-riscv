@@ -7,6 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
+#include "vmpage.h"
 
 /*
  * the kernel's page table.
@@ -206,7 +207,8 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       continue;
     if (do_free) {
       uint64 pa = PTE2PA(*pte);
-      kfree((void *)pa);
+      if(vm_frame_release(pa) < 0)
+        kfree((void *)pa);
     }
     *pte = 0;
   }
@@ -215,9 +217,10 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 // Allocate PTEs and physical memory to grow a process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
-uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+uvmalloc(struct proc *p, pagetable_t pagetable, uint64 oldsz, uint64 newsz,
+          int xperm)
 {
-  char *mem;
+  uint64 mem;
   uint64 a;
 
   if (newsz < oldsz)
@@ -225,18 +228,19 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 
   oldsz = PGROUNDUP(oldsz);
   for (a = oldsz; a < newsz; a += PGSIZE) {
-    mem = kalloc();
-    if (mem == 0) {
+    if(vm_frame_acquire(p, pagetable, a, VM_FRAME_CONSTRUCTION, &mem) !=
+       VM_FRAME_OK){
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
-    memset(mem, 0, PGSIZE);
-    if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) !=
+    memset((void *)mem, 0, PGSIZE);
+    if (mappages(pagetable, a, PGSIZE, mem, PTE_R | PTE_U | xperm) !=
         0) {
-      kfree(mem);
+      vm_frame_release(mem);
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
+    vm_frame_unpin(mem);
   }
   return newsz;
 }
@@ -296,12 +300,15 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
 int
-uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+uvmcopy(struct proc *oldp, struct proc *newp, pagetable_t old,
+        pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  uint64 mem;
+
+  (void)oldp;
 
   for (i = 0; i < sz; i += PGSIZE) {
     if ((pte = walk(old, i, 0)) == 0)
@@ -310,13 +317,15 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       continue; // physical page hasn't been allocated
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if ((mem = kalloc()) == 0)
+    if (vm_frame_acquire(newp, new, i, VM_FRAME_CONSTRUCTION, &mem) !=
+        VM_FRAME_OK)
       goto err;
-    memmove(mem, (char *)pa, PGSIZE);
-    if (mappages(new, i, PGSIZE, (uint64)mem, flags) != 0) {
-      kfree(mem);
+    memmove((void *)mem, (char *)pa, PGSIZE);
+    if (mappages(new, i, PGSIZE, mem, flags) != 0) {
+      vm_frame_release(mem);
       goto err;
     }
+    vm_frame_unpin(mem);
   }
   return 0;
 
@@ -466,14 +475,19 @@ vmfault(pagetable_t pagetable, uint64 psz, uint64 va, int read)
   if (ismapped(pagetable, va)) {
     return 0;
   }
-  mem = (uint64)kalloc();
-  if (mem == 0)
+  struct proc *p = myproc();
+  if(p == 0 || vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) !=
+     VM_FRAME_OK)
     return 0;
   memset((void *)mem, 0, PGSIZE);
   if (mappages(pagetable, va, PGSIZE, mem, PTE_W | PTE_U | PTE_R) != 0) {
-    kfree((void *)mem);
+    vm_frame_release(mem);
     return 0;
   }
+  vm_frame_unpin(mem);
+  acquire(&p->vm.lock);
+  p->vm.stats.zero_faults++;
+  release(&p->vm.lock);
   return mem;
 }
 

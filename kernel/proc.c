@@ -246,7 +246,7 @@ growproc(int n)
     if (sz + n > TRAPFRAME) {
       return -1;
     }
-    if ((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
+    if ((sz = uvmalloc(p, p->pagetable, sz, sz + n, PTE_W)) == 0) {
       return -1;
     }
   } else if (n < 0) {
@@ -273,7 +273,7 @@ kfork(void)
   vmstate_inherit(np, p);
 
   // Copy user memory from parent to child.
-  if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
+  if (uvmcopy(p, np, p->pagetable, np->pagetable, p->sz) < 0) {
     freeproc(np);
     release(&np->lock);
     return -1;

@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "vm.h"
 #include "vmstats.h"
+#include "vmpage.h"
 
 uint64
 sys_exit(void)
@@ -171,6 +172,8 @@ sys_vmtestop(void)
   argint(1, &argument);
   (void)argument;
 #ifdef VM_DEBUG
+  if(operation >= VM_TEST_FRAME_PIN)
+    return vmpage_debug_test(operation);
   return swap_debug_test(operation);
 #else
   return -1;

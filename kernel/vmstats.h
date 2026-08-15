@@ -21,6 +21,9 @@
 #define VM_FAIL_SWAP_WRITE 2
 #define VM_FAIL_DELAY_TICKS 3
 
+#define VM_TEST_FRAME_PIN 10
+#define VM_TEST_FRAME_METADATA 11
+
 struct vmstats {
   uint64 version;
   uint64 resident_limit;

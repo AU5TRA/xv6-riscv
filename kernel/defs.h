@@ -108,6 +108,13 @@ void            procdump(void);
 // vmpage.c
 void            vmpage_init(void);
 int             vmpage_check_proc(struct proc*);
+int             vm_frame_acquire(struct proc*, pagetable_t, uint64, int,
+                                 uint64*);
+int             vm_frame_release(uint64);
+int             vm_frame_pin(uint64);
+int             vm_frame_unpin(uint64);
+int             vm_frame_is_candidate(struct proc*, uint64);
+int             vmpage_debug_test(int);
 
 // vmstate.c
 void            vmstate_init(struct proc*);
@@ -186,9 +193,10 @@ void            kvminithart(void);
 void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
 int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
-uint64          uvmalloc(pagetable_t, uint64, uint64, int);
+uint64          uvmalloc(struct proc*, pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
-int             uvmcopy(pagetable_t, pagetable_t, uint64);
+int             uvmcopy(struct proc*, struct proc*, pagetable_t, pagetable_t,
+                        uint64);
 void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
