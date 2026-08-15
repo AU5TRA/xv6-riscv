@@ -31,6 +31,7 @@ main()
     virtio_disk_init(); // emulated hard disk
     swap_init();        // raw disk-backed paging slots
     vm_prefetch_init(); // asynchronous paging work queue
+    vmtrace_init();      // preallocated paging event ring
     userinit();         // first user process
     vm_prefetch_worker_start();
 

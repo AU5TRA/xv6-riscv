@@ -128,6 +128,11 @@ void            vm_prefetch_init(void);
 void            vm_prefetch_drain(struct proc*);
 void            vm_prefetch_worker(void) __attribute__((noreturn));
 void            vm_prefetch_worker_start(void);
+void            vmtrace_init(void);
+int             vmtrace_control(int, uint64);
+void            vmtrace_emit(struct proc*, int, uint64, int, int, uint64,
+                             uint64, int, uint64, uint64, int);
+int             vmtrace_read(struct proc*, uint64, int);
 
 // vmstate.c
 void            vmstate_init(struct proc*);

@@ -49,3 +49,4 @@ entry("vmcheck");
 entry("vmfailinject");
 entry("vmtestop");
 entry("vmprefetch");
+entry("vmtrace_read");

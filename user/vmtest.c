@@ -2,8 +2,102 @@
 #include "user/user.h"
 #include "kernel/vmstats.h"
 #include "kernel/swap.h"
+#include "kernel/vmtrace.h"
 
 static int requested_policy = VM_POLICY_FIFO;
+
+static int
+trace_schema(void)
+{
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0)
+    return -1;
+  char *output_memory = sbrklazy(3 * 4096);
+  char *fault_memory = sbrklazy(4096);
+  if(output_memory == SBRK_ERROR || fault_memory == SBRK_ERROR ||
+     vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return -1;
+  fault_memory[0] = 7;
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return -1;
+
+  // One record straddles two initially-lazy output pages. vmtrace_read must
+  // release the trace lock before copyout faults those pages in.
+  struct vmtrace_event *events = (struct vmtrace_event *)
+    (output_memory + 4096 - 80);
+  int count = vmtrace_read(events, 2);
+  int saw_fault = 0;
+  if(count != 2)
+    return -1;
+  for(int i = 0; i < count; i++){
+    if(events[i].version != VMTRACE_VERSION ||
+       events[i].size != sizeof(struct vmtrace_event) ||
+       events[i].type == 0 || events[i].type >= VMTRACE_TYPE_COUNT ||
+       (i && events[i].sequence <= events[i - 1].sequence))
+      return -1;
+    if(events[i].type == VMTRACE_ZERO_FAULT ||
+       events[i].type == VMTRACE_MAP)
+      saw_fault = 1;
+  }
+  if(!saw_fault || sbrk(-4 * 4096) == SBRK_ERROR)
+    return -1;
+  return vmcheck();
+}
+
+static int
+trace_overflow(int require_drop)
+{
+  struct vmstats before;
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0 ||
+     vmstats(&before) < 0 ||
+     vmctl(VM_SET_LIMIT, before.resident_count + 4) < 0)
+    return -1;
+  char *memory = sbrklazy(80 * 4096);
+  if(memory == SBRK_ERROR || vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return -1;
+  for(int i = 0; i < 80; i++)
+    memory[i * 4096] = i;
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return -1;
+
+  struct vmtrace_event batch[VMTRACE_READ_MAX];
+  uint64 previous = 0;
+  int total = 0;
+  int saw_drop = 0;
+  for(;;){
+    int count = vmtrace_read(batch, VMTRACE_READ_MAX);
+    if(count < 0)
+      return -1;
+    if(count == 0)
+      break;
+    total += count;
+    for(int i = 0; i < count; i++){
+      if(batch[i].sequence <= previous)
+        return -1;
+      previous = batch[i].sequence;
+      if(batch[i].type == VMTRACE_DROP && batch[i].status > 0)
+        saw_drop = 1;
+    }
+  }
+  if(total != VMTRACE_CAPACITY || (require_drop && !saw_drop) ||
+     sbrk(-80 * 4096) == SBRK_ERROR)
+    return -1;
+  return vmcheck();
+}
+
+static int
+trace_disabled(void)
+{
+  struct vmtrace_event event;
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0)
+    return -1;
+  char *memory = sbrklazy(4096);
+  if(memory == SBRK_ERROR)
+    return -1;
+  memory[0] = 1;
+  if(vmtrace_read(&event, 1) != 0 || sbrk(-4096) == SBRK_ERROR)
+    return -1;
+  return vmcheck();
+}
 
 static int
 harness(void)
@@ -604,6 +698,14 @@ run(char *name)
     return invalid_policy_fallback();
   if(strcmp(name, "dirty-writeback") == 0)
     return dirty_writeback();
+  if(strcmp(name, "trace-schema") == 0)
+    return trace_schema();
+  if(strcmp(name, "trace-wrap") == 0)
+    return trace_overflow(0);
+  if(strcmp(name, "trace-disabled") == 0)
+    return trace_disabled();
+  if(strcmp(name, "trace-drop") == 0)
+    return trace_overflow(1);
   if(strcmp(name, "all") == 0){
     if(harness() < 0 || controls() < 0 || inherit() < 0)
       return -1;

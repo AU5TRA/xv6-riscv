@@ -27,3 +27,4 @@
 #define SYS_vmfailinject 26
 #define SYS_vmtestop 27
 #define SYS_vmprefetch 28
+#define SYS_vmtrace_read 29

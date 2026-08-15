@@ -9,6 +9,8 @@
 #define VM_RESET_STATS 4
 #define VM_PREFETCH_MODE 5
 #define VM_PREFETCH_AUTOMATIC 6
+#define VM_TRACE_ENABLE 7
+#define VM_TRACE_RESET 8
 #define VM_PREFETCH_NO_HINT ((uint64)-1)
 
 #define VM_LIMIT_UNLIMITED 0

@@ -8,6 +8,7 @@
 #include "vmpage.h"
 #include "fs.h"
 #include "swap.h"
+#include "vmtrace.h"
 
 #define NPHYS_PAGES ((PHYSTOP - KERNBASE) / PGSIZE)
 
@@ -77,6 +78,10 @@ sample_page(struct vm_page *page, int clear_accessed)
     if(page->state == VM_PAGE_RESIDENT_PREFETCH){
       page->state = VM_PAGE_RESIDENT_DEMAND;
       __sync_fetch_and_add(&page->owner->vm.stats.prefetch_useful, 1);
+      vmtrace_emit(page->owner, VMTRACE_PREFETCH_USE, page->va, -1,
+                   VM_PAGE_RESIDENT_DEMAND, PTE_FLAGS(*pte),
+                   (page->pa - KERNBASE) / PGSIZE, page->backing_slot,
+                   VMTRACE_NONE, VMTRACE_NONE, 0);
     }
   }
   if(clear_accessed && accessed)
@@ -204,15 +209,28 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   int victim_backing = victim->backing_slot;
   release(&frame_table.lock);
 
+  vmtrace_emit(p, VMTRACE_VICTIM_SELECTED, newva, -1, victim_state,
+               VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+               victimva, VMTRACE_NONE, 0);
+  vmtrace_emit(p, VMTRACE_EVICT_BEGIN, victimva, -1, victim_state,
+               VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+               victimva, VMTRACE_NONE, 0);
+
   if(fallback){
     acquire(&p->vm.lock);
     p->vm.stats.policy_fallbacks++;
     release(&p->vm.lock);
+    vmtrace_emit(p, VMTRACE_POLICY_FALLBACK, newva, -1, victim_state,
+                 VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+                 victimva, VMTRACE_NONE, 0);
   }
   if(wasted_prefetch){
     acquire(&p->vm.lock);
     p->vm.stats.prefetch_wasted++;
     release(&p->vm.lock);
+    vmtrace_emit(p, VMTRACE_PREFETCH_WASTE, victimva, -1, victim_state,
+                 VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+                 VMTRACE_NONE, VMTRACE_NONE, 0);
   }
 
   pte_t *pte = walk(victimpt, victimva, 0);
@@ -233,7 +251,14 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   }
   uint flags = PTE_FLAGS(*pte) &
     ~(PTE_V | PTE_SWAPPED | PTE_BUSY | PTE_A | PTE_D);
+  if(new_slot)
+    vmtrace_emit(p, VMTRACE_SWAP_WRITE_BEGIN, victimva, -1, victim_state,
+                 flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 VMTRACE_NONE, 0);
   if(new_slot && swap_page_write(slot, pa) < 0){
+    vmtrace_emit(p, VMTRACE_SWAP_WRITE_END, victimva, -1, victim_state,
+                 flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 VMTRACE_NONE, -1);
     swap_slot_put(slot);
     acquire(&frame_table.lock);
     victim = page_for_pa(pa);
@@ -243,6 +268,10 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
+  if(new_slot)
+    vmtrace_emit(p, VMTRACE_SWAP_WRITE_END, victimva, -1, victim_state,
+                 flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 VMTRACE_NONE, 0);
 
   acquire(&frame_table.lock);
   victim = page_for_pa(pa);
@@ -261,6 +290,8 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   setup_page(victim, p, newpt, newva, purpose);
   release(&frame_table.lock);
   sfence_vma();
+  vmtrace_emit(p, VMTRACE_EVICT_END, victimva, -1, victim_state, flags,
+               (pa - KERNBASE) / PGSIZE, slot, newva, VMTRACE_NONE, 0);
 
   // A clean page transfers its retained backing reference to the swapped
   // PTE.  A dirty page receives a private slot, so release its old immutable
@@ -402,6 +433,8 @@ void
 vm_frame_note_access(uint64 pa, int dirty)
 {
   struct proc *owner = 0;
+  uint64 useful_va = VMTRACE_NONE;
+  int useful_slot = -1;
   acquire(&frame_table.lock);
   struct vm_page *page = page_for_pa(pa);
   if(page && page->owner){
@@ -412,6 +445,8 @@ vm_frame_note_access(uint64 pa, int dirty)
     if(page->state == VM_PAGE_RESIDENT_PREFETCH){
       page->state = VM_PAGE_RESIDENT_DEMAND;
       owner = page->owner;
+      useful_va = page->va;
+      useful_slot = page->backing_slot;
     }
   }
   release(&frame_table.lock);
@@ -419,6 +454,10 @@ vm_frame_note_access(uint64 pa, int dirty)
     acquire(&owner->vm.lock);
     owner->vm.stats.prefetch_useful++;
     release(&owner->vm.lock);
+    vmtrace_emit(owner, VMTRACE_PREFETCH_USE, useful_va, -1,
+                 VM_PAGE_RESIDENT_DEMAND, VMTRACE_NONE,
+                 (pa - KERNBASE) / PGSIZE, useful_slot, VMTRACE_NONE,
+                 VMTRACE_NONE, dirty);
   }
 }
 

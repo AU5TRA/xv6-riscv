@@ -109,6 +109,7 @@ extern uint64 sys_vmcheck(void);
 extern uint64 sys_vmfailinject(void);
 extern uint64 sys_vmtestop(void);
 extern uint64 sys_vmprefetch(void);
+extern uint64 sys_vmtrace_read(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -142,6 +143,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_vmfailinject] sys_vmfailinject,
   [SYS_vmtestop] sys_vmtestop,
   [SYS_vmprefetch] sys_vmprefetch,
+  [SYS_vmtrace_read] sys_vmtrace_read,
   // clang-format on
 };
 

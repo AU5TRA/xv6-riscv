@@ -8,6 +8,7 @@
 #include "vmpage.h"
 #include "prefetch.h"
 #include "swap.h"
+#include "vmtrace.h"
 
 #define VM_ASYNC_REQUESTS 16
 
@@ -53,8 +54,9 @@ prefetch_stat(struct proc *p, uint64 *counter)
 int
 vm_prefetch_hint(struct proc *p, uint64 va, int source)
 {
-  (void)source;
   va = PGROUNDDOWN(va);
+  vmtrace_emit(p, VMTRACE_PREFETCH_HINT, va, source, -1, VMTRACE_NONE,
+               VMTRACE_NONE, -1, VMTRACE_NONE, VMTRACE_NONE, 0);
   acquire(&p->vm.lock);
   p->vm.stats.prefetch_hints++;
   if(!p->vm.prefetch_enabled || p->vm.exiting || va >= p->sz){
@@ -92,10 +94,13 @@ vm_prefetch_hint(struct proc *p, uint64 va, int source)
   request->pagetable = p->pagetable;
   request->generation = p->vm.generation;
   request->request_id = p->vm.next_prefetch_id++;
+  uint64 request_id = request->request_id;
   p->vm.prefetch_count++;
   p->vm.queued_prefetch = p->vm.prefetch_count;
   p->vm.stats.prefetch_accepted++;
   release(&p->vm.lock);
+  vmtrace_emit(p, VMTRACE_PREFETCH_QUEUE, va, source, -1, VMTRACE_NONE,
+               VMTRACE_NONE, -1, VMTRACE_NONE, request_id, 0);
   return 0;
 }
 
@@ -141,7 +146,15 @@ prefetch_one(struct proc *p, struct vm_prefetch_request *request)
     release(&p->vm.lock);
     return -1;
   }
+  vmtrace_emit(p, VMTRACE_PREFETCH_BEGIN, request->va, -1,
+               VM_PAGE_RESIDENT_PREFETCH, flags,
+               (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+               request->request_id, 0);
   if(swap_page_read(slot, pa) < 0){
+    vmtrace_emit(p, VMTRACE_PREFETCH_END, request->va, -1,
+                 VM_PAGE_RESIDENT_PREFETCH, flags,
+                 (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 request->request_id, -1);
     vm_frame_release(pa);
     *pte = SLOT2PTE(slot) | flags | PTE_SWAPPED;
     wakeup(pte);
@@ -173,6 +186,10 @@ prefetch_one(struct proc *p, struct vm_prefetch_request *request)
   p->vm.stats.prefetch_completed++;
   p->vm.inflight_io--;
   release(&p->vm.lock);
+  vmtrace_emit(p, VMTRACE_PREFETCH_END, request->va, -1,
+               VM_PAGE_RESIDENT_PREFETCH, flags,
+               (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+               request->request_id, 0);
   return 0;
 }
 
@@ -240,6 +257,10 @@ prefetch_async_one(struct proc *p, struct vm_prefetch_request *request)
   p->vm.stats.prefetch_issued++;
   p->vm.inflight_io++;
   release(&p->vm.lock);
+  vmtrace_emit(p, VMTRACE_PREFETCH_QUEUE, request->va, -1,
+               VM_PAGE_RESIDENT_PREFETCH, flags,
+               (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+               request->request_id, 0);
   wakeup(&async_queue);
   return 0;
 }
@@ -304,9 +325,12 @@ vm_prefetch_cancel_range(struct proc *p, pagetable_t pagetable, uint64 start,
     uint index = (p->vm.prefetch_head + i) % VM_PREFETCH_QUEUE_SIZE;
     struct vm_prefetch_request request = p->vm.prefetch_queue[index];
     if(request.pagetable == pagetable && request.va >= start &&
-       request.va < end)
+       request.va < end){
       p->vm.stats.prefetch_canceled++;
-    else
+      vmtrace_emit(p, VMTRACE_PREFETCH_CANCEL, request.va, -1, -1,
+                   VMTRACE_NONE, VMTRACE_NONE, -1, VMTRACE_NONE,
+                   request.request_id, 0);
+    } else
       kept[kept_count++] = request;
   }
   for(uint i = 0; i < kept_count; i++)
@@ -368,6 +392,11 @@ vm_prefetch_worker(void)
     struct async_prefetch request = async_queue.requests[index];
     release(&async_queue.lock);
 
+    vmtrace_emit(request.owner, VMTRACE_PREFETCH_BEGIN, request.va, -1,
+                 VM_PAGE_RESIDENT_PREFETCH, request.flags,
+                 (request.pa - KERNBASE) / PGSIZE, request.slot,
+                 VMTRACE_NONE, request.request_id, 0);
+
     int io_result = request.canceled ? -1 :
       swap_page_read(request.slot, request.pa);
 
@@ -390,6 +419,10 @@ vm_prefetch_worker(void)
         panic("async prefetch backing");
       vm_frame_unpin(request.pa);
       prefetch_stat(p, &p->vm.stats.prefetch_completed);
+      vmtrace_emit(p, VMTRACE_PREFETCH_END, request.va, -1,
+                   VM_PAGE_RESIDENT_PREFETCH, request.flags,
+                   (request.pa - KERNBASE) / PGSIZE, request.slot,
+                   VMTRACE_NONE, request.request_id, 0);
     } else {
       if(pte_matches)
         *request.pte = SLOT2PTE(request.slot) | request.flags | PTE_SWAPPED;
@@ -398,6 +431,11 @@ vm_prefetch_worker(void)
         prefetch_stat(p, &p->vm.stats.prefetch_read_errors);
       else
         prefetch_stat(p, &p->vm.stats.prefetch_canceled);
+      vmtrace_emit(p, canceled ? VMTRACE_PREFETCH_CANCEL :
+                   VMTRACE_PREFETCH_END, request.va, -1,
+                   VM_PAGE_RESIDENT_PREFETCH, request.flags,
+                   (request.pa - KERNBASE) / PGSIZE, request.slot,
+                   VMTRACE_NONE, request.request_id, -1);
     }
     if(request.pte)
       wakeup(request.pte);

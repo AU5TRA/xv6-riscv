@@ -197,3 +197,13 @@ sys_vmprefetch(void)
     return -1;
   return completed;
 }
+
+uint64
+sys_vmtrace_read(void)
+{
+  uint64 destination;
+  int maximum;
+  argaddr(0, &destination);
+  argint(1, &maximum);
+  return vmtrace_read(myproc(), destination, maximum);
+}

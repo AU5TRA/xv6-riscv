@@ -124,6 +124,10 @@ vmstate_ctl(struct proc *p, int command, uint64 value)
     else
       p->vm.prefetch_automatic = value;
     break;
+  case VM_TRACE_ENABLE:
+  case VM_TRACE_RESET:
+    result = vmtrace_control(command, value);
+    break;
   default:
     result = -1;
     break;

@@ -10,6 +10,7 @@
 #include "vmpage.h"
 #include "vm.h"
 #include "swap.h"
+#include "vmtrace.h"
 
 /*
  * the kernel's page table.
@@ -210,18 +211,29 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
         if(*pte & PTE_BUSY)
           panic("uvmunmap: busy");
         int slot = PTE2SLOT(*pte);
+        uint64 flags = PTE_FLAGS(*pte);
         if(swap_slot_put(slot) < 0)
           panic("uvmunmap: swap slot");
         *pte = 0;
+        struct proc *tracep = myproc();
+        if(tracep && tracep->pagetable == pagetable)
+          vmtrace_emit(tracep, VMTRACE_UNMAP, a, -1, -1, flags,
+                       VMTRACE_NONE, slot, VMTRACE_NONE, VMTRACE_NONE, 0);
       }
       continue;
     }
+    uint64 flags = PTE_FLAGS(*pte);
+    uint64 pa = PTE2PA(*pte);
     if (do_free) {
-      uint64 pa = PTE2PA(*pte);
       if(vm_frame_release(pa) < 0)
         kfree((void *)pa);
     }
     *pte = 0;
+    struct proc *tracep = myproc();
+    if(tracep && tracep->pagetable == pagetable)
+      vmtrace_emit(tracep, VMTRACE_UNMAP, a, -1, -1, flags,
+                   (pa - KERNBASE) / PGSIZE, -1, VMTRACE_NONE,
+                   VMTRACE_NONE, 0);
   }
 }
 
@@ -535,6 +547,9 @@ retry:
     acquire(&p->vm.lock);
     p->vm.stats.protection_faults++;
     release(&p->vm.lock);
+    vmtrace_emit(p, VMTRACE_PROTECTION_FAULT, va, access, -1,
+                 PTE_FLAGS(*pte), (PTE2PA(*pte) - KERNBASE) / PGSIZE, -1,
+                 VMTRACE_NONE, VMTRACE_NONE, -1);
     return 0;
   }
 
@@ -557,9 +572,14 @@ retry:
       acquire(&p->vm.lock);
       p->vm.stats.protection_faults++;
       release(&p->vm.lock);
+      vmtrace_emit(p, VMTRACE_PROTECTION_FAULT, va, access, -1, flags,
+                   VMTRACE_NONE, PTE2SLOT(*pte), VMTRACE_NONE,
+                   VMTRACE_NONE, -1);
       return 0;
     }
     int slot = PTE2SLOT(*pte);
+    vmtrace_emit(p, VMTRACE_SWAP_FAULT, va, access, -1, flags,
+                 VMTRACE_NONE, slot, VMTRACE_NONE, VMTRACE_NONE, 0);
     *pte |= PTE_BUSY;
     uint64 mem;
     while(vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) !=
@@ -585,12 +605,21 @@ retry:
       else
         wakeup(&p->vm.inflight_io);
     }
+    vmtrace_emit(p, VMTRACE_SWAP_READ_BEGIN, va, access, -1, flags,
+                 (mem - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 VMTRACE_NONE, 0);
     if(swap_page_read(slot, mem) < 0){
+      vmtrace_emit(p, VMTRACE_SWAP_READ_END, va, access, -1, flags,
+                   (mem - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                   VMTRACE_NONE, -1);
       vm_frame_release(mem);
       *pte = SLOT2PTE(slot) | flags | PTE_SWAPPED;
       wakeup(pte);
       return 0;
     }
+    vmtrace_emit(p, VMTRACE_SWAP_READ_END, va, access, -1, flags,
+                 (mem - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 VMTRACE_NONE, 0);
     if((*pte & (PTE_SWAPPED | PTE_BUSY)) !=
        (PTE_SWAPPED | PTE_BUSY) || PTE2SLOT(*pte) != slot){
       vm_frame_release(mem);
@@ -605,6 +634,9 @@ retry:
     if(vm_frame_set_backing(mem, slot) < 0)
       panic("vmfault backing");
     vm_frame_unpin(mem);
+    vmtrace_emit(p, VMTRACE_MAP, va, access, VM_PAGE_RESIDENT_DEMAND, flags,
+                 (mem - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 VMTRACE_NONE, 0);
     acquire(&p->vm.lock);
     p->vm.stats.swap_faults++;
     int predict_next = p->vm.prefetch_enabled && p->vm.prefetch_automatic &&
@@ -619,8 +651,11 @@ retry:
 
   if(pte && *pte != 0)
     return 0;
-  if(access == VM_ACCESS_EXEC)
+  if(access == VM_ACCESS_EXEC){
+    vmtrace_emit(p, VMTRACE_PROTECTION_FAULT, va, access, -1, 0,
+                 VMTRACE_NONE, -1, VMTRACE_NONE, VMTRACE_NONE, -1);
     return 0;
+  }
   uint64 mem;
   if(vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) != VM_FRAME_OK)
     return 0;
@@ -636,6 +671,13 @@ retry:
   acquire(&p->vm.lock);
   p->vm.stats.zero_faults++;
   release(&p->vm.lock);
+  vmtrace_emit(p, VMTRACE_ZERO_FAULT, va, access,
+               VM_PAGE_RESIDENT_DEMAND, PTE_W | PTE_U | PTE_R,
+               (mem - KERNBASE) / PGSIZE, -1, VMTRACE_NONE,
+               VMTRACE_NONE, 0);
+  vmtrace_emit(p, VMTRACE_MAP, va, access, VM_PAGE_RESIDENT_DEMAND,
+               PTE_W | PTE_U | PTE_R, (mem - KERNBASE) / PGSIZE, -1,
+               VMTRACE_NONE, VMTRACE_NONE, 0);
   return mem;
 }
 
