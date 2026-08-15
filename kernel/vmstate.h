@@ -13,6 +13,10 @@ struct vmstate {
   uint64 queued_prefetch;
   uint64 inflight_io;
   uint64 generation;
+  uint64 clock_hand;
+#ifdef VM_DEBUG
+  int invalid_policy_once;
+#endif
   struct vmstats stats;
 };
 

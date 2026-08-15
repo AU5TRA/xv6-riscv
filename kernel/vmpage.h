@@ -44,6 +44,7 @@ int vm_frame_acquire(struct proc *, pagetable_t, uint64,
 int vm_frame_release(uint64);
 int vm_frame_pin(uint64);
 int vm_frame_unpin(uint64);
+int vm_frame_set_backing(uint64, int);
 int vm_frame_is_candidate(struct proc *, uint64);
 int vmpage_debug_test(int);
 int vm_reclaim_to_limit(struct proc *);

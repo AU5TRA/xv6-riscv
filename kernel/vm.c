@@ -565,7 +565,8 @@ retry:
       accessed |= PTE_D;
     *pte = PA2PTE(mem) | flags | accessed | PTE_V;
     sfence_vma();
-    swap_slot_put(slot);
+    if(vm_frame_set_backing(mem, slot) < 0)
+      panic("vmfault backing");
     vm_frame_unpin(mem);
     acquire(&p->vm.lock);
     p->vm.stats.swap_faults++;

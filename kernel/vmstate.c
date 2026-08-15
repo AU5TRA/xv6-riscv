@@ -35,6 +35,10 @@ vmstate_reset(struct proc *p)
   p->vm.exiting = 0;
   p->vm.queued_prefetch = 0;
   p->vm.inflight_io = 0;
+  p->vm.clock_hand = 0;
+#ifdef VM_DEBUG
+  p->vm.invalid_policy_once = 0;
+#endif
   p->vm.generation++;
   clear_stats(&p->vm);
   release(&p->vm.lock);
@@ -48,6 +52,7 @@ vmstate_inherit(struct proc *child, struct proc *parent)
   child->vm.resident_limit = parent->vm.resident_limit;
   child->vm.policy = parent->vm.policy;
   child->vm.prefetch_enabled = parent->vm.prefetch_enabled;
+  child->vm.clock_hand = 0;
   clear_stats(&child->vm);
   release(&child->vm.lock);
   release(&parent->vm.lock);

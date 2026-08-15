@@ -24,6 +24,7 @@
 
 #define VM_TEST_FRAME_PIN 10
 #define VM_TEST_FRAME_METADATA 11
+#define VM_TEST_POLICY_INVALID 12
 
 struct vmstats {
   uint64 version;

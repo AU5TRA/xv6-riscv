@@ -14,6 +14,7 @@
 static struct {
   struct spinlock lock;
   struct vm_page pages[NPHYS_PAGES];
+  struct vm_page *candidates[NPHYS_PAGES];
 } frame_table;
 
 static uint64 load_sequence;
@@ -50,6 +51,122 @@ setup_page(struct vm_page *page, struct proc *p, pagetable_t pagetable,
   page->pin_count = 1;
   page->busy = purpose == VM_FRAME_CONSTRUCTION;
   page->load_sequence = ++load_sequence;
+  page->aging_counter = 0xff;
+}
+
+static int
+page_is_candidate(struct proc *p, struct vm_page *page)
+{
+  return page->owner == p && page->pin_count == 0 && page->busy == 0 &&
+    (page->state == VM_PAGE_RESIDENT_DEMAND ||
+     page->state == VM_PAGE_RESIDENT_PREFETCH);
+}
+
+static int
+sample_page(struct vm_page *page, int clear_accessed)
+{
+  pte_t *pte = walk(page->pagetable, page->va, 0);
+  if(pte == 0 || (*pte & PTE_V) == 0 || PTE2PA(*pte) != page->pa)
+    return 0;
+  int accessed = (*pte & PTE_A) != 0;
+  page->referenced_sample = accessed;
+  page->dirty_sample = (*pte & PTE_D) != 0;
+  if(accessed){
+    page->frequency++;
+    page->last_access_epoch = load_sequence;
+  }
+  if(clear_accessed && accessed)
+    *pte &= ~PTE_A;
+  return accessed;
+}
+
+static struct vm_page *
+choose_fifo(struct vm_page **candidates, int count)
+{
+  struct vm_page *victim = 0;
+  uint64 oldest = (uint64)-1;
+  for(int i = 0; i < count; i++)
+    if(candidates[i]->load_sequence < oldest){
+      victim = candidates[i];
+      oldest = candidates[i]->load_sequence;
+    }
+  return victim;
+}
+
+static struct vm_page *
+choose_clock(struct proc *p, struct vm_page **candidates, int count)
+{
+  if(count == 0)
+    return 0;
+  int cleared = 0;
+  for(int scanned = 0; scanned < count * 2; scanned++){
+    int index = p->vm.clock_hand++ % count;
+    struct vm_page *page = candidates[index];
+    if(!sample_page(page, 1)){
+      if(cleared)
+        sfence_vma();
+      return page;
+    }
+    cleared = 1;
+  }
+  if(cleared)
+    sfence_vma();
+  return candidates[p->vm.clock_hand++ % count];
+}
+
+static struct vm_page *
+choose_aging(struct vm_page **candidates, int count)
+{
+  struct vm_page *victim = 0;
+  int cleared = 0;
+  for(int i = 0; i < count; i++){
+    struct vm_page *page = candidates[i];
+    int accessed = sample_page(page, 1);
+    cleared |= accessed;
+    page->aging_counter = (page->aging_counter >> 1) |
+      (accessed ? 0x80 : 0);
+    if(victim == 0 || page->aging_counter < victim->aging_counter ||
+       (page->aging_counter == victim->aging_counter &&
+        page->load_sequence < victim->load_sequence))
+      victim = page;
+  }
+  if(cleared)
+    sfence_vma();
+  return victim;
+}
+
+static struct vm_page *
+choose_policy_victim(struct proc *p, int count, int *fallback)
+{
+  if(count == 0)
+    return 0;
+  struct vm_page *victim;
+#ifdef VM_DEBUG
+  if(p->vm.invalid_policy_once){
+    p->vm.invalid_policy_once = 0;
+    victim = (struct vm_page *)1;
+  } else
+#endif
+  if(p->vm.policy == VM_POLICY_FIFO)
+    victim = choose_fifo(frame_table.candidates, count);
+  else if(p->vm.policy == VM_POLICY_CLOCK)
+    victim = choose_clock(p, frame_table.candidates, count);
+  else if(p->vm.policy == VM_POLICY_AGING)
+    victim = choose_aging(frame_table.candidates, count);
+  else
+    victim = 0;
+
+  int valid = 0;
+  for(int i = 0; i < count; i++)
+    if(victim == frame_table.candidates[i] && page_is_candidate(p, victim)){
+      valid = 1;
+      break;
+    }
+  if(!valid){
+    *fallback = 1;
+    victim = choose_clock(p, frame_table.candidates, count);
+  }
+  return victim;
 }
 
 static int
@@ -57,53 +174,61 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
               uint64 *result)
 {
   struct vm_page *victim = 0;
-  uint64 oldest = (uint64)-1;
+  int fallback = 0;
 
   acquire(&frame_table.lock);
+  int candidate_count = 0;
   for(uint64 i = 0; i < NPHYS_PAGES; i++){
     struct vm_page *candidate = &frame_table.pages[i];
-    if(candidate->owner == p && candidate->pin_count == 0 &&
-       candidate->busy == 0 &&
-       (candidate->state == VM_PAGE_RESIDENT_DEMAND ||
-        candidate->state == VM_PAGE_RESIDENT_PREFETCH) &&
-       candidate->load_sequence < oldest){
-      victim = candidate;
-      oldest = candidate->load_sequence;
-    }
+    if(page_is_candidate(p, candidate))
+      frame_table.candidates[candidate_count++] = candidate;
   }
+  victim = choose_policy_victim(p, candidate_count, &fallback);
   if(victim == 0){
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
+  enum vm_page_state victim_state = victim->state;
   victim->busy = 1;
   victim->state = VM_PAGE_EVICTING;
   victim->pin_count = 1;
   uint64 pa = victim->pa;
   uint64 victimva = victim->va;
   pagetable_t victimpt = victim->pagetable;
+  int victim_backing = victim->backing_slot;
   release(&frame_table.lock);
 
-  int slot = swap_slot_alloc();
+  if(fallback){
+    acquire(&p->vm.lock);
+    p->vm.stats.policy_fallbacks++;
+    release(&p->vm.lock);
+  }
+
   pte_t *pte = walk(victimpt, victimva, 0);
+  int clean_backing = victim_backing >= 0 && swap_slot_valid(victim_backing) &&
+    pte != 0 && (*pte & PTE_D) == 0;
+  int slot = clean_backing ? victim_backing : swap_slot_alloc();
+  int new_slot = !clean_backing;
   if(slot < 0 || pte == 0 || (*pte & PTE_V) == 0 || PTE2PA(*pte) != pa){
-    if(slot >= 0)
+    if(new_slot && slot >= 0)
       swap_slot_put(slot);
     acquire(&frame_table.lock);
     victim = page_for_pa(pa);
     victim->busy = 0;
     victim->pin_count = 0;
-    victim->state = VM_PAGE_RESIDENT_DEMAND;
+    victim->state = victim_state;
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
-  uint flags = PTE_FLAGS(*pte) & ~(PTE_V | PTE_SWAPPED | PTE_BUSY);
-  if(swap_page_write(slot, pa) < 0){
+  uint flags = PTE_FLAGS(*pte) &
+    ~(PTE_V | PTE_SWAPPED | PTE_BUSY | PTE_A | PTE_D);
+  if(new_slot && swap_page_write(slot, pa) < 0){
     swap_slot_put(slot);
     acquire(&frame_table.lock);
     victim = page_for_pa(pa);
     victim->busy = 0;
     victim->pin_count = 0;
-    victim->state = VM_PAGE_RESIDENT_DEMAND;
+    victim->state = victim_state;
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
@@ -115,15 +240,22 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
      pte == 0 || (*pte & PTE_V) == 0 || PTE2PA(*pte) != pa){
     victim->busy = 0;
     victim->pin_count = 0;
-    victim->state = VM_PAGE_RESIDENT_DEMAND;
+    victim->state = victim_state;
     release(&frame_table.lock);
-    swap_slot_put(slot);
+    if(new_slot)
+      swap_slot_put(slot);
     return VM_FRAME_ERROR;
   }
   *pte = SLOT2PTE(slot) | flags | PTE_SWAPPED;
   setup_page(victim, p, newpt, newva, purpose);
   release(&frame_table.lock);
   sfence_vma();
+
+  // A clean page transfers its retained backing reference to the swapped
+  // PTE.  A dirty page receives a private slot, so release its old immutable
+  // backing only after the new PTE is committed.
+  if(new_slot && victim_backing >= 0)
+    swap_slot_put(victim_backing);
 
   acquire(&p->vm.lock);
   p->vm.stats.evictions++;
@@ -185,6 +317,7 @@ int
 vm_frame_release(uint64 pa)
 {
   struct proc *owner;
+  int backing_slot;
 
   acquire(&frame_table.lock);
   struct vm_page *page = page_for_pa(pa);
@@ -193,6 +326,7 @@ vm_frame_release(uint64 pa)
     return -1;
   }
   owner = page->owner;
+  backing_slot = page->backing_slot;
   clear_page(page);
   release(&frame_table.lock);
 
@@ -201,6 +335,8 @@ vm_frame_release(uint64 pa)
     panic("vm_frame_release count");
   owner->vm.resident_count--;
   release(&owner->vm.lock);
+  if(backing_slot >= 0 && swap_slot_put(backing_slot) < 0)
+    panic("vm_frame_release backing");
   kfree((void *)pa);
   return 0;
 }
@@ -231,6 +367,22 @@ vm_frame_unpin(uint64 pa)
   page->pin_count--;
   if(page->pin_count == 0)
     page->busy = 0;
+  release(&frame_table.lock);
+  return 0;
+}
+
+int
+vm_frame_set_backing(uint64 pa, int slot)
+{
+  if(!swap_slot_valid(slot))
+    return -1;
+  acquire(&frame_table.lock);
+  struct vm_page *page = page_for_pa(pa);
+  if(page == 0 || page->owner == 0 || page->backing_slot >= 0){
+    release(&frame_table.lock);
+    return -1;
+  }
+  page->backing_slot = slot;
   release(&frame_table.lock);
   return 0;
 }
@@ -272,6 +424,12 @@ vmpage_debug_test(int operation)
 {
 #ifdef VM_DEBUG
   struct proc *p = myproc();
+  if(operation == VM_TEST_POLICY_INVALID){
+    acquire(&p->vm.lock);
+    p->vm.invalid_policy_once = 1;
+    release(&p->vm.lock);
+    return 0;
+  }
   uint64 pa;
   uint64 va = PGROUNDUP(p->sz);
   if(vm_frame_acquire(p, p->pagetable, va, VM_FRAME_DEMAND, &pa) !=

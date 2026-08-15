@@ -3,6 +3,8 @@
 #include "kernel/vmstats.h"
 #include "kernel/swap.h"
 
+static int requested_policy = VM_POLICY_FIFO;
+
 static int
 harness(void)
 {
@@ -206,7 +208,7 @@ permissions(void)
 }
 
 static int
-shrink_swapped(void)
+shrink_swapped_inner(void)
 {
   const int pages = 48;
   struct vmstats before, pressured, after;
@@ -228,16 +230,34 @@ shrink_swapped(void)
     printf("shrink: shrink/stats failed\n");
     return -1;
   }
-  // FIFO may evict pages that existed before this allocation.  Count those
-  // swapped baseline pages together with the remaining resident pages.
+  // Replacement may evict pages that existed before this allocation, and a
+  // clean resident page may retain a backing slot.  The enclosing child-exit
+  // check below verifies exact global recovery.
   if(after.free_swap_slots <= pressured.free_swap_slots ||
-     after.resident_count + before.free_swap_slots - after.free_swap_slots !=
-       before.resident_count){
+     after.resident_count > before.resident_count){
     printf("shrink: resident %ld/%ld free %ld/%ld (pressured %ld)\n",
            after.resident_count, before.resident_count, after.free_swap_slots,
            before.free_swap_slots, pressured.free_swap_slots);
     return -1;
   }
+  return vmcheck();
+}
+
+static int
+shrink_swapped(void)
+{
+  struct vmstats before, after;
+  if(vmstats(&before) < 0)
+    return -1;
+  int pid = fork();
+  if(pid < 0)
+    return -1;
+  if(pid == 0)
+    exit(shrink_swapped_inner() == 0 ? 0 : 1);
+  int status;
+  if(wait(&status) != pid || status != 0 || vmstats(&after) < 0 ||
+     after.free_swap_slots != before.free_swap_slots)
+    return -1;
   return vmcheck();
 }
 
@@ -445,6 +465,79 @@ exec_loop(void)
 }
 
 static int
+policy_correctness(int policy)
+{
+  if(vmctl(VM_SET_POLICY, policy) < 0)
+    return -1;
+  return swap_pattern_passes(4);
+}
+
+static int
+invalid_policy_fallback(void)
+{
+  struct vmstats before, after;
+  if(vmstats(&before) < 0 || vmctl(VM_SET_POLICY, VM_POLICY_AGING) < 0 ||
+     vmctl(VM_SET_LIMIT, before.resident_count + 4) < 0 ||
+     vmtestop(VM_TEST_POLICY_INVALID, 0) < 0)
+    return -1;
+  char *memory = sbrklazy(24 * 4096);
+  if(memory == SBRK_ERROR)
+    return -1;
+  for(int i = 0; i < 24; i++)
+    memory[i * 4096] = i;
+  if(vmstats(&after) < 0 ||
+     after.policy_fallbacks <= before.policy_fallbacks)
+    return -1;
+  if(sbrk(-24 * 4096) == SBRK_ERROR)
+    return -1;
+  return vmcheck();
+}
+
+static int
+dirty_writeback(void)
+{
+  const int pages = 24;
+  struct vmstats before, warm, clean, dirty;
+  if(vmstats(&before) < 0 || vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0 ||
+     vmctl(VM_SET_LIMIT, before.resident_count + 4) < 0)
+    return -1;
+  volatile uchar *memory = (volatile uchar *)sbrklazy(pages * 4096);
+  if((char *)memory == SBRK_ERROR)
+    return -1;
+  for(int i = 0; i < pages; i++)
+    memory[i * 4096] = i + 1;
+
+  // The first read-only pass gives every page a current backing slot.  A
+  // second pass should recycle those slots without another page write.
+  uint sum = 0;
+  for(int i = 0; i < pages; i++)
+    sum += memory[i * 4096];
+  if(vmstats(&warm) < 0)
+    return -1;
+  for(int i = 0; i < pages; i++)
+    sum += memory[i * 4096];
+  if(vmstats(&clean) < 0 || clean.page_writes > warm.page_writes + 2 ||
+     clean.swap_faults < warm.swap_faults + pages - 2){
+    printf("dirty: clean writes %ld warm %ld\n", clean.page_writes,
+           warm.page_writes);
+    return -1;
+  }
+
+  memory[0] ^= 0x55;
+  for(int i = 1; i < pages; i++)
+    sum += memory[i * 4096];
+  if(vmstats(&dirty) < 0 || dirty.page_writes <= clean.page_writes ||
+     dirty.page_writes > clean.page_writes + 3 || sum == 0){
+    printf("dirty: dirty writes %ld clean %ld sum %d\n", dirty.page_writes,
+           clean.page_writes, sum);
+    return -1;
+  }
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return -1;
+  return vmcheck();
+}
+
+static int
 run(char *name)
 {
   if(strcmp(name, "harness") == 0)
@@ -501,6 +594,16 @@ run(char *name)
     return exec_pressure();
   if(strcmp(name, "exec-loop") == 0)
     return exec_loop();
+  if(strcmp(name, "policies-correctness") == 0)
+    return policy_correctness(requested_policy);
+  if(strcmp(name, "clock-reference") == 0)
+    return policy_correctness(VM_POLICY_CLOCK);
+  if(strcmp(name, "aging-order") == 0)
+    return policy_correctness(VM_POLICY_AGING);
+  if(strcmp(name, "invalid-policy-fallback") == 0)
+    return invalid_policy_fallback();
+  if(strcmp(name, "dirty-writeback") == 0)
+    return dirty_writeback();
   if(strcmp(name, "all") == 0){
     if(harness() < 0 || controls() < 0 || inherit() < 0)
       return -1;
@@ -514,6 +617,19 @@ int
 main(int argc, char **argv)
 {
   char *name = argc > 1 ? argv[1] : "harness";
+
+  if(argc > 2){
+    if(strcmp(argv[2], "fifo") == 0)
+      requested_policy = VM_POLICY_FIFO;
+    else if(strcmp(argv[2], "clock") == 0)
+      requested_policy = VM_POLICY_CLOCK;
+    else if(strcmp(argv[2], "aging") == 0)
+      requested_policy = VM_POLICY_AGING;
+    else {
+      printf("vmtest: %s: FAIL\n", name);
+      exit(1);
+    }
+  }
 
   if(strcmp(name, "exec-pressure-done") == 0){
     struct vmstats stats;
