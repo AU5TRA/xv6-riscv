@@ -178,3 +178,22 @@ sys_vmtestop(void)
   return -1;
 #endif
 }
+
+uint64
+sys_vmprefetch(void)
+{
+  uint64 va;
+  int service;
+  argaddr(0, &va);
+  argint(1, &service);
+  if(service < 0 || service > VM_PREFETCH_SERVICE_ALL)
+    return -1;
+  struct proc *p = myproc();
+  int hint_result = 0;
+  if(va != VM_PREFETCH_NO_HINT)
+    hint_result = vm_prefetch_hint(p, va, 0);
+  int completed = service ? vm_prefetch_service(p, service) : 0;
+  if(hint_result < 0 && completed == 0)
+    return -1;
+  return completed;
+}

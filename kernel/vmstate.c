@@ -32,10 +32,15 @@ vmstate_reset(struct proc *p)
   p->vm.resident_count = 0;
   p->vm.policy = VM_POLICY_FIFO;
   p->vm.prefetch_enabled = 0;
+  p->vm.prefetch_async = 0;
+  p->vm.prefetch_automatic = 0;
   p->vm.exiting = 0;
   p->vm.queued_prefetch = 0;
   p->vm.inflight_io = 0;
   p->vm.clock_hand = 0;
+  p->vm.prefetch_head = 0;
+  p->vm.prefetch_count = 0;
+  p->vm.next_prefetch_id = 1;
 #ifdef VM_DEBUG
   p->vm.invalid_policy_once = 0;
 #endif
@@ -52,7 +57,12 @@ vmstate_inherit(struct proc *child, struct proc *parent)
   child->vm.resident_limit = parent->vm.resident_limit;
   child->vm.policy = parent->vm.policy;
   child->vm.prefetch_enabled = parent->vm.prefetch_enabled;
+  child->vm.prefetch_async = parent->vm.prefetch_async;
+  child->vm.prefetch_automatic = parent->vm.prefetch_automatic;
   child->vm.clock_hand = 0;
+  child->vm.prefetch_head = 0;
+  child->vm.prefetch_count = 0;
+  child->vm.next_prefetch_id = 1;
   clear_stats(&child->vm);
   release(&child->vm.lock);
   release(&parent->vm.lock);
@@ -62,6 +72,10 @@ void
 vmstate_exec_reset(struct proc *p)
 {
   acquire(&p->vm.lock);
+  p->vm.prefetch_head = 0;
+  p->vm.prefetch_count = 0;
+  p->vm.queued_prefetch = 0;
+  p->vm.inflight_io = 0;
   clear_stats(&p->vm);
   release(&p->vm.lock);
 }
@@ -98,6 +112,18 @@ vmstate_ctl(struct proc *p, int command, uint64 value)
     else
       clear_stats(&p->vm);
     break;
+  case VM_PREFETCH_MODE:
+    if(value > 1 || p->vm.inflight_io != 0 || p->vm.prefetch_count != 0)
+      result = -1;
+    else
+      p->vm.prefetch_async = value;
+    break;
+  case VM_PREFETCH_AUTOMATIC:
+    if(value > 1)
+      result = -1;
+    else
+      p->vm.prefetch_automatic = value;
+    break;
   default:
     result = -1;
     break;
@@ -116,6 +142,8 @@ vmstate_snapshot(struct proc *p, struct vmstats *out)
   out->resident_count = p->vm.resident_count;
   out->policy = p->vm.policy;
   out->prefetch_enabled = p->vm.prefetch_enabled;
+  out->prefetch_async = p->vm.prefetch_async;
+  out->prefetch_automatic = p->vm.prefetch_automatic;
   out->generation = p->vm.generation;
   out->queued_prefetch = p->vm.queued_prefetch;
   out->inflight_io = p->vm.inflight_io;

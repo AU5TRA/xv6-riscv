@@ -48,3 +48,4 @@ entry("vmstats");
 entry("vmcheck");
 entry("vmfailinject");
 entry("vmtestop");
+entry("vmprefetch");

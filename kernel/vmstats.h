@@ -1,12 +1,15 @@
 #ifndef XV6_VMSTATS_H
 #define XV6_VMSTATS_H
 
-#define VMSTATS_VERSION 1
+#define VMSTATS_VERSION 2
 
 #define VM_SET_LIMIT 1
 #define VM_SET_POLICY 2
 #define VM_PREFETCH_ENABLE 3
 #define VM_RESET_STATS 4
+#define VM_PREFETCH_MODE 5
+#define VM_PREFETCH_AUTOMATIC 6
+#define VM_PREFETCH_NO_HINT ((uint64)-1)
 
 #define VM_LIMIT_UNLIMITED 0
 #define VM_MAX_RESIDENT_LIMIT 16384
@@ -32,6 +35,8 @@ struct vmstats {
   uint64 resident_count;
   uint64 policy;
   uint64 prefetch_enabled;
+  uint64 prefetch_async;
+  uint64 prefetch_automatic;
   uint64 generation;
 
   uint64 zero_faults;

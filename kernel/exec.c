@@ -139,6 +139,7 @@ kexec(char *path, char **argv)
 
   // Commit to the user image.
   oldpagetable = p->pagetable;
+  vm_prefetch_cancel_range(p, oldpagetable, 0, MAXVA);
   p->pagetable = pagetable;
   p->sz = sz;
   p->trapframe->epc = elf.entry; // initial program counter = ulib.c:start()

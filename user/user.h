@@ -31,6 +31,7 @@ int vmstats(struct vmstats *);
 int vmcheck(void);
 int vmfailinject(int, int);
 int vmtestop(int, int);
+int vmprefetch(uint64, int);
 
 // ulib.c
 int stat(const char *, struct stat *);

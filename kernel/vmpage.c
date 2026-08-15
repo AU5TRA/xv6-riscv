@@ -74,6 +74,10 @@ sample_page(struct vm_page *page, int clear_accessed)
   if(accessed){
     page->frequency++;
     page->last_access_epoch = load_sequence;
+    if(page->state == VM_PAGE_RESIDENT_PREFETCH){
+      page->state = VM_PAGE_RESIDENT_DEMAND;
+      __sync_fetch_and_add(&page->owner->vm.stats.prefetch_useful, 1);
+    }
   }
   if(clear_accessed && accessed)
     *pte &= ~PTE_A;
@@ -188,6 +192,8 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
+  sample_page(victim, 0);
+  int wasted_prefetch = victim->state == VM_PAGE_RESIDENT_PREFETCH;
   enum vm_page_state victim_state = victim->state;
   victim->busy = 1;
   victim->state = VM_PAGE_EVICTING;
@@ -201,6 +207,11 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   if(fallback){
     acquire(&p->vm.lock);
     p->vm.stats.policy_fallbacks++;
+    release(&p->vm.lock);
+  }
+  if(wasted_prefetch){
+    acquire(&p->vm.lock);
+    p->vm.stats.prefetch_wasted++;
     release(&p->vm.lock);
   }
 
@@ -385,6 +396,30 @@ vm_frame_set_backing(uint64 pa, int slot)
   page->backing_slot = slot;
   release(&frame_table.lock);
   return 0;
+}
+
+void
+vm_frame_note_access(uint64 pa, int dirty)
+{
+  struct proc *owner = 0;
+  acquire(&frame_table.lock);
+  struct vm_page *page = page_for_pa(pa);
+  if(page && page->owner){
+    page->referenced_sample = 1;
+    page->frequency++;
+    if(dirty)
+      page->dirty_sample = 1;
+    if(page->state == VM_PAGE_RESIDENT_PREFETCH){
+      page->state = VM_PAGE_RESIDENT_DEMAND;
+      owner = page->owner;
+    }
+  }
+  release(&frame_table.lock);
+  if(owner){
+    acquire(&owner->vm.lock);
+    owner->vm.stats.prefetch_useful++;
+    release(&owner->vm.lock);
+  }
 }
 
 int

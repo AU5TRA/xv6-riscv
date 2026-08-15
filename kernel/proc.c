@@ -233,6 +233,18 @@ userinit(void)
   release(&p->lock);
 }
 
+void
+vm_prefetch_worker_start(void)
+{
+  struct proc *p = allocproc();
+  if(p == 0)
+    panic("prefetch worker proc");
+  safestrcpy(p->name, "pageio", sizeof(p->name));
+  p->context.ra = (uint64)vm_prefetch_worker;
+  p->state = RUNNABLE;
+  release(&p->lock);
+}
+
 // Grow or shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
@@ -250,6 +262,8 @@ growproc(int n)
       return -1;
     }
   } else if (n < 0) {
+    vm_prefetch_cancel_range(p, p->pagetable, PGROUNDUP(sz + n),
+                             PGROUNDUP(sz));
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
@@ -341,6 +355,8 @@ kexit(int status)
 
   if (p == initproc)
     panic("init exiting");
+
+  vm_prefetch_drain(p);
 
   // Close all open files.
   for (int fd = 0; fd < NOFILE; fd++) {

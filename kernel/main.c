@@ -30,7 +30,9 @@ main()
     fileinit();         // file table
     virtio_disk_init(); // emulated hard disk
     swap_init();        // raw disk-backed paging slots
+    vm_prefetch_init(); // asynchronous paging work queue
     userinit();         // first user process
+    vm_prefetch_worker_start();
 
     __atomic_store_n(&started, 1, __ATOMIC_RELEASE);
   } else {

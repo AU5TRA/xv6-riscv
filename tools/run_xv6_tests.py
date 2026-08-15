@@ -99,12 +99,18 @@ def run(args: argparse.Namespace) -> int:
                 transcript.flush()
                 child.sendline(command)
                 child.timeout = remaining(deadline)
-                index = child.expect([marker, FATAL, pexpect.TIMEOUT, pexpect.EOF])
+                index = child.expect(
+                    [marker, FATAL, PROMPT, pexpect.TIMEOUT, pexpect.EOF]
+                )
                 if index == 1:
                     raise RuntimeError(f"failure output while running {command!r}")
                 if index == 2:
-                    raise TimeoutError(f"timeout while running {command!r}")
+                    raise RuntimeError(
+                        f"command returned without PASS marker: {command!r}"
+                    )
                 if index == 3:
+                    raise TimeoutError(f"timeout while running {command!r}")
+                if index == 4:
                     raise RuntimeError(f"QEMU exited while running {command!r}")
 
                 child.timeout = min(30, remaining(deadline))

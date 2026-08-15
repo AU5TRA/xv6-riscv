@@ -405,6 +405,7 @@ copyout(pagetable_t pagetable, uint64 psz, uint64 dstva, char *src, uint64 len)
     if ((*pte & PTE_W) == 0)
       return -1;
     *pte |= PTE_A | PTE_D;
+    vm_frame_note_access(pa0, 1);
 
     n = PGSIZE - (dstva - va0);
     if (n > len)
@@ -437,6 +438,7 @@ copyin(pagetable_t pagetable, uint64 psz, char *dst, uint64 srcva, uint64 len)
     pte_t *pte = walk(pagetable, va0, 0);
     if(pte)
       *pte |= PTE_A;
+    vm_frame_note_access(pa0, 0);
     n = PGSIZE - (srcva - va0);
     if (n > len)
       n = len;
@@ -471,6 +473,7 @@ copyinstr(pagetable_t pagetable, uint64 psz, char *dst, uint64 srcva,
     pte_t *pte = walk(pagetable, va0, 0);
     if(pte)
       *pte |= PTE_A;
+    vm_frame_note_access(pa0, 0);
     n = PGSIZE - (srcva - va0);
     if (n > max)
       n = max;
@@ -512,10 +515,23 @@ vmfault(pagetable_t pagetable, uint64 psz, uint64 va, int access)
   struct proc *p = myproc();
   if(p == 0)
     return 0;
+  int waited_for_fetch = 0;
 
 retry:
   pte_t *pte = walk(pagetable, va, 0);
   if(pte && (*pte & PTE_V)){
+    uint flags = PTE_FLAGS(*pte);
+    int allowed = (flags & PTE_U) &&
+      ((access == VM_ACCESS_READ && (flags & PTE_R)) ||
+       (access == VM_ACCESS_WRITE && (flags & PTE_W)) ||
+       (access == VM_ACCESS_EXEC && (flags & PTE_X)));
+    if(waited_for_fetch && allowed){
+      *pte |= PTE_A | (access == VM_ACCESS_WRITE ? PTE_D : 0);
+      sfence_vma();
+      uint64 pa = PTE2PA(*pte);
+      vm_frame_note_access(pa, access == VM_ACCESS_WRITE);
+      return pa;
+    }
     acquire(&p->vm.lock);
     p->vm.stats.protection_faults++;
     release(&p->vm.lock);
@@ -524,6 +540,10 @@ retry:
 
   if(pte && (*pte & PTE_SWAPPED)){
     if(*pte & PTE_BUSY){
+      acquire(&p->vm.lock);
+      p->vm.stats.prefetch_late++;
+      release(&p->vm.lock);
+      waited_for_fetch = 1;
       sleep_prepare(pte);
       sleep();
       goto retry;
@@ -542,11 +562,28 @@ retry:
     int slot = PTE2SLOT(*pte);
     *pte |= PTE_BUSY;
     uint64 mem;
-    if(vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) !=
-       VM_FRAME_OK){
-      *pte &= ~PTE_BUSY;
-      wakeup(pte);
-      return 0;
+    while(vm_frame_acquire(p, pagetable, va, VM_FRAME_DEMAND, &mem) !=
+          VM_FRAME_OK){
+      acquire(&p->vm.lock);
+      int prefetch_inflight = p->vm.inflight_io != 0;
+      release(&p->vm.lock);
+      if(!prefetch_inflight || killed(p)){
+#ifdef VM_DEBUG
+        printk("vmfault: frame acquire failed pid=%d va=0x%lx resident=%ld limit=%ld\n",
+               p->pid, va, p->vm.resident_count, p->vm.resident_limit);
+#endif
+        *pte &= ~PTE_BUSY;
+        wakeup(pte);
+        return 0;
+      }
+      sleep_prepare(&p->vm.inflight_io);
+      acquire(&p->vm.lock);
+      prefetch_inflight = p->vm.inflight_io != 0;
+      release(&p->vm.lock);
+      if(prefetch_inflight)
+        sleep();
+      else
+        wakeup(&p->vm.inflight_io);
     }
     if(swap_page_read(slot, mem) < 0){
       vm_frame_release(mem);
@@ -570,8 +607,13 @@ retry:
     vm_frame_unpin(mem);
     acquire(&p->vm.lock);
     p->vm.stats.swap_faults++;
+    int predict_next = p->vm.prefetch_enabled && p->vm.prefetch_automatic &&
+      !p->vm.exiting;
     release(&p->vm.lock);
     wakeup(pte);
+    if(predict_next && va + PGSIZE < p->sz &&
+       vm_prefetch_hint(p, va + PGSIZE, 1) == 0)
+      vm_prefetch_service(p, 1);
     return mem;
   }
 

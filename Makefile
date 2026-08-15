@@ -15,6 +15,7 @@ OBJS = \
   $K/vm.o \
   $K/vmpage.o \
   $K/vmstate.o \
+  $K/prefetch.o \
   $K/swap.o \
   $K/proc.o \
   $K/swtch.o \

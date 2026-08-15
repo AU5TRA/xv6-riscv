@@ -114,9 +114,20 @@ int             vm_frame_release(uint64);
 int             vm_frame_pin(uint64);
 int             vm_frame_unpin(uint64);
 int             vm_frame_set_backing(uint64, int);
+void            vm_frame_note_access(uint64, int);
 int             vm_frame_is_candidate(struct proc*, uint64);
 int             vmpage_debug_test(int);
 int             vm_reclaim_to_limit(struct proc*);
+
+// prefetch.c
+int             vm_prefetch_hint(struct proc*, uint64, int);
+int             vm_prefetch_service(struct proc*, int);
+void            vm_prefetch_cancel_range(struct proc*, pagetable_t, uint64,
+                                         uint64);
+void            vm_prefetch_init(void);
+void            vm_prefetch_drain(struct proc*);
+void            vm_prefetch_worker(void) __attribute__((noreturn));
+void            vm_prefetch_worker_start(void);
 
 // vmstate.c
 void            vmstate_init(struct proc*);
