@@ -12,6 +12,8 @@ OBJS = \
   $K/string.o \
   $K/main.o \
   $K/vm.o \
+  $K/vmpage.o \
+  $K/vmstate.o \
   $K/proc.o \
   $K/swtch.o \
   $K/trampoline.o \
@@ -31,7 +33,6 @@ OBJS = \
   $K/virtio_disk.o
 
 ifdef VM_DEBUG
-CFLAGS += -DVM_DEBUG
 OBJS += $K/vmdebug.o
 endif
 
@@ -80,6 +81,10 @@ CFLAGS += -fno-builtin-memcpy -Wno-main
 CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+
+ifdef VM_DEBUG
+CFLAGS += -DVM_DEBUG
+endif
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)

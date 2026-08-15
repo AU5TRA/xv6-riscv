@@ -6,6 +6,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "vmstats.h"
 
 uint64
 sys_exit(void)
@@ -109,4 +110,53 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_vmctl(void)
+{
+  int command;
+  uint64 value;
+
+  argint(0, &command);
+  argaddr(1, &value);
+  return vmstate_ctl(myproc(), command, value);
+}
+
+uint64
+sys_vmstats(void)
+{
+  uint64 address;
+  struct vmstats stats;
+  struct proc *p = myproc();
+
+  argaddr(0, &address);
+  vmstate_snapshot(p, &stats);
+  return copyout(p->pagetable, p->sz, address, (char *)&stats,
+                 sizeof(stats));
+}
+
+uint64
+sys_vmcheck(void)
+{
+#ifdef VM_DEBUG
+  return vmpage_check_proc(myproc());
+#else
+  return -1;
+#endif
+}
+
+uint64
+sys_vmfailinject(void)
+{
+  int type;
+  int value;
+
+  argint(0, &type);
+  argint(1, &value);
+#ifdef VM_DEBUG
+  return vmdebug_failinject(type, value);
+#else
+  return -1;
+#endif
 }

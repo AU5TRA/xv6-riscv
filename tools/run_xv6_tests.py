@@ -21,7 +21,7 @@ except ImportError as exc:
 
 PROMPT = re.compile(r"\$ ")
 FATAL = re.compile(
-    r"panic:|SOME TESTS FAILED|FAILED --|(?:^|\r?\n)exec .* failed\r?\n",
+    r"panic:|SOME TESTS FAILED|FAILED --|(?:vmtest|prefetchtest): [^\r\n]+: FAIL|(?:^|\r?\n)exec .* failed\r?\n",
     re.MULTILINE,
 )
 

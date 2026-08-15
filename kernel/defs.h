@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct vmstats;
 
 // bio.c
 void            binit(void);
@@ -103,6 +104,21 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+
+// vmpage.c
+void            vmpage_init(void);
+int             vmpage_check_proc(struct proc*);
+
+// vmstate.c
+void            vmstate_init(struct proc*);
+void            vmstate_reset(struct proc*);
+void            vmstate_inherit(struct proc*, struct proc*);
+void            vmstate_exec_reset(struct proc*);
+int             vmstate_ctl(struct proc*, int, uint64);
+void            vmstate_snapshot(struct proc*, struct vmstats*);
+
+// vmdebug.c
+int             vmdebug_failinject(int, int);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

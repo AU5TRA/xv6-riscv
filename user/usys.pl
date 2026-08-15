@@ -43,3 +43,7 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("sync");
+entry("vmctl");
+entry("vmstats");
+entry("vmcheck");
+entry("vmfailinject");

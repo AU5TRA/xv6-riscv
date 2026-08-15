@@ -17,6 +17,7 @@ main()
     printk("xv6 kernel is booting\n");
     printk("\n");
     kinit();            // physical page allocator
+    vmpage_init();      // pageable frame metadata
     kvminit();          // create kernel page table
     kvminithart();      // turn on paging
     procinit();         // process table

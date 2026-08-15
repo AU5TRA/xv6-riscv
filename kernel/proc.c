@@ -53,6 +53,7 @@ procinit(void)
   initlock(&wait_lock, "wait_lock");
   for (p = proc; p < &proc[NPROC]; p++) {
     initlock(&p->lock, "proc");
+    vmstate_init(p);
     p->state = UNUSED;
     p->kstack = KSTACK((int)(p - proc));
   }
@@ -124,6 +125,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  vmstate_reset(p);
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
@@ -167,6 +169,7 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  vmstate_reset(p);
   p->state = UNUSED;
 }
 
@@ -266,6 +269,8 @@ kfork(void)
   if ((np = allocproc()) == 0) {
     return -1;
   }
+
+  vmstate_inherit(np, p);
 
   // Copy user memory from parent to child.
   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
