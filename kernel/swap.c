@@ -17,6 +17,7 @@ static struct {
 
 #ifdef VM_DEBUG
 static int test_slots[NSWAPSLOTS];
+static int reserved_test_slots;
 #endif
 
 void
@@ -117,6 +118,18 @@ swap_page_io(int slot, uint64 pa, int write)
   if(pa % PGSIZE != 0 || !swap_slot_valid(slot))
     return -1;
 #ifdef VM_DEBUG
+  int delay = vmdebug_take_delay();
+  if(delay > 0){
+    acquire(&tickslock);
+    uint start = ticks;
+    while(ticks - start < (uint)delay && !killed(myproc())){
+      sleep_prepare(&ticks);
+      release(&tickslock);
+      sleep();
+      acquire(&tickslock);
+    }
+    release(&tickslock);
+  }
   if(vmdebug_should_fail(write ? VM_FAIL_SWAP_WRITE : VM_FAIL_SWAP_READ)){
     account_io(write, 1);
     return -1;
@@ -265,10 +278,42 @@ debug_swap_io_error(void)
   kfree(page);
   return ok ? swap_check_invariants() : -1;
 }
+
+static int
+debug_swap_reserve(int leave_free)
+{
+  if(leave_free < 0 || leave_free > NSWAPSLOTS || reserved_test_slots != 0)
+    return -1;
+  int reserve = swap_free_slots() - leave_free;
+  if(reserve < 0 || reserve > NSWAPSLOTS)
+    return -1;
+  for(int i = 0; i < reserve; i++){
+    int slot = swap_slot_alloc();
+    if(slot < 0){
+      for(int j = 0; j < i; j++)
+        swap_slot_put(test_slots[j]);
+      return -1;
+    }
+    test_slots[i] = slot;
+  }
+  reserved_test_slots = reserve;
+  return 0;
+}
+
+static int
+debug_swap_release(void)
+{
+  int result = 0;
+  for(int i = 0; i < reserved_test_slots; i++)
+    if(swap_slot_put(test_slots[i]) < 0)
+      result = -1;
+  reserved_test_slots = 0;
+  return result;
+}
 #endif
 
 int
-swap_debug_test(int operation)
+swap_debug_test(int operation, int argument)
 {
 #ifdef VM_DEBUG
   switch(operation){
@@ -280,6 +325,10 @@ swap_debug_test(int operation)
     return debug_swap_bounds();
   case VM_TEST_SWAP_IO_ERROR:
     return debug_swap_io_error();
+  case VM_TEST_SWAP_RESERVE:
+    return debug_swap_reserve(argument);
+  case VM_TEST_SWAP_RELEASE:
+    return debug_swap_release();
   }
 #endif
   return -1;

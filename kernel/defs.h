@@ -128,6 +128,7 @@ void            vmstate_snapshot(struct proc*, struct vmstats*);
 // vmdebug.c
 int             vmdebug_failinject(int, int);
 int             vmdebug_should_fail(int);
+int             vmdebug_take_delay(void);
 
 // swap.c
 void            swap_init(void);
@@ -139,7 +140,7 @@ uint64          swap_free_slots(void);
 int             swap_page_read(int, uint64);
 int             swap_page_write(int, uint64);
 int             swap_check_invariants(void);
-int             swap_debug_test(int);
+int             swap_debug_test(int, int);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

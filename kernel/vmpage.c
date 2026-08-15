@@ -149,6 +149,11 @@ vm_frame_acquire(struct proc *p, pagetable_t pagetable, uint64 va,
   if(p == 0 || pagetable == 0 || pa == 0 || va % PGSIZE != 0)
     return VM_FRAME_ERROR;
 
+#ifdef VM_DEBUG
+  if(vmdebug_should_fail(VM_FAIL_FRAME_ALLOC))
+    return VM_FRAME_ERROR;
+#endif
+
   acquire(&p->vm.lock);
   if(p->vm.resident_limit != VM_LIMIT_UNLIMITED &&
      p->vm.resident_count >= p->vm.resident_limit){

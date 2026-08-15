@@ -16,5 +16,7 @@
 #define VM_TEST_SWAP_REUSE 2
 #define VM_TEST_SWAP_BOUNDS 3
 #define VM_TEST_SWAP_IO_ERROR 4
+#define VM_TEST_SWAP_RESERVE 5
+#define VM_TEST_SWAP_RELEASE 6
 
 #endif

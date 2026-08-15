@@ -170,11 +170,10 @@ sys_vmtestop(void)
 
   argint(0, &operation);
   argint(1, &argument);
-  (void)argument;
 #ifdef VM_DEBUG
   if(operation >= VM_TEST_FRAME_PIN)
     return vmpage_debug_test(operation);
-  return swap_debug_test(operation);
+  return swap_debug_test(operation, argument);
 #else
   return -1;
 #endif

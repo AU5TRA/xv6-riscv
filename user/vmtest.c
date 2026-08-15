@@ -150,6 +150,62 @@ swap_pattern_passes(int passes)
 }
 
 static int
+swap_full(void)
+{
+  struct vmstats baseline, after;
+  if(vmstats(&baseline) < 0 || vmtestop(VM_TEST_SWAP_RESERVE, 8) < 0)
+    return -1;
+  int pid = fork();
+  if(pid < 0){
+    vmtestop(VM_TEST_SWAP_RELEASE, 0);
+    return -1;
+  }
+  if(pid == 0){
+    struct vmstats child;
+    if(vmstats(&child) < 0 ||
+       vmctl(VM_SET_LIMIT, child.resident_count + 2) < 0)
+      exit(2);
+    char *memory = sbrklazy(64 * 4096);
+    if(memory == SBRK_ERROR)
+      exit(3);
+    for(int i = 0; i < 64; i++)
+      memory[i * 4096] = i;
+    exit(0); // Reaching this point means exhaustion was not enforced.
+  }
+  int status;
+  int waited = wait(&status);
+  int released = vmtestop(VM_TEST_SWAP_RELEASE, 0);
+  if(waited != pid || status == 0 || released < 0 || vmstats(&after) < 0 ||
+     after.free_swap_slots != baseline.free_swap_slots)
+    return -1;
+  return vmcheck();
+}
+
+static __attribute__((noinline)) int
+permissions(void)
+{
+  int pid = fork();
+  if(pid < 0)
+    return -1;
+  if(pid == 0){
+    struct vmstats child;
+    if(vmstats(&child) < 0 ||
+       vmctl(VM_SET_LIMIT, child.resident_count + 4) < 0)
+      exit(2);
+    char *memory = sbrklazy(48 * 4096);
+    if(memory == SBRK_ERROR)
+      exit(3);
+    for(int i = 0; i < 48; i++)
+      memory[i * 4096] = i;
+    volatile uchar *text = (volatile uchar *)(uint64)permissions;
+    *text = 0; // Must fault: executable text must not regain PTE_W.
+    exit(0);
+  }
+  int status;
+  return wait(&status) == pid && status != 0 && vmcheck() == 0 ? 0 : -1;
+}
+
+static int
 shrink_swapped(void)
 {
   const int pages = 48;
@@ -216,6 +272,71 @@ exit_leak(void)
 }
 
 static int
+fault_cleanup(int kill_during_io)
+{
+  struct vmstats baseline, after;
+  int ready[2];
+  if(vmstats(&baseline) < 0 || pipe(ready) < 0)
+    return -1;
+  int pid = fork();
+  if(pid < 0)
+    return -1;
+  if(pid == 0){
+    close(ready[0]);
+    struct vmstats child;
+    if(vmstats(&child) < 0 ||
+       vmctl(VM_SET_LIMIT, child.resident_count + 4) < 0)
+      exit(2);
+    volatile char *memory = sbrklazy(40 * 4096);
+    if((char *)memory == SBRK_ERROR)
+      exit(3);
+    for(int i = 0; i < 40; i++)
+      memory[i * 4096] = i;
+    if(write(ready[1], "R", 1) != 1)
+      exit(4);
+    close(ready[1]);
+    if(vmfailinject(kill_during_io ? VM_FAIL_DELAY_TICKS : VM_FAIL_SWAP_READ,
+                    kill_during_io ? 20 : 1) < 0)
+      exit(5);
+    char value = memory[0];
+    (void)value;
+    exit(0);
+  }
+  close(ready[1]);
+  char signal;
+  if(read(ready[0], &signal, 1) != 1){
+    close(ready[0]);
+    return -1;
+  }
+  close(ready[0]);
+  if(kill_during_io){
+    pause(2);
+    if(kill(pid) < 0)
+      return -1;
+  }
+  int status;
+  if(wait(&status) != pid || status == 0 || vmstats(&after) < 0 ||
+     after.free_swap_slots != baseline.free_swap_slots)
+    return -1;
+  return vmcheck();
+}
+
+static int
+exec_fail_cleanup(void)
+{
+  struct vmstats before, after;
+  char *args[] = {"echo", "unreachable", 0};
+  if(vmstats(&before) < 0 || vmfailinject(VM_FAIL_FRAME_ALLOC, 4) < 0)
+    return -1;
+  if(exec("echo", args) >= 0)
+    return -1;
+  if(vmstats(&after) < 0 || after.resident_count != before.resident_count ||
+     after.free_swap_slots != before.free_swap_slots)
+    return -1;
+  return vmcheck();
+}
+
+static int
 fork_lifecycle(void)
 {
   const int pages = 48;
@@ -259,12 +380,14 @@ copy_paths(void)
   char *memory = sbrklazy(40 * 4096);
   if(memory == SBRK_ERROR)
     return -1;
-  char *buffer = memory;
-  strcpy(buffer, "README");
+  uint64 boundary = ((uint64)memory + 4095) & ~(uint64)4095;
+  char *path = (char *)(boundary - 3);
+  char *buffer = (char *)(boundary - 7);
+  strcpy(path, "README");
   for(int i = 1; i < 40; i++)
     memory[i * 4096] = i;
 
-  int fd = open(buffer, 0);
+  int fd = open(path, 0);
   if(fd < 0)
     return -1;
   char readbuf[8];
@@ -298,6 +421,30 @@ copy_paths(void)
 }
 
 static int
+exec_pressure(void)
+{
+  struct vmstats stats;
+  char *args[] = {"vmtest", "exec-pressure-done", 0};
+  if(vmstats(&stats) < 0 ||
+     vmctl(VM_SET_LIMIT, stats.resident_count + 3) < 0)
+    return -1;
+  exec("vmtest", args);
+  return -1;
+}
+
+static int
+exec_loop(void)
+{
+  struct vmstats stats;
+  char *args[] = {"vmtest", "exec-chain", "9", 0};
+  if(vmstats(&stats) < 0 ||
+     vmctl(VM_SET_LIMIT, stats.resident_count + 3) < 0)
+    return -1;
+  exec("vmtest", args);
+  return -1;
+}
+
+static int
 run(char *name)
 {
   if(strcmp(name, "harness") == 0)
@@ -326,10 +473,20 @@ run(char *name)
     return swap_pattern_passes(2);
   if(strcmp(name, "swap-repeat") == 0)
     return swap_pattern_passes(100);
+  if(strcmp(name, "swap-full") == 0)
+    return swap_full();
+  if(strcmp(name, "permissions") == 0)
+    return permissions();
   if(strcmp(name, "shrink-swapped") == 0)
     return shrink_swapped();
   if(strcmp(name, "exit-leak") == 0)
     return exit_leak();
+  if(strcmp(name, "kill-fault") == 0)
+    return fault_cleanup(1);
+  if(strcmp(name, "swap-fault-io-error") == 0)
+    return fault_cleanup(0);
+  if(strcmp(name, "exec-fail-cleanup") == 0)
+    return exec_fail_cleanup();
   if(strcmp(name, "fork-resident") == 0 ||
      strcmp(name, "fork-swapped") == 0 ||
      strcmp(name, "fork-lazy-hole") == 0 ||
@@ -340,6 +497,10 @@ run(char *name)
      strcmp(name, "copyout-swapped") == 0 ||
      strcmp(name, "copyinstr-cross-page-swapped") == 0)
     return copy_paths();
+  if(strcmp(name, "exec-pressure") == 0)
+    return exec_pressure();
+  if(strcmp(name, "exec-loop") == 0)
+    return exec_loop();
   if(strcmp(name, "all") == 0){
     if(harness() < 0 || controls() < 0 || inherit() < 0)
       return -1;
@@ -353,6 +514,27 @@ int
 main(int argc, char **argv)
 {
   char *name = argc > 1 ? argv[1] : "harness";
+
+  if(strcmp(name, "exec-pressure-done") == 0){
+    struct vmstats stats;
+    int ok = vmstats(&stats) == 0 &&
+      stats.resident_count <= stats.resident_limit && vmcheck() == 0;
+    printf("vmtest: exec-pressure: %s\n", ok ? "PASS" : "FAIL");
+    exit(ok ? 0 : 1);
+  }
+  if(strcmp(name, "exec-chain") == 0){
+    int remaining = argc > 2 ? argv[2][0] - '0' : 0;
+    if(remaining > 0){
+      char next[2] = {(char)('0' + remaining - 1), 0};
+      char *args[] = {"vmtest", "exec-chain", next, 0};
+      exec("vmtest", args);
+      printf("vmtest: exec-loop: FAIL\n");
+      exit(1);
+    }
+    int ok = vmcheck() == 0;
+    printf("vmtest: exec-loop: %s\n", ok ? "PASS" : "FAIL");
+    exit(ok ? 0 : 1);
+  }
 
   if(run(name) < 0){
     printf("vmtest: %s: FAIL\n", name);
