@@ -1,0 +1,18 @@
+XV6 paging research baseline
+============================
+
+Repository commit: 7d01506ee03394b6b1a161ccee69cd150ab471fc
+Reference configuration: CPUS=1, QEMU memory=128 MiB
+Host: WSL2 Ubuntu 24.04 on Windows
+RISC-V compiler: riscv64-unknown-elf-gcc 13.2.0-11ubuntu1+12
+QEMU: 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+Python: 3.12.3
+pexpect: 4.9
+
+The compiler, QEMU, and Python packages are unpacked under
+/home/ashfaq/.local/xv6-tools because this machine does not grant passwordless
+sudo. They are not part of the repository or the experiment output.
+
+The checkout is owned by Windows Git with CRLF worktree conversion. Build and
+QEMU commands run in WSL; git status and git diff --check run through Windows
+Git so unchanged CRLF files are not misclassified as whole-file edits.

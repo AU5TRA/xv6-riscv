@@ -30,6 +30,11 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o
 
+ifdef VM_DEBUG
+CFLAGS += -DVM_DEBUG
+OBJS += $K/vmdebug.o
+endif
+
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
 #TOOLPREFIX = 
@@ -146,6 +151,8 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_sync\
+	$U/_vmtest\
+	$U/_prefetchtest\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
