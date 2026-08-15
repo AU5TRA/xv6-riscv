@@ -40,6 +40,7 @@ do_rand(unsigned long *ctx)
 }
 
 unsigned long rand_next = 1;
+uint64 operation_limit;
 
 int
 rand(void)
@@ -290,6 +291,10 @@ go(int which_child)
         exit(1);
       }
     }
+    if(operation_limit && iters >= operation_limit){
+      close(fd);
+      exit(0);
+    }
   }
 }
 
@@ -334,8 +339,12 @@ iter()
 }
 
 int
-main()
+main(int argc, char **argv)
 {
+  int limit = argc > 1 ? atoi(argv[1]) : 0;
+  if(limit < 0)
+    exit(1);
+  operation_limit = limit;
   while (1) {
     int pid = fork();
     if (pid == 0) {
@@ -347,5 +356,9 @@ main()
     }
     pause(20);
     rand_next += 1;
+    if(operation_limit)
+      break;
   }
+  printf("\nPASS\n");
+  exit(0);
 }

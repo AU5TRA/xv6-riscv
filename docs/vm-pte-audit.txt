@@ -1,0 +1,41 @@
+Paging PTE mutation audit
+=========================
+
+Audited configuration: Sv39, 4096-byte pages, CPUS=1 authoritative.
+
+kernel/vm.c
+  walk(), mappages(): page-table construction and resident installation.
+  uvmunmap(): resident/swapped teardown and slot/frame release.
+  uvmclear(): exec guard-page permission change.
+  copyin/copyout/copyinstr(): software A/D accounting after permission checks.
+  vmfault(): FETCHING wait/retry, demand swap-in, lazy-zero mapping, and A/D
+  restoration. Every installed or invalidated current mapping is fenced before
+  returning to user mode.
+
+kernel/vmpage.c
+  sample_page(): policy A-bit sampling and clearing followed by sfence.vma.
+  reclaim_frame(): validated resident-to-SWAPPED transition after optional raw
+  disk write, then sfence.vma. Pinned/busy/foreign frames are filtered before
+  policy selection.
+
+kernel/prefetch.c
+  synchronous and asynchronous service: SWAPPED-to-FETCHING-to-resident
+  transitions. Failure/cancellation restores the original SWAPPED entry.
+  Completion revalidates generation, pagetable, PTE, slot, and request before
+  installation; waiters are woken after every terminal transition.
+
+Construction-only page-table writes do not need a user TLB fence because the
+new table is not active. CPUS=1 is the correctness claim; CPUS=3 is stress-only
+because no cross-hart TLB shootdown is implemented.
+
+Test-plan deviations
+--------------------
+
+Upstream xv6 grind intentionally runs forever. Its default behavior is kept,
+and an optional per-worker operation count was added for automation:
+`grind 2000` terminates with a PASS marker after two 2,000-operation streams.
+The logical 128 MiB QEMU memory size remains unchanged.
+
+Synchronous versus asynchronous prefetch is selected with VM_PREFETCH_MODE.
+Automatic next-page prediction has its own VM_PREFETCH_AUTOMATIC switch so
+explicit duplicate/race experiments remain deterministic.

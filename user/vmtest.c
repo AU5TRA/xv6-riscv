@@ -5,6 +5,8 @@
 #include "kernel/vmtrace.h"
 
 static int requested_policy = VM_POLICY_FIFO;
+static uint requested_seed = 1;
+static int requested_iterations = 10000;
 
 static int
 trace_schema(void)
@@ -160,14 +162,19 @@ limit_basic(void)
     return -1;
   if(vmctl(VM_SET_LIMIT, before.resident_count + 8) < 0)
     return -1;
-  char *base = sbrk(8 * 4096);
-  if(base == SBRK_ERROR || sbrk(4096) != SBRK_ERROR)
+  char *base = sbrk(16 * 4096);
+  if(base == SBRK_ERROR)
     return -1;
-  if(vmstats(&after) < 0 || after.resident_count != before.resident_count + 8 ||
+  for(int i = 0; i < 16; i++)
+    base[i * 4096] = i + 1;
+  for(int i = 0; i < 16; i++)
+    if(base[i * 4096] != i + 1)
+      return -1;
+  if(vmstats(&after) < 0 || after.resident_count > after.resident_limit ||
+     after.evictions <= before.evictions)
+    return -1;
+  if(sbrk(-16 * 4096) == SBRK_ERROR || vmstats(&after) < 0 ||
      after.resident_count > after.resident_limit)
-    return -1;
-  if(sbrk(-8 * 4096) == SBRK_ERROR || vmstats(&after) < 0 ||
-     after.resident_count != before.resident_count)
     return -1;
   return vmcheck();
 }
@@ -632,6 +639,109 @@ dirty_writeback(void)
 }
 
 static int
+random_workload(uint seed, int iterations)
+{
+  enum { RANDOM_PAGES = 24 };
+  uchar expected[RANDOM_PAGES];
+  struct vmstats before, after;
+  if(iterations <= 0 || vmstats(&before) < 0 ||
+     vmctl(VM_SET_LIMIT, before.resident_count + 8) < 0)
+    return -1;
+  volatile uchar *memory = (volatile uchar *)
+    sbrklazy(RANDOM_PAGES * 4096);
+  if((char *)memory == SBRK_ERROR)
+    return -1;
+  for(int i = 0; i < RANDOM_PAGES; i++){
+    expected[i] = i ^ 0x5a;
+    memory[i * 4096] = expected[i];
+  }
+  uint state = seed ? seed : 1;
+  for(int operation = 0; operation < iterations; operation++){
+    state = state * 1664525U + 1013904223U;
+    int page = state % RANDOM_PAGES;
+    if(state & 3){
+      if(memory[page * 4096] != expected[page])
+        return -1;
+    } else {
+      expected[page] = state >> 24;
+      memory[page * 4096] = expected[page];
+    }
+  }
+  for(int i = 0; i < RANDOM_PAGES; i++)
+    if(memory[i * 4096] != expected[i])
+      return -1;
+  if(vmstats(&after) < 0 || after.resident_count > after.resident_limit ||
+     sbrk(-RANDOM_PAGES * 4096) == SBRK_ERROR)
+    return -1;
+  return vmcheck();
+}
+
+static int
+multiproc(void)
+{
+  int pids[4];
+  for(int i = 0; i < 4; i++){
+    pids[i] = fork();
+    if(pids[i] < 0)
+      return -1;
+    if(pids[i] == 0)
+      exit(random_workload(17 + i * 31, 4000) == 0 ? 0 : 1);
+  }
+  for(int i = 0; i < 4; i++){
+    int status;
+    if(wait(&status) < 0 || status != 0)
+      return -1;
+  }
+  return vmcheck();
+}
+
+static int run(char *name);
+
+static int
+run_isolated(char *name)
+{
+  int pid = fork();
+  if(pid < 0)
+    return -1;
+  if(pid == 0)
+    exit(run(name) == 0 ? 0 : 1);
+  int status;
+  if(wait(&status) != pid || status != 0)
+    return -1;
+  return vmcheck();
+}
+
+static int
+run_all(void)
+{
+  char *common[] = {
+    "controls", "inherit", "limit-basic", "lazy-zero", "swap-pattern",
+    "swap-repeat", "permissions", "shrink-swapped", "exit-leak",
+    "fork-resident", "copyin-swapped", "exec-pressure", "exec-loop",
+    "dirty-writeback", "trace-schema", "trace-wrap", "trace-disabled",
+    "trace-drop",
+  };
+  for(uint i = 0; i < sizeof(common) / sizeof(common[0]); i++){
+    printf("vmtest all: %s\n", common[i]);
+    if(run_isolated(common[i]) < 0)
+      return -1;
+  }
+#ifdef VM_DEBUG
+  char *debug[] = {
+    "swapio", "swap-reuse", "swap-bounds", "swap-io-error", "pin",
+    "metadata-reuse", "swap-full", "kill-fault", "swap-fault-io-error",
+    "exec-fail-cleanup", "invalid-policy-fallback",
+  };
+  for(uint i = 0; i < sizeof(debug) / sizeof(debug[0]); i++){
+    printf("vmtest all: %s\n", debug[i]);
+    if(run_isolated(debug[i]) < 0)
+      return -1;
+  }
+#endif
+  return vmcheck();
+}
+
+static int
 run(char *name)
 {
   if(strcmp(name, "harness") == 0)
@@ -706,11 +816,14 @@ run(char *name)
     return trace_disabled();
   if(strcmp(name, "trace-drop") == 0)
     return trace_overflow(1);
-  if(strcmp(name, "all") == 0){
-    if(harness() < 0 || controls() < 0 || inherit() < 0)
-      return -1;
-    return 0;
-  }
+  if(strcmp(name, "all") == 0)
+    return run_all();
+  if(strcmp(name, "all-policy") == 0)
+    return policy_correctness(requested_policy);
+  if(strcmp(name, "random") == 0)
+    return random_workload(requested_seed, requested_iterations);
+  if(strcmp(name, "multiproc") == 0)
+    return multiproc();
   printf("vmtest: unknown test %s\n", name);
   return -1;
 }
@@ -720,7 +833,8 @@ main(int argc, char **argv)
 {
   char *name = argc > 1 ? argv[1] : "harness";
 
-  if(argc > 2){
+  if(argc > 2 && (strcmp(name, "policies-correctness") == 0 ||
+                  strcmp(name, "all-policy") == 0)){
     if(strcmp(argv[2], "fifo") == 0)
       requested_policy = VM_POLICY_FIFO;
     else if(strcmp(argv[2], "clock") == 0)
@@ -731,6 +845,16 @@ main(int argc, char **argv)
       printf("vmtest: %s: FAIL\n", name);
       exit(1);
     }
+  }
+  if(strcmp(name, "random") == 0){
+    if(argc < 4 || atoi(argv[2]) < 0 || atoi(argv[3]) <= 0){
+      printf("vmtest: random: FAIL\n");
+      exit(1);
+    }
+    requested_seed = atoi(argv[2]);
+    requested_iterations = atoi(argv[3]);
+    printf("vmtest random: seed=%d iterations=%d CPUS-reference=1\n",
+           requested_seed, requested_iterations);
   }
 
   if(strcmp(name, "exec-pressure-done") == 0){

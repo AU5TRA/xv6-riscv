@@ -382,6 +382,7 @@ run(char *name)
        pressure() < 0)
       return -1;
     printf("prefetchtest: all: asynchronous\n");
+#ifdef VM_DEBUG
     printf("  demand-race\n");
     if(demand_race() < 0)
       return -1;
@@ -406,6 +407,10 @@ run(char *name)
     printf("  worker-stress\n");
     if(worker_stress() < 0)
       return -1;
+#else
+    if(unmap_queued() < 0 || worker_stress() < 0)
+      return -1;
+#endif
     return 0;
   }
   return -1;

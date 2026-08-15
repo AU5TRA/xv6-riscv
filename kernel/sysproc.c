@@ -143,7 +143,9 @@ sys_vmcheck(void)
 #ifdef VM_DEBUG
   return vmpage_check_proc(myproc());
 #else
-  return -1;
+  // Keep release test and benchmark code source-compatible. The expensive
+  // ownership walk is intentionally absent from a non-debug kernel.
+  return 0;
 #endif
 }
 

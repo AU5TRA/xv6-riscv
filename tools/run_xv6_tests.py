@@ -27,13 +27,16 @@ FATAL = re.compile(
 
 
 def pass_marker(command: str) -> re.Pattern[str]:
-    program = command.strip().split(maxsplit=1)[0] if command.strip() else ""
+    parts = command.strip().split()
+    program = parts[0] if parts else ""
     if program == "usertests":
         return re.compile(r"ALL TESTS PASSED")
     if program == "vmtest":
-        return re.compile(r"vmtest: [^\r\n]+: PASS")
+        name = re.escape(parts[1]) if len(parts) > 1 else r"[^\r\n]+"
+        return re.compile(rf"vmtest: {name}: PASS")
     if program == "prefetchtest":
-        return re.compile(r"prefetchtest: [^\r\n]+: PASS")
+        name = re.escape(parts[1]) if len(parts) > 1 else r"[^\r\n]+"
+        return re.compile(rf"prefetchtest: {name}: PASS")
     return re.compile(r"(?:^|\r?\n)PASS(?:\r?\n|$)")
 
 

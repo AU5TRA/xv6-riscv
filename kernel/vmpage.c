@@ -516,15 +516,21 @@ vmpage_debug_test(int operation)
     return ok ? 0 : -1;
   }
   if(operation == VM_TEST_FRAME_METADATA){
+    int test_slot = swap_slot_alloc();
+    if(test_slot < 0){
+      vm_frame_release(pa);
+      return -1;
+    }
     acquire(&frame_table.lock);
     struct vm_page *page = page_for_pa(pa);
     int clean = page->owner == p && page->pagetable == p->pagetable &&
                 page->va == va && page->backing_slot == -1 &&
                 page->prefetch_request_id == 0 && page->frequency == 0 &&
-                page->aging_counter == 0;
-    page->backing_slot = 17;
+                page->aging_counter == 0xff;
+    page->backing_slot = test_slot;
     page->prefetch_request_id = 99;
     page->frequency = 42;
+    page->aging_counter = 0x12;
     release(&frame_table.lock);
     vm_frame_release(pa);
     if(!clean)
@@ -537,7 +543,7 @@ vmpage_debug_test(int operation)
     page = page_for_pa(reused);
     clean = reused == pa && page->backing_slot == -1 &&
             page->prefetch_request_id == 0 && page->frequency == 0 &&
-            page->aging_counter == 0;
+            page->aging_counter == 0xff;
     release(&frame_table.lock);
     vm_frame_release(reused);
     return clean ? 0 : -1;
