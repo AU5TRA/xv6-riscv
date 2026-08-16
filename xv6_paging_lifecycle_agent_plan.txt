@@ -1,0 +1,1037 @@
+XV6-RISCV PAGING, SWAP, REPLACEMENT, AND PREFETCH IMPLEMENTATION PLAN
+====================================================================
+
+Target repository:
+  https://github.com/mit-pdos/xv6-riscv
+
+Audited baseline commit:
+  7d01506ee03394b6b1a161ccee69cd150ab471fc
+
+Purpose
+-------
+This file is an execution contract for an implementation agent. The goal is to
+modify xv6-riscv into a reproducible platform with:
+
+  1. lazy anonymous page allocation;
+  2. disk-backed page swapping;
+  3. complete page lifecycle handling across fault, unmap, shrink, fork, exec,
+     exit, kill, and kernel/user-copy paths;
+  4. interchangeable replacement policies;
+  5. page prefetch request, I/O, usefulness, cancellation, and cleanup support;
+  6. deterministic memory-pressure controls, statistics, tracing, and tests.
+
+The agent must not start with an ML policy. FIFO and Clock must pass every
+correctness test before Aging, adaptive, learned, or predictive policies are
+introduced.
+
+
+1. SUPPORTED SCOPE AND NON-GOALS
+================================
+
+Required first shipping configuration:
+
+  - RISC-V Sv39 and 4096-byte pages, as provided by xv6.
+  - Private per-process user address spaces.
+  - A configurable per-process resident-page budget.
+  - CPUS=1 as the authoritative experiment/correctness configuration.
+  - Anonymous heap pages pageable first.
+  - User stack, data, and text made pageable after the heap lifecycle passes.
+  - Kernel stacks, page-table pages, trapframes, DMA buffers, buffer-cache
+    pages, and paging metadata are never pageable.
+  - Swap and prefetch I/O use xv6's VirtIO disk, without modifying QEMU.
+
+Not required for the first complete research platform:
+
+  - global Linux-style memory reclaim;
+  - shared memory or memory-mapped files;
+  - copy-on-write fork;
+  - file-backed executable demand paging;
+  - transparent multicore eviction of another running process;
+  - QEMU instrumentation or host-kernel changes.
+
+Do not reduce QEMU's -m value to create pressure. xv6 assumes physical memory
+extends to PHYSTOP. Keep QEMU at 128 MiB and enforce a logical user-resident
+frame limit inside xv6.
+
+Do not claim multicore paging correctness unless a real cross-hart TLB
+shootdown design is implemented and tested. CPUS=3 may be used as a stress
+test, but CPUS=1 remains the scientific reference configuration.
+
+
+2. REQUIRED PAGE STATES AND INVARIANTS
+======================================
+
+Logical states:
+
+  LAZY_HOLE
+    Address is within the valid process size, but no PTE or physical page has
+    been created.
+
+  RESIDENT_DEMAND
+    Valid PTE maps a demand-loaded user frame.
+
+  RESIDENT_PREFETCH
+    Valid PTE maps a prefetched frame that has not yet shown evidence of use.
+
+  SWAPPED
+    PTE_V is clear, PTE_SWAPPED is set, original permissions are preserved,
+    and the PPN field stores a swap-slot number.
+
+  FETCHING
+    PTE_SWAPPED and PTE_BUSY are set while a swap-in or prefetch read is in
+    progress. Demand faults wait and retry rather than starting duplicate I/O.
+
+  EVICTING
+    Frame metadata is busy/pinned while its page is being written or converted
+    to a swapped PTE. It cannot be selected again.
+
+  DEAD
+    Mapping has been removed. No PTE, frame ownership, slot ownership, queued
+    request, or in-flight I/O may remain.
+
+PTE software bits:
+
+  #define PTE_A       (1L << 6)
+  #define PTE_D       (1L << 7)
+  #define PTE_SWAPPED (1L << 8)   // RSW bit 0
+  #define PTE_BUSY    (1L << 9)   // RSW bit 1
+
+Store RESIDENT_PREFETCH in frame metadata, not another PTE bit.
+
+Mandatory invariants:
+
+  I1. Every pageable physical frame has either zero owners or exactly one
+      owning (process, pagetable, virtual-page) tuple.
+  I2. Every valid pageable user PTE has exactly one matching frame record.
+  I3. Every SWAPPED or FETCHING PTE refers to one valid swap slot.
+  I4. The sum of swap-slot references equals the number of PTE/backing
+      references to those slots.
+  I5. A frame marked pinned, EVICTING, or I/O-busy is never returned by a
+      replacement policy.
+  I6. resident_count never exceeds the configured limit, except inside a
+      documented, bounded transition that cannot return to user mode.
+  I7. Demand paging always has priority over prefetch. Prefetch may be dropped;
+      a valid demand must not be killed merely to preserve a prefetch.
+  I8. Unmap, exec replacement, exit, and kill leave no frame, slot, request, or
+      I/O reference belonging to the old address space.
+  I9. No spinlock is held while sleeping or performing VirtIO I/O.
+  I10. Every PTE invalidation that can affect the current address space is
+       followed by the required sfence.vma before returning to user mode.
+
+Add a debug-only vmcheck() routine that verifies I1-I8 and panics with the PID,
+VA, PA/slot, state, and expected owner on failure.
+
+
+3. REPOSITORY SETUP AND BASELINE GATE
+=====================================
+
+Commands:
+
+  git clone https://github.com/mit-pdos/xv6-riscv.git
+  cd xv6-riscv
+  git switch -c paging-lifecycle 7d01506ee03394b6b1a161ccee69cd150ab471fc
+  git rev-parse HEAD
+  git status --short
+
+Expected:
+
+  git rev-parse HEAD prints:
+    7d01506ee03394b6b1a161ccee69cd150ab471fc
+
+  git status --short prints nothing.
+
+Toolchain/build checks:
+
+  qemu-system-riscv64 --version
+  riscv64-unknown-elf-gcc --version || riscv64-linux-gnu-gcc --version
+  make clean
+  make -j"$(nproc)" CPUS=1
+  make fs.img CPUS=1
+  git diff --check
+
+Boot manually:
+
+  make qemu CPUS=1
+
+Inside xv6:
+
+  usertests -q
+  grind
+
+Exit QEMU with Ctrl-a followed by x.
+
+Gate 0 PASS conditions:
+
+  - kernel boots to the shell;
+  - usertests reports ALL TESTS PASSED;
+  - grind completes without a panic;
+  - host build has no warnings or errors;
+  - no repository changes exist before implementation begins.
+
+Create a baseline commit only after recording the exact compiler and QEMU
+versions in docs/vm-baseline.txt.
+
+
+4. TEST HARNESS REQUIRED BEFORE PAGING CHANGES
+==============================================
+
+Create these test components first:
+
+  tools/run_xv6_tests.py
+    Host-side pexpect runner. It must boot QEMU, wait for the '$ ' prompt, run
+    one or more commands, capture output, terminate QEMU using Ctrl-a x, and
+    return nonzero on timeout, panic, test failure, or missing PASS marker.
+    Add test-logs/ to .gitignore so retained logs do not dirty the worktree.
+
+  user/vmtest.c
+    User-level lifecycle test program. It should accept a test name or run all
+    tests. Add it to UPROGS.
+
+  user/prefetchtest.c
+    Focused prefetch lifecycle and race tests. Add it to UPROGS.
+
+  kernel/vmdebug.c
+    Debug invariant checking and deterministic I/O delay/failure injection,
+    compiled only with VM_DEBUG.
+
+Required runner commands after it exists:
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "usertests -q"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "grind"
+
+Gate 1 PASS conditions:
+
+  - the runner recognizes a passing command;
+  - deliberately requesting a nonexistent xv6 command makes the runner fail;
+  - a forced timeout makes the runner fail;
+  - the runner preserves full QEMU output in test-logs/.
+
+
+5. PHASE 1 - VM TYPES, METADATA, AND CONTROL API
+================================================
+
+Add:
+
+  kernel/vmpage.h / kernel/vmpage.c
+    Frame records and lookup by physical page.
+
+  kernel/vmstate.h
+    Per-process resident budget, resident count, policy, statistics, page list,
+    exiting flag, queued-prefetch count, in-flight-I/O count, and locks.
+
+  kernel/vmstats.h
+    Stable statistics ABI shared with user programs.
+
+Suggested frame record fields:
+
+  pa, owner pagetable/proc, va, state, pin_count, busy, referenced_sample,
+  dirty_sample, load_sequence, last_access_epoch, frequency, aging_counter,
+  backing_slot, prefetch_request_id, and policy-private index.
+
+Add syscalls or an equivalent command interface:
+
+  vmctl(VM_SET_LIMIT, pages)
+  vmctl(VM_SET_POLICY, policy_id)
+  vmctl(VM_PREFETCH_ENABLE, 0_or_1)
+  vmctl(VM_RESET_STATS, 0)
+  vmstats(struct vmstats *out)
+  vmcheck(void)                  // VM_DEBUG only
+  vmfailinject(type, value)      // VM_DEBUG only
+
+Rules:
+
+  - A child inherits limit, policy, and prefetch-enabled setting.
+  - Statistics start fresh for a newly exec'd benchmark unless explicitly
+    configured otherwise.
+  - Decreasing a limit below current residency invokes reclaim synchronously or
+    returns an error; it must not silently violate the limit.
+  - Frame metadata and swap metadata must use fixed-size kernel allocations or
+    statically allocated arrays, not pageable user memory.
+
+Verification commands:
+
+  make clean && make -j"$(nproc)" CPUS=1
+  git diff --check
+  rg -n "PTE_A|PTE_D|PTE_SWAPPED|PTE_BUSY" kernel
+  rg -n "VM_SET_LIMIT|VM_SET_POLICY|VM_PREFETCH_ENABLE" kernel user
+  rg -n "struct vmstats|resident_count|inflight" kernel
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "usertests -q"
+
+Gate 2 PASS conditions:
+
+  - all existing tests still pass with paging disabled/unlimited;
+  - vmctl get/set tests pass;
+  - invalid limits and policy IDs return errors;
+  - vmcheck reports no ownership mismatch at boot, after fork, and after exit.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: add page metadata, controls, stats, and invariant checker"
+
+
+6. PHASE 2 - RAW SWAP BACKING STORE
+===================================
+
+Use disk space outside the filesystem's declared FSSIZE. Keep the filesystem
+superblock size unchanged so the filesystem allocator cannot use swap blocks.
+
+Definitions:
+
+  SWAP_START_BLOCK = FSSIZE
+  SWAP_BLOCKS_PER_PAGE = PGSIZE / BSIZE = 4
+  SWAP_BLOCK(slot, i) = SWAP_START_BLOCK + 4 * slot + i
+
+Modify fs.img creation so its host file is extended by:
+
+  NSWAPSLOTS * PGSIZE bytes
+
+Do not put swap data through inode allocation or the xv6 journal.
+
+Preferred I/O design:
+
+  - Generalize the VirtIO queue code with a raw transfer operation capable of
+    transferring one 4096-byte physical page at a chosen sector.
+  - Do not populate the filesystem buffer cache with swap blocks.
+  - Use a sleepable request and completion channel.
+  - Maintain counters for page reads, page writes, block reads/writes, I/O
+    errors, and maximum concurrent requests.
+
+Add kernel/swap.h and kernel/swap.c with:
+
+  swap_init()
+  swap_slot_alloc()
+  swap_slot_get()       // only if slots may be shared across fork
+  swap_slot_put()
+  swap_page_read(slot, pa)
+  swap_page_write(slot, pa)
+  swap_slot_valid(slot)
+  swap_check_invariants()
+
+Tests in vmtest:
+
+  swapio
+    Allocate a kernel test page, write a deterministic byte pattern, write it to
+    every test slot, clear the page, read it back, and verify all bytes.
+
+  swap-reuse
+    Allocate all available slots, verify the next allocation fails, release
+    alternating slots, and verify those exact slots can be reused.
+
+  swap-bounds
+    Invalid negative/too-large slot IDs must return an error or panic only in a
+    debug kernel; they must never corrupt filesystem blocks.
+
+Verification:
+
+  make clean && make -j"$(nproc)" CPUS=1 VM_DEBUG=1
+  stat -c '%n %s bytes' fs.img
+  rg -n "SWAP_START|NSWAPSLOTS|swap_page_(read|write)" kernel Makefile
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 300 "vmtest swapio"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 300 "vmtest swap-reuse"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 300 "vmtest swap-bounds"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "usertests -q"
+
+Gate 3 PASS conditions:
+
+  - byte-exact round trips succeed for multiple slots;
+  - swap-full and slot-reuse behavior is deterministic;
+  - filesystem tests still pass after swap I/O;
+  - swap slot 0 and the last swap slot work;
+  - no spinlock is held across disk sleep;
+  - an injected I/O failure returns a controlled error without a kernel panic.
+
+Commit:
+
+  git add kernel Makefile user tools docs .gitignore
+  git commit -m "vm: add raw disk-backed swap slots"
+
+
+7. PHASE 3 - PAGEABLE FRAME ACQUISITION AND LOGICAL PRESSURE
+============================================================
+
+Create a user-frame acquisition path distinct from generic kalloc():
+
+  vm_frame_acquire(proc, pagetable, va, permissions, purpose)
+  vm_frame_register(...)
+  vm_frame_pin()/vm_frame_unpin()
+  vm_frame_release(...)
+
+Use generic kalloc() for page tables and nonpageable kernel memory. Use the new
+path for pageable user frames. At this phase, if the per-process limit is full,
+return VM_NEED_EVICTION; actual eviction is introduced next.
+
+Audit all user-page allocation sites. In particular:
+
+  - vmfault();
+  - uvmalloc();
+  - uvmcopy();
+  - exec segment and stack allocation;
+  - future swap-in and prefetch paths.
+
+Verification searches:
+
+  rg -n "kalloc\(" kernel/vm.c kernel/exec.c kernel/proc.c
+  rg -n "vm_frame_acquire|vm_frame_register|vm_frame_release" kernel
+  rg -n "uvmalloc|uvmcopy|vmfault" kernel
+
+Tests:
+
+  vmtest limit-basic
+    Set limit 8, create at most 8 resident pageable pages, and verify a ninth
+    acquisition requests eviction rather than exceeding the count.
+
+  vmtest pin
+    Pin selected pages and prove they are absent from the victim candidate set.
+
+  vmtest metadata-reuse
+    Allocate/free the same physical frames many times and verify old owner/VA,
+    prefetch, dirty, and policy fields are cleared.
+
+Gate 4 PASS conditions:
+
+  - resident count never exceeds the requested limit;
+  - unlimited/default behavior still passes usertests;
+  - frame metadata is clean after reuse;
+  - pinned kernel/user-construction pages are never candidates;
+  - vmcheck passes after every test.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: add pageable frame accounting and resident limits"
+
+
+8. PHASE 4 - SWAP-OUT, SWAP-IN, AND DEMAND-FAULT PATH
+=====================================================
+
+Refactor vmfault() into a process-aware dispatcher, for example:
+
+  vm_fault(struct proc *p, pagetable_t pt, uint64 va, enum vm_access access)
+
+Access kinds must distinguish READ, WRITE, and EXECUTE.
+
+Fault cases:
+
+  A. Valid lazy anonymous hole:
+     acquire/reclaim a frame, zero it, map R/W/U, register it.
+
+  B. SWAPPED PTE:
+     mark FETCHING, acquire/reclaim a frame, read the slot, validate the PTE has
+     not changed, restore saved permissions, install valid mapping, wake any
+     waiters, update counters, and retry the access.
+
+  C. FETCHING PTE:
+     sleep on the page/request channel and retry. Never issue duplicate I/O.
+
+  D. Protection or invalid address:
+     fail without treating it as lazy allocation.
+
+Implement one policy only at first: FIFO.
+
+Eviction sequence:
+
+  1. choose and validate an unpinned resident victim;
+  2. mark its frame EVICTING under the VM lock;
+  3. reserve a swap slot;
+  4. snapshot the current PTE and permissions;
+  5. perform page write without holding a spinlock;
+  6. reacquire lock and revalidate owner, VA, PTE, and state;
+  7. replace the valid PTE with an invalid SWAPPED PTE;
+  8. sfence.vma before returning to the affected user address space;
+  9. reuse the frame for the faulting page;
+  10. update statistics and wake waiters.
+
+At first, write every evicted page. Dirty-write avoidance and retained backing
+slots are later optimizations and must not precede correctness.
+
+Tests:
+
+  vmtest lazy-zero
+    Untouched lazy pages consume no frame or swap slot; first reads return zero.
+
+  vmtest swap-pattern
+    Set limit 8, allocate 64 pages, store a unique pattern per page, then verify
+    forward, reverse, and fixed-seed random access orders.
+
+  vmtest swap-repeat
+    Thrash the same working set for at least 100 complete passes.
+
+  vmtest permissions
+    Swapped read-only/executable pages must not become writable after swap-in.
+    Run after full user-page paging is enabled.
+
+  vmtest swap-full
+    Artificially limit swap slots. Exhaustion must kill/fail only the requesting
+    process, preserve the shell, and leave all previous slots consistent.
+
+Commands:
+
+  make clean && make -j"$(nproc)" CPUS=1 VM_DEBUG=1
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 300 "vmtest lazy-zero"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest swap-pattern"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 900 "vmtest swap-repeat"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 300 "vmtest swap-full"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "usertests -q"
+
+Gate 5 PASS conditions:
+
+  - all patterns survive repeated eviction and restoration;
+  - lazy holes remain distinct from swapped pages;
+  - one page fault produces at most one swap read;
+  - swap full and I/O failure are recoverable;
+  - no PTE is valid and SWAPPED simultaneously;
+  - vmcheck passes after each forced fault and eviction in debug mode.
+
+Commit:
+
+  git add kernel Makefile user tools docs .gitignore
+  git commit -m "vm: implement FIFO demand paging and swap fault handling"
+
+
+9. PHASE 5 - COMPLETE DESTRUCTION AND RESIZE LIFECYCLE
+======================================================
+
+Modify uvmunmap(), uvmdealloc(), uvmfree(), freewalk(), freeproc(), and all
+failure cleanup paths.
+
+Required behavior:
+
+  - valid resident PTE: unregister/release frame and any backing reference;
+  - SWAPPED PTE: release its swap slot and clear the PTE;
+  - FETCHING/EVICTING PTE: cancel or wait for the operation, then retry cleanup;
+  - lazy hole: no action;
+  - partial shrink: retain the still-valid partial page but remove all full pages
+    above the new break;
+  - exec success: fully destroy the old address space;
+  - exec failure: fully destroy the incomplete new address space;
+  - killed process: all in-flight paging/prefetch work is joined or canceled
+    before proc reuse.
+
+Tests:
+
+  vmtest shrink-swapped
+    Force alternating pages resident/swapped, shrink across them, and verify
+    resident/slot counters decrease exactly.
+
+  vmtest exit-leak
+    Repeat child allocate-thrash-exit 500 times. Global free-frame and free-slot
+    counts must return to the baseline after every child.
+
+  vmtest kill-fault
+    Inject slow swap I/O, kill a child during a fault, and verify no leak,
+    use-after-free, or wakeup on a reused proc structure.
+
+  vmtest exec-fail-cleanup
+    Force allocation/I/O failure during exec construction and verify cleanup.
+
+Commands:
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest shrink-swapped"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1200 "vmtest exit-leak"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest kill-fault"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest exec-fail-cleanup"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 900 "grind"
+
+Gate 6 PASS conditions:
+
+  - no slot/frame/request leak across shrink, exit, kill, or failed exec;
+  - a PID/proc slot can be reused safely after a killed in-flight process;
+  - freewalk never ignores a remaining swapped leaf;
+  - usertests and grind still pass.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: complete swapped-page resize exit and failure cleanup"
+
+
+10. PHASE 6 - FORK, EXEC, AND KERNEL/USER COPY PATHS
+====================================================
+
+uvmcopy() must distinguish:
+
+  - lazy hole: reproduce the hole;
+  - resident page: pin the source, allocate child frame, copy bytes and exact
+    permissions, register child frame, then unpin;
+  - swapped page: either copy the swap data to a new slot or share an immutable
+    slot using a correct refcount;
+  - fetching/evicting page: wait and retry from a validated state.
+
+Do not introduce COW unless separately required.
+
+copyin(), copyinstr(), and copyout():
+
+  - restore a swapped page before direct physical access;
+  - mark software reference information for copyin/copyinstr;
+  - mark reference and dirty information for copyout;
+  - recheck permissions after fault resolution.
+
+exec():
+
+  - pin/build the new address space until ELF loading and argument copying are
+    complete;
+  - on commit, register pages and reclaim down to the configured limit;
+  - on failure, remove every resident/swapped/busy page of the incomplete space;
+  - when text pages become pageable, usertrap must accept instruction fault
+    cause 12 and restore PTE_X exactly.
+
+Tests:
+
+  vmtest fork-resident
+  vmtest fork-swapped
+  vmtest fork-lazy-hole
+  vmtest fork-diverge
+  vmtest fork-low-limit
+  vmtest copyin-swapped
+  vmtest copyout-swapped
+  vmtest copyinstr-cross-page-swapped
+  vmtest exec-pressure
+  vmtest exec-loop
+
+Commands:
+
+  for t in fork-resident fork-swapped fork-lazy-hole fork-diverge \
+           fork-low-limit copyin-swapped copyout-swapped \
+           copyinstr-cross-page-swapped exec-pressure exec-loop; do
+    python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest $t" || exit 1
+  done
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 900 "usertests -q"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1200 "grind"
+
+Gate 7 PASS conditions:
+
+  - parent/child retain byte-exact values from resident and swapped pages;
+  - parent and child writes diverge normally after eager-copy fork;
+  - swap-slot references reach zero only after all owners release them;
+  - paths and I/O buffers crossing swapped page boundaries work;
+  - repeated exec does not leak old or failed-new address spaces;
+  - executable permissions survive eviction and restoration.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: complete fork exec copy and teardown lifecycle"
+
+
+11. PHASE 7 - REPLACEMENT POLICY FRAMEWORK
+==========================================
+
+Add a policy interface whose implementations never perform I/O directly:
+
+  init(vmstate)
+  page_inserted(page)
+  page_sampled(page, accessed, dirty)
+  page_removed(page)
+  choose_victim(vmstate, candidate_array)
+
+The common engine must filter and validate candidates and fall back to Clock if
+a policy returns NULL, a foreign page, a pinned page, a busy page, or an index
+outside the candidate array.
+
+Implement in order:
+
+  1. FIFO
+  2. Clock
+  3. Aging / sampled LRU approximation
+  4. optional LFU or adaptive recency-frequency policy
+  5. learned scorer only after all above pass
+
+Access/dirty sampling:
+
+  - inspect PTE_A and PTE_D;
+  - update policy metadata;
+  - clear PTE_A when required by the policy;
+  - perform sfence.vma before returning to the current address space;
+  - include software reference/dirty events from copyin/out/instr.
+
+Dirty optimization may now be added:
+
+  - retain a backing slot after swap-in;
+  - if the page remains clean, evict without rewriting;
+  - if dirty, write back;
+  - if a backing slot is shared and a page becomes dirty, allocate a private
+    slot before overwriting.
+
+Tests:
+
+  vmtest policies-correctness
+    Run the identical pattern test under every policy.
+
+  vmtest clock-reference
+    Prove recently referenced pages receive a second chance.
+
+  vmtest aging-order
+    Verify a known sampled sequence produces the expected victim.
+
+  vmtest dirty-writeback
+    Verify clean backed pages skip writes and dirty pages do not.
+
+  vmtest invalid-policy-fallback
+    Inject an invalid victim and verify Clock fallback plus a fallback counter.
+
+Commands:
+
+  for p in fifo clock aging; do
+    python3 tools/run_xv6_tests.py --cpus 1 --timeout 900 \
+      "vmtest policies-correctness $p" || exit 1
+  done
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest clock-reference"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest aging-order"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest dirty-writeback"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 \
+    "vmtest invalid-policy-fallback"
+
+Gate 8 PASS conditions:
+
+  - all policies are byte-for-byte correct;
+  - policies differ only in victim choice, not lifecycle mechanics;
+  - invalid policy output cannot corrupt memory;
+  - dirty optimization reduces writes in its targeted test;
+  - turning optimizations off reproduces the always-write reference behavior.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: add Clock Aging and validated policy interface"
+
+
+12. PHASE 8 - SYNCHRONOUS PREFETCH LIFECYCLE
+============================================
+
+Implement functional prefetch in process context before adding a background
+worker. This provides safe semantics at a full resident limit.
+
+API:
+
+  vm_prefetch_hint(struct proc *p, uint64 va, int source)
+  vm_prefetch_service(struct proc *p, int max_pages)
+
+Rules:
+
+  - prefetch only valid SWAPPED pages initially;
+  - duplicate hints for resident, queued, or fetching pages are coalesced;
+  - demand has priority;
+  - prefetch may evict through the normal replacement engine because service
+    runs while the owning process is in the kernel;
+  - install the result as RESIDENT_PREFETCH with PTE_A clear;
+  - if sampled PTE_A becomes set, mark the prefetch useful;
+  - if it is evicted before use, mark it wasted;
+  - enforce a maximum pages-per-trigger and queue depth;
+  - stop prefetching after I/O error, process exit, invalid address, or a
+    demand-reserve threshold.
+
+Begin with a deterministic next-page predictor for testing. The policy API may
+later submit arbitrary predicted VPNs.
+
+Statistics:
+
+  hints, accepted, coalesced, dropped_invalid, dropped_pressure, issued,
+  completed, useful, late, wasted, canceled, read_errors, prefetch_cycles,
+  and demand_faults_avoided_estimate.
+
+Tests:
+
+  prefetchtest sequential
+    Thrash a sequential access stream. next-page prefetch should complete and
+    later show useful accesses.
+
+  prefetchtest duplicate
+    Submit the same hint repeatedly. Exactly one page read may be issued.
+
+  prefetchtest invalid
+    Hints outside p->sz, lazy holes, resident pages, and illegal permissions are
+    rejected without allocating slots/frames.
+
+  prefetchtest waste
+    Prefetch pages that are never accessed and force eviction. wasted must rise
+    and all data must remain correct.
+
+  prefetchtest pressure
+    Prefetch must stop/drop before starving demand or recursively causing an
+    uncontrolled eviction storm.
+
+Commands:
+
+  for t in sequential duplicate invalid waste pressure; do
+    python3 tools/run_xv6_tests.py --cpus 1 --timeout 900 \
+      "prefetchtest $t" || exit 1
+  done
+
+Gate 9 PASS conditions:
+
+  - prefetched bytes exactly match the swapped page;
+  - duplicate reads do not occur;
+  - useful/wasted accounting matches deterministic streams;
+  - disabling prefetch yields identical program output;
+  - demand succeeds when prefetch is dropped;
+  - vmcheck passes before and after every queue/service batch.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: add bounded synchronous page prefetch support"
+
+
+13. PHASE 9 - ASYNCHRONOUS PREFETCH AND RACE COMPLETION
+======================================================
+
+Only begin after synchronous prefetch passes all gates.
+
+Recommended safe design without remote eviction:
+
+  1. In the owning process's kernel context, select/evict any required victim
+     and reserve a physical frame for the prefetch.
+  2. Mark the target PTE FETCHING and increment p->vm.inflight.
+  3. Queue (process generation, pagetable, VA, slot, reserved frame, request ID).
+  4. A kernel paging worker performs only the disk read; it does not evict a
+     mapping from a process that may be running on another hart.
+  5. On completion, lock and revalidate process generation, pagetable, VA, PTE,
+     request ID, and exiting state.
+  6. Install the page or discard the reserved frame safely.
+  7. Decrement inflight and wake demand faults and exit/unmap waiters.
+
+Required races:
+
+  Demand while prefetch is FETCHING:
+    wait for the request, count it as late, retry, and never issue a second read.
+
+  Unmap/shrink while queued:
+    cancel request before I/O or mark cancellation; completion must discard the
+    page and release slot/frame references.
+
+  Exit/kill while in flight:
+    set exiting, cancel queued work, wait for inflight==0, then free pagetable
+    and proc. A worker must never dereference a reused proc slot.
+
+  Prefetch I/O error:
+    restore the original SWAPPED state, release reserved frame, wake demand;
+    later demand may retry normally.
+
+  Duplicate prediction:
+    coalesce using PTE_BUSY/request ID under the VM lock.
+
+  Replacement encounter:
+    FETCHING and reserved frames are not victim candidates.
+
+Tests with VM_DEBUG delay injection:
+
+  prefetchtest demand-race
+  prefetchtest unmap-queued
+  prefetchtest shrink-inflight
+  prefetchtest exit-inflight
+  prefetchtest kill-inflight
+  prefetchtest io-error
+  prefetchtest duplicate-race
+  prefetchtest worker-stress
+
+Commands:
+
+  for t in demand-race unmap-queued shrink-inflight exit-inflight \
+           kill-inflight io-error duplicate-race worker-stress; do
+    python3 tools/run_xv6_tests.py --cpus 1 --timeout 1200 \
+      "prefetchtest $t" || exit 1
+  done
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1200 "grind"
+
+Gate 10 PASS conditions:
+
+  - no double read, double free, stale proc access, or stranded waiter;
+  - queued and in-flight counters return to zero after every test;
+  - all injected failures preserve the original swapped data;
+  - exit waits only for bounded cleanup and never deadlocks;
+  - synchronous mode can still be selected as a reference backend.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: complete asynchronous prefetch lifecycle and cancellation"
+
+
+14. TRACING AND MEASUREMENT SUPPORT
+===================================
+
+Use a preallocated binary ring buffer. Do not printk on every event.
+
+Minimum event fields:
+
+  sequence, cycle, ticks, PID, process generation, event type, VPN, access type,
+  page state, PTE flags, frame index, swap slot, policy ID, victim VPN, queue ID,
+  resident count, and error/status.
+
+Minimum events:
+
+  ZERO_FAULT, SWAP_FAULT, PROTECTION_FAULT, MAP, UNMAP, VICTIM_SELECTED,
+  EVICT_BEGIN, EVICT_END, SWAP_READ_BEGIN/END, SWAP_WRITE_BEGIN/END,
+  PREFETCH_HINT/QUEUE/BEGIN/END/USE/WASTE/CANCEL, POLICY_FALLBACK, and TRACE_DROP.
+
+Expose a bounded vmtrace_read() syscall. Tests must verify ring wraparound,
+overflow accounting, disabled tracing, and that trace collection does not use
+pageable memory.
+
+Tests and commands:
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest trace-schema"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest trace-wrap"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest trace-disabled"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 600 "vmtest trace-drop"
+
+Gate 11 PASS conditions:
+
+  - event records have a stable version and byte size;
+  - ring wrap preserves ordering of retained records;
+  - overflow increments TRACE_DROP without corrupting adjacent kernel memory;
+  - disabled tracing emits no records and does not change paging results;
+  - trace buffers and metadata are nonpageable;
+  - trace reads crossing swapped user-buffer pages complete correctly.
+
+Run performance experiments twice:
+
+  - tracing enabled for dataset/debug runs;
+  - tracing disabled for uncontaminated timing runs.
+
+Commit:
+
+  git add kernel user Makefile tools docs .gitignore
+  git commit -m "vm: add bounded paging trace and measurement interface"
+
+
+15. FULL REGRESSION MATRIX
+==========================
+
+Static checks:
+
+  git status --short
+  git diff --check
+  git diff --stat
+  rg -n "\*pte[[:space:]]*(=|\|=|&=)" kernel
+  rg -n "PTE_SWAPPED|PTE_BUSY|sfence_vma" kernel
+  rg -n "kalloc\(" kernel/vm.c kernel/exec.c kernel/proc.c
+  rg -n "uvmunmap|uvmdealloc|uvmfree|freewalk|freeproc" kernel
+  rg -n "uvmcopy|copyin|copyout|copyinstr|vm_fault" kernel
+  rg -n "swap_slot_(alloc|get|put)|inflight|prefetch" kernel
+
+Every PTE mutation found by the first search must be manually classified as:
+
+  - page-table construction;
+  - resident mapping installation;
+  - A/D sampling;
+  - swap/fetch transition;
+  - permission change;
+  - unmap/cleanup.
+
+Final automated commands:
+
+  make clean
+  make -j"$(nproc)" CPUS=1 VM_DEBUG=1
+
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1200 "usertests -q"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1800 "grind"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 2400 "vmtest all"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 2400 "prefetchtest all"
+
+Policy matrix:
+
+  for p in fifo clock aging; do
+    python3 tools/run_xv6_tests.py --cpus 1 --timeout 1800 \
+      "vmtest all-policy $p" || exit 1
+  done
+
+Release build without debug instrumentation:
+
+  make clean
+  make -j"$(nproc)" CPUS=1
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1200 "usertests -q"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1800 "vmtest all"
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout 1800 "prefetchtest all"
+
+Optional multiprocessor stress, not a release claim unless TLB requirements are
+fully addressed:
+
+  make clean
+  make -j"$(nproc)" CPUS=3 VM_DEBUG=1
+  python3 tools/run_xv6_tests.py --cpus 3 --timeout 2400 "vmtest multiproc"
+  python3 tools/run_xv6_tests.py --cpus 3 --timeout 2400 \
+    "prefetchtest worker-stress"
+
+Long randomized soak:
+
+  for seed in 1 2 3 4 5 17 31 127 1024 65535; do
+    python3 tools/run_xv6_tests.py --cpus 1 --timeout 1800 \
+      "vmtest random $seed 100000" || exit 1
+  done
+
+Gate 12 PASS conditions:
+
+  - the complete debug and release matrices pass from a clean build;
+  - every randomized seed passes or has a preserved reproducible failure log;
+  - all policy and prefetch modes produce identical application data results;
+  - vmcheck and final statistics report zero leaked frames, slots, requests, and
+    in-flight operations after the test processes exit;
+  - git diff --check is clean and git status shows no unintended files.
+
+
+16. FINAL ACCEPTANCE CRITERIA
+=============================
+
+The implementation is complete only if all statements below are true:
+
+  [ ] Existing xv6 usertests and grind pass.
+  [ ] A process can correctly use much more virtual memory than its resident
+      frame limit.
+  [ ] Byte patterns survive repeated swap-out/swap-in under FIFO, Clock, and
+      Aging.
+  [ ] Lazy holes, resident pages, swapped pages, and fetching pages are never
+      confused.
+  [ ] Unmap, shrink, failed exec, successful exec, exit, and kill release every
+      frame, slot, request, and I/O reference.
+  [ ] Fork works when source pages are lazy, resident, swapped, or temporarily
+      busy.
+  [ ] copyin, copyout, and copyinstr work across swapped page boundaries.
+  [ ] Original read/write/execute/user permissions survive swapping.
+  [ ] Swap-full and disk-error cases fail gracefully without corrupting the
+      filesystem or panicking the kernel.
+  [ ] Policies cannot select pinned, busy, foreign, or invalid pages.
+  [ ] Invalid learned/predictive decisions fall back to Clock.
+  [ ] Prefetch hints are bounded, duplicate requests are coalesced, demand has
+      priority, and usefulness/waste are measurable.
+  [ ] Demand-vs-prefetch, unmap-vs-prefetch, exit-vs-prefetch, and I/O-error
+      races pass deterministic delay-injection tests.
+  [ ] vmcheck passes throughout debug stress and all counters return to their
+      baseline after test processes exit.
+  [ ] The exact baseline commit, tool versions, configuration, frame limit,
+      swap size, policy, prefetch mode, and random seed are printed for every
+      experiment.
+
+
+17. AGENT WORK RULES
+====================
+
+  1. Complete one phase and its gate before beginning the next.
+  2. Keep commits small and phase-specific; never combine swap correctness with
+     ML policy work.
+  3. After each failure, preserve the failing seed, QEMU output, vmstats, and
+     last trace records.
+  4. Never fix a lifecycle failure by disabling the test or leaking/pinning the
+     affected page permanently.
+  5. Never hold a spinlock across disk I/O or sleep.
+  6. Never reuse a proc, frame, swap slot, or request object until all in-flight
+     references have drained.
+  7. Run git diff --check and the phase regression before every commit.
+  8. If the design deviates from this plan, document the changed invariant,
+     reason, and replacement test before coding the deviation.
+
+Recommended final commit inspection:
+
+  git log --oneline --decorate --reverse \
+    7d01506ee03394b6b1a161ccee69cd150ab471fc..HEAD
+  git diff --check 7d01506ee03394b6b1a161ccee69cd150ab471fc..HEAD
+  git diff --stat 7d01506ee03394b6b1a161ccee69cd150ab471fc..HEAD
+  git status --short
+
+The final git status must be clean, and the test-logs directory should contain
+the complete passing release matrix plus at least one recorded run for every
+failure-injection test.
