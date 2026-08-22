@@ -2,6 +2,11 @@ K=kernel
 U=user
 NSWAPSLOTS ?= 1024
 
+# Derived (not hardcoded) so fs.img's swap-region offset can never silently
+# desync from kernel/param.h and kernel/fs.h if either constant changes.
+FSSIZE := $(shell awk '/^#define[ \t]+FSSIZE/ {print $$3}' $K/param.h)
+BSIZE := $(shell awk '/^#define[ \t]+BSIZE/ {print $$3}' $K/fs.h)
+
 OBJS = \
   $K/entry.o \
   $K/start.o \
@@ -166,7 +171,7 @@ UPROGS=\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
-	truncate -s $$((2000 * 1024 + $(NSWAPSLOTS) * 4096)) fs.img
+	truncate -s $$(($(FSSIZE) * $(BSIZE) + $(NSWAPSLOTS) * 4096)) fs.img
 
 -include kernel/*.d user/*.d
 

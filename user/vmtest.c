@@ -112,9 +112,15 @@ controls(void)
 {
   struct vmstats stats;
 
+  // requested_policy is VM_POLICY_FIFO (its static default) for every
+  // invocation except "all-policy clock"/"all-policy aging", which forces
+  // it onto this process's parent specifically so run_all()'s
+  // run_isolated() children inherit it -- so a freshly-inherited process
+  // is expected to start on whichever policy that is, not unconditionally
+  // FIFO.
   if(vmstats(&stats) < 0 || stats.version != VMSTATS_VERSION ||
      stats.resident_limit != VM_LIMIT_UNLIMITED ||
-     stats.policy != VM_POLICY_FIFO || stats.prefetch_enabled != 0)
+     stats.policy != (uint64)requested_policy || stats.prefetch_enabled != 0)
     return -1;
   if(vmctl(VM_SET_LIMIT, 8) < 0 ||
      vmctl(VM_SET_POLICY, VM_POLICY_CLOCK) < 0 ||
@@ -368,7 +374,7 @@ exit_leak(void)
   struct vmstats baseline, after;
   if(vmstats(&baseline) < 0)
     return -1;
-  for(int iteration = 0; iteration < 50; iteration++){
+  for(int iteration = 0; iteration < 500; iteration++){
     int pid = fork();
     if(pid < 0)
       return -1;
@@ -819,7 +825,15 @@ run(char *name)
   if(strcmp(name, "all") == 0)
     return run_all();
   if(strcmp(name, "all-policy") == 0)
-    return policy_correctness(requested_policy);
+    // Unlike "policies-correctness" (a single targeted check),
+    // "all-policy" is meant to run the whole lifecycle matrix under a
+    // forced policy. main() sets that policy on this process before we
+    // get here, so every run_isolated() child below inherits it via
+    // vmstate_inherit() at fork time (a handful of subtests, e.g.
+    // dirty-writeback and invalid-policy-fallback, deliberately pin their
+    // own policy regardless -- that's intentional and unrelated to which
+    // policy was requested here).
+    return run_all();
   if(strcmp(name, "random") == 0)
     return random_workload(requested_seed, requested_iterations);
   if(strcmp(name, "multiproc") == 0)
@@ -842,6 +856,15 @@ main(int argc, char **argv)
     else if(strcmp(argv[2], "aging") == 0)
       requested_policy = VM_POLICY_AGING;
     else {
+      printf("vmtest: %s: FAIL\n", name);
+      exit(1);
+    }
+    // "all-policy" runs run_all()'s children under this policy via fork
+    // inheritance; "policies-correctness" instead passes requested_policy
+    // straight to policy_correctness() and doesn't need this process's own
+    // policy touched.
+    if(strcmp(name, "all-policy") == 0 &&
+       vmctl(VM_SET_POLICY, requested_policy) < 0){
       printf("vmtest: %s: FAIL\n", name);
       exit(1);
     }

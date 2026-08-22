@@ -118,16 +118,21 @@ prefetch_one(struct proc *p, struct vm_prefetch_request *request)
     return -1;
   }
 
+  // Only count this request as issued (and hold an inflight slot for it)
+  // once we know it will actually proceed. Checking the reserve before
+  // touching either counter keeps a dropped-for-pressure request from
+  // inflating prefetch_issued, matching prefetch_async_one()'s ordering
+  // below.
   acquire(&p->vm.lock);
   uint64 limit = p->vm.resident_limit;
-  p->vm.stats.prefetch_issued++;
-  p->vm.inflight_io++;
+  int reserve_ok = limit == VM_LIMIT_UNLIMITED || limit >= 2;
+  if(reserve_ok){
+    p->vm.stats.prefetch_issued++;
+    p->vm.inflight_io++;
+  }
   release(&p->vm.lock);
-  if(limit != VM_LIMIT_UNLIMITED && limit < 2){
-    acquire(&p->vm.lock);
-    p->vm.stats.prefetch_dropped_pressure++;
-    p->vm.inflight_io--;
-    release(&p->vm.lock);
+  if(!reserve_ok){
+    prefetch_stat(p, &p->vm.stats.prefetch_dropped_pressure);
     return -1;
   }
 

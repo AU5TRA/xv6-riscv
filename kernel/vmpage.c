@@ -28,10 +28,50 @@ page_for_pa(uint64 pa)
   return &frame_table.pages[(pa - KERNBASE) / PGSIZE];
 }
 
+// owner_next/owner_prev thread every frame owned by a given process onto
+// that process's vm.owned_head/owned_tail list. Every caller of these two
+// helpers already holds frame_table.lock, matching the fields' documented
+// protection (see vmpage.h and vmstate.h).
+static void
+owned_list_remove(struct vm_page *page)
+{
+  if(page->owner == 0)
+    return;
+  struct vmstate *vm = &page->owner->vm;
+  if(page->owner_prev)
+    page->owner_prev->owner_next = page->owner_next;
+  else
+    vm->owned_head = page->owner_next;
+  if(page->owner_next)
+    page->owner_next->owner_prev = page->owner_prev;
+  else
+    vm->owned_tail = page->owner_prev;
+  page->owner_next = 0;
+  page->owner_prev = 0;
+}
+
+static void
+owned_list_insert(struct vm_page *page)
+{
+  struct vmstate *vm = &page->owner->vm;
+  page->owner_prev = vm->owned_tail;
+  page->owner_next = 0;
+  if(vm->owned_tail)
+    vm->owned_tail->owner_next = page;
+  else
+    vm->owned_head = page;
+  vm->owned_tail = page;
+}
+
 static void
 clear_page(struct vm_page *page)
 {
   uint64 pa = page->pa;
+  // Must run before memset wipes owner/owner_next/owner_prev below: this is
+  // the single choke point (called directly by vm_frame_release(), and via
+  // setup_page() for both a fresh frame and a reclaimed/repurposed one) that
+  // detaches a frame from whichever process's owned-frame list it was on.
+  owned_list_remove(page);
   memset(page, 0, sizeof(*page));
   page->pa = pa;
   page->state = VM_PAGE_FREE;
@@ -53,6 +93,7 @@ setup_page(struct vm_page *page, struct proc *p, pagetable_t pagetable,
   page->busy = purpose == VM_FRAME_CONSTRUCTION;
   page->load_sequence = ++load_sequence;
   page->aging_counter = 0xff;
+  owned_list_insert(page);
 }
 
 static int
@@ -186,9 +227,15 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   int fallback = 0;
 
   acquire(&frame_table.lock);
+  // Walk only this process's own owned-frame list rather than scanning
+  // every physical frame in the system: page_is_candidate() already
+  // requires page->owner == p, so every frame reachable from any other
+  // process's list can never contribute a candidate here anyway. This
+  // bounds eviction cost by the faulting process's own resident set
+  // instead of total physical memory.
   int candidate_count = 0;
-  for(uint64 i = 0; i < NPHYS_PAGES; i++){
-    struct vm_page *candidate = &frame_table.pages[i];
+  for(struct vm_page *candidate = p->vm.owned_head; candidate != 0;
+      candidate = candidate->owner_next){
     if(page_is_candidate(p, candidate))
       frame_table.candidates[candidate_count++] = candidate;
   }
@@ -578,6 +625,28 @@ vmpage_check_proc(struct proc *p)
       release(&frame_table.lock);
       return -1;
     }
+  }
+
+  // Cross-check the owned-frame list reclaim_frame() now relies on against
+  // the full-table scan above, which remains the independent ground truth:
+  // every page found by owner-field alone must also be reachable from
+  // p->vm.owned_head exactly once, and the list must contain nothing else.
+  uint64 listed = 0;
+  for(struct vm_page *page = p->vm.owned_head; page != 0;
+      page = page->owner_next){
+    if(page->owner != p){
+      printk("vmcheck pid=%d owned-list entry pa=%p owner mismatch\n",
+             p->pid, (void *)page->pa);
+      release(&frame_table.lock);
+      return -1;
+    }
+    listed++;
+  }
+  if(listed != count){
+    printk("vmcheck pid=%d owned-list count=%d scan count=%d mismatch\n",
+           p->pid, (int)listed, (int)count);
+    release(&frame_table.lock);
+    return -1;
   }
   release(&frame_table.lock);
 

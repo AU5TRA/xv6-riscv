@@ -37,6 +37,11 @@ struct vm_page {
   int backing_slot;
   uint64 prefetch_request_id;
   int policy_index;
+  // Intrusive doubly-linked list of this frame's owner's other owned
+  // frames (struct vmstate.owned_head/owned_tail). Protected by
+  // frame_table.lock, not p->vm.lock -- see vmpage.c.
+  struct vm_page *owner_next;
+  struct vm_page *owner_prev;
 };
 
 int vm_frame_acquire(struct proc *, pagetable_t, uint64,

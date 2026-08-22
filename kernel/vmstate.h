@@ -4,6 +4,8 @@
 #include "vmstats.h"
 #include "prefetch.h"
 
+struct vm_page;
+
 struct vmstate {
   struct spinlock lock;
   uint64 resident_limit;
@@ -25,6 +27,11 @@ struct vmstate {
   int invalid_policy_once;
 #endif
   struct vmstats stats;
+  // Head/tail of this process's owned-frame list (vm_page.owner_next/prev).
+  // Protected by vmpage.c's frame_table.lock, NOT this struct's own .lock --
+  // every mutation site already holds frame_table.lock for other reasons.
+  struct vm_page *owned_head;
+  struct vm_page *owned_tail;
 };
 
 #endif

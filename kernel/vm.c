@@ -208,6 +208,15 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       continue;
     if ((*pte & PTE_V) == 0){
       if(*pte & PTE_SWAPPED){
+        // Reaching a BUSY (in-flight fetch/prefetch) leaf here is a real
+        // invariant violation, not just a defensive check: uvmunmap() must
+        // never be called with unresolved I/O still owning a PTE in this
+        // pagetable. The one caller that reaches user teardown, kexit(),
+        // relies on vm_prefetch_drain() running first (see the comment
+        // there) to guarantee no BUSY leaf remains by the time a pagetable
+        // is actually freed. If a future change reorders exit/kill cleanup,
+        // this should fail loudly right here rather than silently leaking
+        // or corrupting the swap slot this PTE still names.
         if(*pte & PTE_BUSY)
           panic("uvmunmap: busy");
         int slot = PTE2SLOT(*pte);
@@ -336,11 +345,21 @@ uvmcopy(struct proc *oldp, struct proc *newp, pagetable_t old,
   (void)oldp;
 
   for (i = 0; i < sz; i += PGSIZE) {
+  retry:
     if ((pte = walk(old, i, 0)) == 0)
       continue; // page table entry hasn't been allocated
     if ((*pte & PTE_V) == 0){
-      if(*pte & PTE_BUSY)
-        goto err;
+      if(*pte & PTE_BUSY){
+        // The only source of PTE_BUSY on a page this process isn't itself
+        // touching is the async prefetch worker mid-fetch. Wait for it to
+        // resolve -- installed, or reverted back to SWAPPED on
+        // cancellation/error -- instead of failing the whole fork; every
+        // terminal outcome in prefetch.c wakes this exact channel. This
+        // mirrors vmfault()'s identical wait-and-retry on the same PTE.
+        sleep_prepare(pte);
+        sleep();
+        goto retry;
+      }
       if(*pte & PTE_SWAPPED){
         int slot = PTE2SLOT(*pte);
         if(swap_slot_get(slot) < 0)

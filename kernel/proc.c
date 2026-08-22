@@ -356,6 +356,14 @@ kexit(int status)
   if (p == initproc)
     panic("init exiting");
 
+  // Must run before any teardown that can reach uvmunmap() on this
+  // pagetable (directly here, or later via freeproc()/proc_freepagetable()
+  // when a parent reaps this zombie). vm_prefetch_drain() sets p->vm.exiting
+  // (blocking new prefetch work) and blocks until every in-flight async
+  // fetch for this process has been canceled or completed, so no PTE can
+  // still be PTE_BUSY by the time uvmunmap() walks it. uvmunmap() panics on
+  // a BUSY leaf specifically because that invariant is assumed to hold by
+  // construction, not re-checked there.
   vm_prefetch_drain(p);
 
   // Close all open files.

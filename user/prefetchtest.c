@@ -202,6 +202,39 @@ demand_race(void)
 }
 
 static int
+fork_race(void)
+{
+  struct vmstats before, after;
+  char *memory = make_swapped(&before);
+  if(memory == SBRK_ERROR || enable_async() < 0 ||
+     vmprefetch((uint64)TARGET(memory), 0) < 0 ||
+     vmfailinject(VM_FAIL_DELAY_TICKS, 20) < 0 ||
+     vmprefetch(VM_PREFETCH_NO_HINT, 1) != 1)
+    return -1;
+  // TARGET(memory)'s PTE is now SWAPPED|BUSY: the async worker has an
+  // in-flight, deliberately slow fetch on it. fork() must wait for that
+  // fetch to resolve rather than failing the whole copy.
+  int pid = fork();
+  if(pid < 0){
+    printf("fork-race: fork failed while a fetch was in flight\n");
+    return -1;
+  }
+  if(pid == 0){
+    int ok = TARGET(memory)[0] == TARGET_PAGE + 1;
+    for(int i = 0; i < PAGES; i++)
+      if(memory[i * PGSIZE] != i + 1)
+        ok = 0;
+    exit(ok && vmcheck() == 0 ? 0 : 1);
+  }
+  int status;
+  if(wait(&status) != pid || status != 0 ||
+     TARGET(memory)[0] != TARGET_PAGE + 1 || wait_idle(&after) < 0 ||
+     after.prefetch_completed <= before.prefetch_completed)
+    return -1;
+  return finish(memory);
+}
+
+static int
 unmap_queued(void)
 {
   struct vmstats before, after;
@@ -362,6 +395,8 @@ run(char *name)
     return pressure();
   if(strcmp(name, "demand-race") == 0)
     return demand_race();
+  if(strcmp(name, "fork-race") == 0)
+    return fork_race();
   if(strcmp(name, "unmap-queued") == 0)
     return unmap_queued();
   if(strcmp(name, "shrink-inflight") == 0)
@@ -385,6 +420,9 @@ run(char *name)
 #ifdef VM_DEBUG
     printf("  demand-race\n");
     if(demand_race() < 0)
+      return -1;
+    printf("  fork-race\n");
+    if(fork_race() < 0)
       return -1;
     printf("  unmap-queued\n");
     if(unmap_queued() < 0)

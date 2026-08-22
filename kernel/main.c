@@ -41,6 +41,16 @@ main()
       ;
 
     printk("hart %d starting\n", cpuid());
+    // The paging/swap subsystem's locking discipline assumes CPUS=1: victim
+    // selection, eviction, and fetch/prefetch state transitions all rely on
+    // a process never running its own kernel code on two harts at once, and
+    // there is no cross-hart TLB shootdown after a PTE is invalidated or
+    // repointed. Reaching here means a second hart has joined, so paging
+    // correctness beyond CPUS=1 is not guaranteed -- treat this as a
+    // stress-test configuration only, not a correctness reference.
+    printk("warning: hart %d joining with CPUS>1; paging/swap correctness "
+           "is only validated at CPUS=1 (no cross-hart TLB shootdown)\n",
+           cpuid());
     kvminithart();  // turn on paging
     trapinithart(); // install kernel trap vector
     plicinithart(); // ask PLIC for device interrupts
