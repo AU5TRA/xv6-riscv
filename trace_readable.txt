@@ -1,0 +1,430 @@
+========================================================================
+HOW TO READ THIS FILE
+========================================================================
+This is a plain-English translation of trace.txt, xv6's paging demo
+output. Everything that isn't a raw trace event line (banners, phase
+headers, the program's own PASS/FAIL narration) is passed through
+unchanged. Every "#N TYPE vpn=... slot=... frame=... victim_vpn=..."
+line has been rewritten into a sentence.
+
+A few things worth knowing up front:
+  - "page" numbers (vpn) are virtual page numbers: the process's address
+    space cut into 4096-byte pages and numbered from 0 upward. Low
+    numbers here (0-14) are this small demo program's own code/data/
+    stack, loaded before the test even starts.
+  - "frame" numbers are physical RAM frame indices -- which slot of
+    actual RAM a page's data lives in while resident. These are
+    reused constantly as pages are evicted and reloaded.
+  - "swap slot" numbers are which of the 1024 4KB slots on disk holds a
+    page's data while it isn't in RAM.
+  - The fields mean different things for different event types (e.g.
+    for VICTIM_SELECTED, "vpn" is the NEW page causing the eviction and
+    "victim_vpn" is the page being kicked out; for EVICT_END, confusingly,
+    "victim_vpn" actually holds the NEW page that will reuse the freed
+    frame, not a second victim) -- each translated sentence below spells
+    out exactly what's happening rather than making you infer it.
+  - A "TRACE_DROP" line isn't a real paging event: it means the fixed-size
+    128-event trace ring filled up and the oldest recorded event was
+    thrown away to make room. It's expected on the busier phases of this
+    demo and does not indicate anything went wrong with paging itself
+    (the demo's own PASS/FAIL checks, based on counters rather than the
+    trace log, are what actually prove correctness).
+========================================================================
+
+# CPUS=1 timeout=60.0
+# commands=['pagingdemo']
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+$ 
+# RUN pagingdemo
+pagingdemo
+xv6 paging visual verification
+===============================
+[trace ring enabled -- every fault/evict/swap event will be listed]
+baseline resident_count=6 (this program's own code/data/stack, loaded by exec before any of this test's own memory exists)
+
+=== PHASE 1: fill 10 pages into a 10-frame budget ===
+(watch resident_count climb, then cap at 10 once the budget is full)
+note: the margin above baseline is small on purpose. FIFO evicts whichever resident page is globally OLDEST for this process, with no exception for the program's own code/stack -- so once enough heap pages are touched, you may see this program's own already-loaded pages get evicted and immediately faulted back in (a SWAP_FAULT on a very low VPN, right after an EVICT_END for that same VPN, in the trace dump below). That's not a bug: it's proof the system can transparently page out and restore even its own live, currently-executing code without corruption or a crash -- this policy simply has no special-case pin for "my own text segment."
+  touched page 0 -> resident=7 zero_faults=1 swap_faults=0 evictions=0
+  touched page 1 -> resident=8 zero_faults=2 swap_faults=0 evictions=0
+  touched page 2 -> resident=9 zero_faults=3 swap_faults=0 evictions=0
+  touched page 3 -> resident=10 zero_faults=4 swap_faults=0 evictions=0
+  touched page 4 -> resident=10 zero_faults=5 swap_faults=1 evictions=2
+  touched page 5 -> resident=10 zero_faults=6 swap_faults=2 evictions=4
+  touched page 6 -> resident=10 zero_faults=7 swap_faults=2 evictions=5
+  touched page 7 -> resident=10 zero_faults=8 swap_faults=2 evictions=6
+  touched page 8 -> resident=10 zero_faults=9 swap_faults=3 evictions=8
+  touched page 9 -> resident=10 zero_faults=10 swap_faults=3 evictions=9
+
+-- trace events: phase 1 (filling) --
+#1 First-ever touch of page 6 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32546) was handed to it. No disk involved.
+#2 Page 6 is now mapped and resident in frame #32546 (this MAP follows a fresh allocation, not a restore from disk).
+#3 First-ever touch of page 7 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32596) was handed to it. No disk involved.
+#4 Page 7 is now mapped and resident in frame #32596 (this MAP follows a fresh allocation, not a restore from disk).
+#5 First-ever touch of page 8 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32595) was handed to it. No disk involved.
+#6 Page 8 is now mapped and resident in frame #32595 (this MAP follows a fresh allocation, not a restore from disk).
+#7 First-ever touch of page 9 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32581) was handed to it. No disk involved.
+#8 Page 9 is now mapped and resident in frame #32581 (this MAP follows a fresh allocation, not a restore from disk).
+#9 Need a frame for page 10, but the resident budget is full -> page 0 was chosen as the victim to evict (it occupies frame #32542).
+#10 Starting eviction of page 0 (frame #32542) -- it is now locked against any other access until the eviction finishes.
+#11 Writing page 0's contents (frame #32542) out to swap slot 0 -- the actual disk write starts now.
+#12 Disk write of page 0 to swap slot 0 completed successfully.
+#13 Page 0 has been fully evicted -- its data is safely on disk in slot 0, and its now-empty frame is about to be reused for page 10.
+#14 First-ever touch of page 10 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32542) was handed to it. No disk involved.
+#15 Page 10 is now mapped and resident in frame #32542 (this MAP follows a fresh allocation, not a restore from disk).
+#16 Page 0 was touched, but it's currently on disk (swap slot 0), not in RAM. This starts the fetch-back process.
+#17 Need a frame for page 0, but the resident budget is full -> page 1 was chosen as the victim to evict (it occupies frame #32539).
+#18 Starting eviction of page 1 (frame #32539) -- it is now locked against any other access until the eviction finishes.
+#19 Writing page 1's contents (frame #32539) out to swap slot 1 -- the actual disk write starts now.
+#20 Disk write of page 1 to swap slot 1 completed successfully.
+#21 Page 1 has been fully evicted -- its data is safely on disk in slot 1, and its now-empty frame is about to be reused for page 0.
+#22 Reading page 0's contents back from swap slot 0 into frame #32539 -- the actual disk read starts now.
+#23 Disk read of page 0 from swap slot 0 completed successfully.
+#24 Page 0 is now mapped and resident in frame #32539 -- its data was just restored from swap slot 0.
+#25 Page 1 was touched, but it's currently on disk (swap slot 1), not in RAM. This starts the fetch-back process.
+#26 Need a frame for page 1, but the resident budget is full -> page 2 was chosen as the victim to evict (it occupies frame #32538).
+#27 Starting eviction of page 2 (frame #32538) -- it is now locked against any other access until the eviction finishes.
+#28 Writing page 2's contents (frame #32538) out to swap slot 2 -- the actual disk write starts now.
+#29 Disk write of page 2 to swap slot 2 completed successfully.
+#30 Page 2 has been fully evicted -- its data is safely on disk in slot 2, and its now-empty frame is about to be reused for page 1.
+#31 Reading page 1's contents back from swap slot 1 into frame #32538 -- the actual disk read starts now.
+#32 Disk read of page 1 from swap slot 1 completed successfully.
+#33 Page 1 is now mapped and resident in frame #32538 -- its data was just restored from swap slot 1.
+#34 Need a frame for page 11, but the resident budget is full -> page 3 was chosen as the victim to evict (it occupies frame #32537).
+#35 Starting eviction of page 3 (frame #32537) -- it is now locked against any other access until the eviction finishes.
+#36 Writing page 3's contents (frame #32537) out to swap slot 3 -- the actual disk write starts now.
+#37 Disk write of page 3 to swap slot 3 completed successfully.
+#38 Page 3 has been fully evicted -- its data is safely on disk in slot 3, and its now-empty frame is about to be reused for page 11.
+#39 First-ever touch of page 11 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32537) was handed to it. No disk involved.
+#40 Page 11 is now mapped and resident in frame #32537 (this MAP follows a fresh allocation, not a restore from disk).
+#41 Need a frame for page 12, but the resident budget is full -> page 4 was chosen as the victim to evict (it occupies frame #32536).
+#42 Starting eviction of page 4 (frame #32536) -- it is now locked against any other access until the eviction finishes.
+#43 Writing page 4's contents (frame #32536) out to swap slot 4 -- the actual disk write starts now.
+#44 Disk write of page 4 to swap slot 4 completed successfully.
+#45 Page 4 has been fully evicted -- its data is safely on disk in slot 4, and its now-empty frame is about to be reused for page 12.
+#46 First-ever touch of page 12 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32536) was handed to it. No disk involved.
+#47 Page 12 is now mapped and resident in frame #32536 (this MAP follows a fresh allocation, not a restore from disk).
+#48 Need a frame for page 13, but the resident budget is full -> page 5 was chosen as the victim to evict (it occupies frame #32535).
+#49 Starting eviction of page 5 (frame #32535) -- it is now locked against any other access until the eviction finishes.
+#50 Writing page 5's contents (frame #32535) out to swap slot 5 -- the actual disk write starts now.
+#51 Disk write of page 5 to swap slot 5 completed successfully.
+#52 Page 5 has been fully evicted -- its data is safely on disk in slot 5, and its now-empty frame is about to be reused for page 13.
+#53 First-ever touch of page 13 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32535) was handed to it. No disk involved.
+#54 Page 13 is now mapped and resident in frame #32535 (this MAP follows a fresh allocation, not a restore from disk).
+#55 Page 5 was touched, but it's currently on disk (swap slot 5), not in RAM. This starts the fetch-back process.
+#56 Need a frame for page 5, but the resident budget is full -> page 6 was chosen as the victim to evict (it occupies frame #32546).
+#57 Starting eviction of page 6 (frame #32546) -- it is now locked against any other access until the eviction finishes.
+#58 Writing page 6's contents (frame #32546) out to swap slot 6 -- the actual disk write starts now.
+#59 Disk write of page 6 to swap slot 6 completed successfully.
+#60 Page 6 has been fully evicted -- its data is safely on disk in slot 6, and its now-empty frame is about to be reused for page 5.
+#61 Reading page 5's contents back from swap slot 5 into frame #32546 -- the actual disk read starts now.
+#62 Disk read of page 5 from swap slot 5 completed successfully.
+#63 Page 5 is now mapped and resident in frame #32546 -- its data was just restored from swap slot 5.
+#64 Need a frame for page 14, but the resident budget is full -> page 7 was chosen as the victim to evict (it occupies frame #32596).
+#65 Starting eviction of page 7 (frame #32596) -- it is now locked against any other access until the eviction finishes.
+#66 Writing page 7's contents (frame #32596) out to swap slot 7 -- the actual disk write starts now.
+#67 Disk write of page 7 to swap slot 7 completed successfully.
+#68 Page 7 has been fully evicted -- its data is safely on disk in slot 7, and its now-empty frame is about to be reused for page 14.
+#69 First-ever touch of page 14 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32596) was handed to it. No disk involved.
+#70 Page 14 is now mapped and resident in frame #32596 (this MAP follows a fresh allocation, not a restore from disk).
+#71 Need a frame for page 15, but the resident budget is full -> page 8 was chosen as the victim to evict (it occupies frame #32595).
+#72 Starting eviction of page 8 (frame #32595) -- it is now locked against any other access until the eviction finishes.
+#73 Writing page 8's contents (frame #32595) out to swap slot 8 -- the actual disk write starts now.
+#74 Disk write of page 8 to swap slot 8 completed successfully.
+#75 Page 8 has been fully evicted -- its data is safely on disk in slot 8, and its now-empty frame is about to be reused for page 15.
+#76 First-ever touch of page 15 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32595) was handed to it. No disk involved.
+#77 Page 15 is now mapped and resident in frame #32595 (this MAP follows a fresh allocation, not a restore from disk).
+#78 Page 3 was touched, but it's currently on disk (swap slot 3), not in RAM. This starts the fetch-back process.
+#79 Need a frame for page 3, but the resident budget is full -> page 9 was chosen as the victim to evict (it occupies frame #32581).
+#80 Starting eviction of page 9 (frame #32581) -- it is now locked against any other access until the eviction finishes.
+#81 Writing page 9's contents (frame #32581) out to swap slot 9 -- the actual disk write starts now.
+#82 Disk write of page 9 to swap slot 9 completed successfully.
+#83 Page 9 has been fully evicted -- its data is safely on disk in slot 9, and its now-empty frame is about to be reused for page 3.
+#84 Reading page 3's contents back from swap slot 3 into frame #32581 -- the actual disk read starts now.
+#85 Disk read of page 3 from swap slot 3 completed successfully.
+#86 Page 3 is now mapped and resident in frame #32581 -- its data was just restored from swap slot 3.
+-- end trace --
+
+=== PHASE 2: confirm real disk writes happened ===
+evictions   : 0 -> 9 (delta 9)
+page_writes : 0 -> 9 (delta 9)
+PASS: 9 page(s) were genuinely evicted and written to swap
+
+=== PHASE 3: touch an evicted page again and watch it come back ===
+re-read page 0: value=1 (expected 1)
+swap_faults : 3 -> 5 (delta 2)
+page_reads  : 3 -> 5 (delta 2)
+PASS: page 0 was fetched back from disk with byte-exact content
+verifying all 10 pages still round-trip correctly after the eviction pressure above...
+PASS: all 10 pages byte-exact after thrashing through swap
+
+-- trace events: phase 3 (swap back in) --
+#87 Page 6 was touched, but it's currently on disk (swap slot 6), not in RAM. This starts the fetch-back process.
+#88 Need a frame for page 6, but the resident budget is full -> page 10 was chosen as the victim to evict (it occupies frame #32542).
+#89 Starting eviction of page 10 (frame #32542) -- it is now locked against any other access until the eviction finishes.
+#90 Writing page 10's contents (frame #32542) out to swap slot 10 -- the actual disk write starts now.
+#91 Disk write of page 10 to swap slot 10 completed successfully.
+#92 Page 10 has been fully evicted -- its data is safely on disk in slot 10, and its now-empty frame is about to be reused for page 6.
+#93 Reading page 6's contents back from swap slot 6 into frame #32542 -- the actual disk read starts now.
+#94 Disk read of page 6 from swap slot 6 completed successfully.
+#95 Page 6 is now mapped and resident in frame #32542 -- its data was just restored from swap slot 6.
+#96 Page 7 was touched, but it's currently on disk (swap slot 7), not in RAM. This starts the fetch-back process.
+#97 Need a frame for page 7, but the resident budget is full -> page 0 was chosen as the victim to evict (it occupies frame #32539). It still has a leftover clean copy in swap slot 0 from before, so no old data is lost.
+#98 Starting eviction of page 0 (frame #32539) -- it is now locked against any other access until the eviction finishes.
+#99 Page 0 has been fully evicted -- its data is safely on disk in slot 0, and its now-empty frame is about to be reused for page 7.
+#100 Reading page 7's contents back from swap slot 7 into frame #32539 -- the actual disk read starts now.
+#101 Disk read of page 7 from swap slot 7 completed successfully.
+#102 Page 7 is now mapped and resident in frame #32539 -- its data was just restored from swap slot 7.
+#103 Page 0 was touched, but it's currently on disk (swap slot 0), not in RAM. This starts the fetch-back process.
+#104 Need a frame for page 0, but the resident budget is full -> page 1 was chosen as the victim to evict (it occupies frame #32538). It still has a leftover clean copy in swap slot 1 from before, so no old data is lost.
+#105 Starting eviction of page 1 (frame #32538) -- it is now locked against any other access until the eviction finishes.
+#106 Page 1 has been fully evicted -- its data is safely on disk in slot 1, and its now-empty frame is about to be reused for page 0.
+#107 Reading page 0's contents back from swap slot 0 into frame #32538 -- the actual disk read starts now.
+#108 Disk read of page 0 from swap slot 0 completed successfully.
+#109 Page 0 is now mapped and resident in frame #32538 -- its data was just restored from swap slot 0.
+#110 Page 8 was touched, but it's currently on disk (swap slot 8), not in RAM. This starts the fetch-back process.
+#111 Need a frame for page 8, but the resident budget is full -> page 11 was chosen as the victim to evict (it occupies frame #32537).
+#112 Starting eviction of page 11 (frame #32537) -- it is now locked against any other access until the eviction finishes.
+#113 Writing page 11's contents (frame #32537) out to swap slot 11 -- the actual disk write starts now.
+#114 Disk write of page 11 to swap slot 11 completed successfully.
+#115 Page 11 has been fully evicted -- its data is safely on disk in slot 11, and its now-empty frame is about to be reused for page 8.
+#116 Reading page 8's contents back from swap slot 8 into frame #32537 -- the actual disk read starts now.
+#117 Disk read of page 8 from swap slot 8 completed successfully.
+#118 Page 8 is now mapped and resident in frame #32537 -- its data was just restored from swap slot 8.
+#119 Page 9 was touched, but it's currently on disk (swap slot 9), not in RAM. This starts the fetch-back process.
+#120 Need a frame for page 9, but the resident budget is full -> page 12 was chosen as the victim to evict (it occupies frame #32536).
+#121 Starting eviction of page 12 (frame #32536) -- it is now locked against any other access until the eviction finishes.
+#122 Writing page 12's contents (frame #32536) out to swap slot 12 -- the actual disk write starts now.
+#123 Disk write of page 12 to swap slot 12 completed successfully.
+#124 Page 12 has been fully evicted -- its data is safely on disk in slot 12, and its now-empty frame is about to be reused for page 9.
+#125 Reading page 9's contents back from swap slot 9 into frame #32536 -- the actual disk read starts now.
+#126 Disk read of page 9 from swap slot 9 completed successfully.
+#127 Page 9 is now mapped and resident in frame #32536 -- its data was just restored from swap slot 9.
+#128 Page 10 was touched, but it's currently on disk (swap slot 10), not in RAM. This starts the fetch-back process.
+#129 Need a frame for page 10, but the resident budget is full -> page 13 was chosen as the victim to evict (it occupies frame #32535).
+#130 Starting eviction of page 13 (frame #32535) -- it is now locked against any other access until the eviction finishes.
+#131 Writing page 13's contents (frame #32535) out to swap slot 13 -- the actual disk write starts now.
+#132 Disk write of page 13 to swap slot 13 completed successfully.
+#133 Page 13 has been fully evicted -- its data is safely on disk in slot 13, and its now-empty frame is about to be reused for page 10.
+#134 Reading page 10's contents back from swap slot 10 into frame #32535 -- the actual disk read starts now.
+#135 Disk read of page 10 from swap slot 10 completed successfully.
+#136 Page 10 is now mapped and resident in frame #32535 -- its data was just restored from swap slot 10.
+#137 Page 11 was touched, but it's currently on disk (swap slot 11), not in RAM. This starts the fetch-back process.
+#138 Need a frame for page 11, but the resident budget is full -> page 5 was chosen as the victim to evict (it occupies frame #32546). It still has a leftover clean copy in swap slot 5 from before, so no old data is lost.
+#139 Starting eviction of page 5 (frame #32546) -- it is now locked against any other access until the eviction finishes.
+#140 Writing page 5's contents (frame #32546) out to swap slot 14 -- the actual disk write starts now.
+#141 Disk write of page 5 to swap slot 14 completed successfully.
+#142 Page 5 has been fully evicted -- its data is safely on disk in slot 14, and its now-empty frame is about to be reused for page 11.
+#143 Reading page 11's contents back from swap slot 11 into frame #32546 -- the actual disk read starts now.
+#144 Disk read of page 11 from swap slot 11 completed successfully.
+#145 Page 11 is now mapped and resident in frame #32546 -- its data was just restored from swap slot 11.
+#146 Page 12 was touched, but it's currently on disk (swap slot 12), not in RAM. This starts the fetch-back process.
+#147 Need a frame for page 12, but the resident budget is full -> page 14 was chosen as the victim to evict (it occupies frame #32596).
+#148 Starting eviction of page 14 (frame #32596) -- it is now locked against any other access until the eviction finishes.
+#149 Writing page 14's contents (frame #32596) out to swap slot 5 -- the actual disk write starts now.
+#150 Disk write of page 14 to swap slot 5 completed successfully.
+#151 Page 14 has been fully evicted -- its data is safely on disk in slot 5, and its now-empty frame is about to be reused for page 12.
+#152 Reading page 12's contents back from swap slot 12 into frame #32596 -- the actual disk read starts now.
+#153 Disk read of page 12 from swap slot 12 completed successfully.
+#154 Page 12 is now mapped and resident in frame #32596 -- its data was just restored from swap slot 12.
+#155 Page 13 was touched, but it's currently on disk (swap slot 13), not in RAM. This starts the fetch-back process.
+#156 Need a frame for page 13, but the resident budget is full -> page 15 was chosen as the victim to evict (it occupies frame #32595).
+#157 Starting eviction of page 15 (frame #32595) -- it is now locked against any other access until the eviction finishes.
+#158 Writing page 15's contents (frame #32595) out to swap slot 15 -- the actual disk write starts now.
+#159 Disk write of page 15 to swap slot 15 completed successfully.
+#160 Page 15 has been fully evicted -- its data is safely on disk in slot 15, and its now-empty frame is about to be reused for page 13.
+#161 Reading page 13's contents back from swap slot 13 into frame #32595 -- the actual disk read starts now.
+#162 Disk read of page 13 from swap slot 13 completed successfully.
+#163 Page 13 is now mapped and resident in frame #32595 -- its data was just restored from swap slot 13.
+#164 Page 14 was touched, but it's currently on disk (swap slot 5), not in RAM. This starts the fetch-back process.
+#165 Need a frame for page 14, but the resident budget is full -> page 3 was chosen as the victim to evict (it occupies frame #32581). It still has a leftover clean copy in swap slot 3 from before, so no old data is lost.
+#166 Starting eviction of page 3 (frame #32581) -- it is now locked against any other access until the eviction finishes.
+#167 Page 3 has been fully evicted -- its data is safely on disk in slot 3, and its now-empty frame is about to be reused for page 14.
+#168 Reading page 14's contents back from swap slot 5 into frame #32581 -- the actual disk read starts now.
+#169 Disk read of page 14 from swap slot 5 completed successfully.
+#170 Page 14 is now mapped and resident in frame #32581 -- its data was just restored from swap slot 5.
+#171 Page 15 was touched, but it's currently on disk (swap slot 15), not in RAM. This starts the fetch-back process.
+#172 Need a frame for page 15, but the resident budget is full -> page 6 was chosen as the victim to evict (it occupies frame #32542). It still has a leftover clean copy in swap slot 6 from before, so no old data is lost.
+#173 Starting eviction of page 6 (frame #32542) -- it is now locked against any other access until the eviction finishes.
+#174 Page 6 has been fully evicted -- its data is safely on disk in slot 6, and its now-empty frame is about to be reused for page 15.
+#175 Reading page 15's contents back from swap slot 15 into frame #32542 -- the actual disk read starts now.
+#176 Disk read of page 15 from swap slot 15 completed successfully.
+#177 Page 15 is now mapped and resident in frame #32542 -- its data was just restored from swap slot 15.
+#178 Page 5 was touched, but it's currently on disk (swap slot 14), not in RAM. This starts the fetch-back process.
+#179 Need a frame for page 5, but the resident budget is full -> page 7 was chosen as the victim to evict (it occupies frame #32539). It still has a leftover clean copy in swap slot 7 from before, so no old data is lost.
+#180 Starting eviction of page 7 (frame #32539) -- it is now locked against any other access until the eviction finishes.
+#181 Page 7 has been fully evicted -- its data is safely on disk in slot 7, and its now-empty frame is about to be reused for page 5.
+#182 Reading page 5's contents back from swap slot 14 into frame #32539 -- the actual disk read starts now.
+#183 Disk read of page 5 from swap slot 14 completed successfully.
+#184 Page 5 is now mapped and resident in frame #32539 -- its data was just restored from swap slot 14.
+#185 Page 1 was touched, but it's currently on disk (swap slot 1), not in RAM. This starts the fetch-back process.
+#186 Need a frame for page 1, but the resident budget is full -> page 0 was chosen as the victim to evict (it occupies frame #32538). It still has a leftover clean copy in swap slot 0 from before, so no old data is lost.
+#187 Starting eviction of page 0 (frame #32538) -- it is now locked against any other access until the eviction finishes.
+#188 Page 0 has been fully evicted -- its data is safely on disk in slot 0, and its now-empty frame is about to be reused for page 1.
+#189 Reading page 1's contents back from swap slot 1 into frame #32538 -- the actual disk read starts now.
+#190 Disk read of page 1 from swap slot 1 completed successfully.
+#191 Page 1 is now mapped and resident in frame #32538 -- its data was just restored from swap slot 1.
+#192 Page 0 was touched, but it's currently on disk (swap slot 0), not in RAM. This starts the fetch-back process.
+#193 Need a frame for page 0, but the resident budget is full -> page 8 was chosen as the victim to evict (it occupies frame #32537). It still has a leftover clean copy in swap slot 8 from before, so no old data is lost.
+#194 Starting eviction of page 8 (frame #32537) -- it is now locked against any other access until the eviction finishes.
+#195 Page 8 has been fully evicted -- its data is safely on disk in slot 8, and its now-empty frame is about to be reused for page 0.
+#196 Reading page 0's contents back from swap slot 0 into frame #32537 -- the actual disk read starts now.
+#197 Disk read of page 0 from swap slot 0 completed successfully.
+#198 Page 0 is now mapped and resident in frame #32537 -- its data was just restored from swap slot 0.
+#199 Page 3 was touched, but it's currently on disk (swap slot 3), not in RAM. This starts the fetch-back process.
+#200 Need a frame for page 3, but the resident budget is full -> page 9 was chosen as the victim to evict (it occupies frame #32536). It still has a leftover clean copy in swap slot 9 from before, so no old data is lost.
+#201 Starting eviction of page 9 (frame #32536) -- it is now locked against any other access until the eviction finishes.
+#202 Page 9 has been fully evicted -- its data is safely on disk in slot 9, and its now-empty frame is about to be reused for page 3.
+#203 Reading page 3's contents back from swap slot 3 into frame #32536 -- the actual disk read starts now.
+#204 Disk read of page 3 from swap slot 3 completed successfully.
+#205 Page 3 is now mapped and resident in frame #32536 -- its data was just restored from swap slot 3.
+-- end trace --
+
+=== PHASE 4: fork() while a page is on disk ===
+parent: resident_count=6 evictions=30 (some of the 6 pages are now on disk, not RAM)
+child pid=5: reading pages the PARENT had already swapped out before I existed...
+child PASS: inherited swapped page(s) read back correctly
+
+-- trace events: phase 4 (fork with swapped page) --
+#232 Need a frame for page 10, but the resident budget is full -> page 0 was chosen as the victim to evict (it occupies frame #32537). It still has a leftover clean copy in swap slot 0 from before, so no old data is lost.
+#233 Starting eviction of page 0 (frame #32537) -- it is now locked against any other access until the eviction finishes.
+#234 Page 0 has been fully evicted -- its data is safely on disk in slot 0, and its now-empty frame is about to be reused for page 10.
+#235 First-ever touch of page 10 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32537) was handed to it. No disk involved.
+#236 Page 10 is now mapped and resident in frame #32537 (this MAP follows a fresh allocation, not a restore from disk).
+#237 Page 0 was touched, but it's currently on disk (swap slot 0), not in RAM. This starts the fetch-back process.
+#238 Need a frame for page 0, but the resident budget is full -> page 3 was chosen as the victim to evict (it occupies frame #32536). It still has a leftover clean copy in swap slot 3 from before, so no old data is lost.
+#239 Starting eviction of page 3 (frame #32536) -- it is now locked against any other access until the eviction finishes.
+#240 Page 3 has been fully evicted -- its data is safely on disk in slot 3, and its now-empty frame is about to be reused for page 0.
+#241 Reading page 0's contents back from swap slot 0 into frame #32536 -- the actual disk read starts now.
+#242 Disk read of page 0 from swap slot 0 completed successfully.
+#243 Page 0 is now mapped and resident in frame #32536 -- its data was just restored from swap slot 0.
+#244 Need a frame for page 11, but the resident budget is full -> page 6 was chosen as the victim to evict (it occupies frame #32542).
+#245 Starting eviction of page 6 (frame #32542) -- it is now locked against any other access until the eviction finishes.
+#246 Writing page 6's contents (frame #32542) out to swap slot 6 -- the actual disk write starts now.
+#247 Disk write of page 6 to swap slot 6 completed successfully.
+#248 Page 6 has been fully evicted -- its data is safely on disk in slot 6, and its now-empty frame is about to be reused for page 11.
+#249 First-ever touch of page 11 (a lazy hole with nothing behind it yet): a fresh zeroed physical frame (frame #32542) was handed to it. No disk involved.
+#250 Page 11 is now mapped and resident in frame #32542 (this MAP follows a fresh allocation, not a restore from disk).
+#251 Page 5 was touched, but it's currently on disk (swap slot 5), not in RAM. This starts the fetch-back process.
+#252 Need a frame for page 5, but the resident budget is full -> page 7 was chosen as the victim to evict (it occupies frame #32581).
+#253 Starting eviction of page 7 (frame #32581) -- it is now locked against any other access until the eviction finishes.
+#254 Writing page 7's contents (frame #32581) out to swap slot 7 -- the actual disk write starts now.
+#255 Disk write of page 7 to swap slot 7 completed successfully.
+#256 Page 7 has been fully evicted -- its data is safely on disk in slot 7, and its now-empty frame is about to be reused for page 5.
+#257 Reading page 5's contents back from swap slot 5 into frame #32581 -- the actual disk read starts now.
+#258 Disk read of page 5 from swap slot 5 completed successfully.
+#259 Page 5 is now mapped and resident in frame #32581 -- its data was just restored from swap slot 5.
+#260 Page 1 was touched, but it's currently on disk (swap slot 1), not in RAM. This starts the fetch-back process.
+#261 Need a frame for page 1, but the resident budget is full -> page 8 was chosen as the victim to evict (it occupies frame #32539).
+#262 Starting eviction of page 8 (frame #32539) -- it is now locked against any other access until the eviction finishes.
+#263 Writing page 8's contents (frame #32539) out to swap slot 8 -- the actual disk write starts now.
+#264 Disk write of page 8 to swap slot 8 completed successfully.
+#265 Page 8 has been fully evicted -- its data is safely on disk in slot 8, and its now-empty frame is about to be reused for page 1.
+#266 Reading page 1's contents back from swap slot 1 into frame #32539 -- the actual disk read starts now.
+#267 Disk read of page 1 from swap slot 1 completed successfully.
+#268 Page 1 is now mapped and resident in frame #32539 -- its data was just restored from swap slot 1.
+#269 Page 6 was touched, but it's currently on disk (swap slot 6), not in RAM. This starts the fetch-back process.
+#270 Need a frame for page 6, but the resident budget is full -> page 0 was chosen as the victim to evict (it occupies frame #32578).
+#271 Starting eviction of page 0 (frame #32578) -- it is now locked against any other access until the eviction finishes.
+#272 Writing page 0's contents (frame #32578) out to swap slot 9 -- the actual disk write starts now.
+#273 Disk write of page 0 to swap slot 9 completed successfully.
+#274 Page 0 has been fully evicted -- its data is safely on disk in slot 9, and its now-empty frame is about to be reused for page 6.
+#275 Reading page 6's contents back from swap slot 6 into frame #32578 -- the actual disk read starts now.
+#276 Disk read of page 6 from swap slot 6 completed successfully.
+#277 Page 6 is now mapped and resident in frame #32578 -- its data was just restored from swap slot 6.
+#278 Page 0 was touched, but it's currently on disk (swap slot 9), not in RAM. This starts the fetch-back process.
+#279 Need a frame for page 0, but the resident budget is full -> page 1 was chosen as the victim to evict (it occupies frame #32548).
+#280 Starting eviction of page 1 (frame #32548) -- it is now locked against any other access until the eviction finishes.
+#281 Writing page 1's contents (frame #32548) out to swap slot 10 -- the actual disk write starts now.
+#282 Disk write of page 1 to swap slot 10 completed successfully.
+#283 Page 1 has been fully evicted -- its data is safely on disk in slot 10, and its now-empty frame is about to be reused for page 0.
+#284 Reading page 0's contents back from swap slot 9 into frame #32548 -- the actual disk read starts now.
+#285 Disk read of page 0 from swap slot 9 completed successfully.
+#286 Page 0 is now mapped and resident in frame #32548 -- its data was just restored from swap slot 9.
+#287 Page 7 was touched, but it's currently on disk (swap slot 7), not in RAM. This starts the fetch-back process.
+#288 Need a frame for page 7, but the resident budget is full -> page 5 was chosen as the victim to evict (it occupies frame #32549).
+#289 Starting eviction of page 5 (frame #32549) -- it is now locked against any other access until the eviction finishes.
+#290 Writing page 5's contents (frame #32549) out to swap slot 11 -- the actual disk write starts now.
+#291 Disk write of page 5 to swap slot 11 completed successfully.
+#292 Page 5 has been fully evicted -- its data is safely on disk in slot 11, and its now-empty frame is about to be reused for page 7.
+#293 Reading page 7's contents back from swap slot 7 into frame #32549 -- the actual disk read starts now.
+#294 Disk read of page 7 from swap slot 7 completed successfully.
+#295 Page 7 is now mapped and resident in frame #32549 -- its data was just restored from swap slot 7.
+#296 Page 8 was touched, but it's currently on disk (swap slot 8), not in RAM. This starts the fetch-back process.
+#297 Need a frame for page 8, but the resident budget is full -> page 9 was chosen as the victim to evict (it occupies frame #32550).
+#298 Starting eviction of page 9 (frame #32550) -- it is now locked against any other access until the eviction finishes.
+#299 Writing page 9's contents (frame #32550) out to swap slot 12 -- the actual disk write starts now.
+#300 Disk write of page 9 to swap slot 12 completed successfully.
+#301 Page 9 has been fully evicted -- its data is safely on disk in slot 12, and its now-empty frame is about to be reused for page 8.
+#302 Reading page 8's contents back from swap slot 8 into frame #32550 -- the actual disk read starts now.
+#303 Disk read of page 8 from swap slot 8 completed successfully.
+#304 Page 8 is now mapped and resident in frame #32550 -- its data was just restored from swap slot 8.
+#305 Page 9 was touched, but it's currently on disk (swap slot 12), not in RAM. This starts the fetch-back process.
+#306 Need a frame for page 9, but the resident budget is full -> page 10 was chosen as the victim to evict (it occupies frame #32551).
+#307 Starting eviction of page 10 (frame #32551) -- it is now locked against any other access until the eviction finishes.
+#308 Writing page 10's contents (frame #32551) out to swap slot 13 -- the actual disk write starts now.
+#309 Disk write of page 10 to swap slot 13 completed successfully.
+#310 Page 10 has been fully evicted -- its data is safely on disk in slot 13, and its now-empty frame is about to be reused for page 9.
+#311 Reading page 9's contents back from swap slot 12 into frame #32551 -- the actual disk read starts now.
+#312 Disk read of page 9 from swap slot 12 completed successfully.
+#313 Page 9 is now mapped and resident in frame #32551 -- its data was just restored from swap slot 12.
+#314 Page 10 was touched, but it's currently on disk (swap slot 13), not in RAM. This starts the fetch-back process.
+#315 Need a frame for page 10, but the resident budget is full -> page 11 was chosen as the victim to evict (it occupies frame #32552).
+#316 Starting eviction of page 11 (frame #32552) -- it is now locked against any other access until the eviction finishes.
+#317 Writing page 11's contents (frame #32552) out to swap slot 14 -- the actual disk write starts now.
+#318 Disk write of page 11 to swap slot 14 completed successfully.
+#319 Page 11 has been fully evicted -- its data is safely on disk in slot 14, and its now-empty frame is about to be reused for page 10.
+#320 Reading page 10's contents back from swap slot 13 into frame #32552 -- the actual disk read starts now.
+#321 Disk read of page 10 from swap slot 13 completed successfully.
+#322 Page 10 is now mapped and resident in frame #32552 -- its data was just restored from swap slot 13.
+#323 Page 11 was touched, but it's currently on disk (swap slot 14), not in RAM. This starts the fetch-back process.
+#324 Need a frame for page 11, but the resident budget is full -> page 6 was chosen as the victim to evict (it occupies frame #32578). It still has a leftover clean copy in swap slot 6 from before, so no old data is lost.
+#325 Starting eviction of page 6 (frame #32578) -- it is now locked against any other access until the eviction finishes.
+#326 Page 6 has been fully evicted -- its data is safely on disk in slot 6, and its now-empty frame is about to be reused for page 11.
+#327 Reading page 11's contents back from swap slot 14 into frame #32578 -- the actual disk read starts now.
+#328 Disk read of page 11 from swap slot 14 completed successfully.
+#329 Page 11 is now mapped and resident in frame #32578 -- its data was just restored from swap slot 14.
+#330 Page 5 was touched, but it's currently on disk (swap slot 11), not in RAM. This starts the fetch-back process.
+#331 Need a frame for page 5, but the resident budget is full -> page 0 was chosen as the victim to evict (it occupies frame #32548). It still has a leftover clean copy in swap slot 9 from before, so no old data is lost.
+#332 Starting eviction of page 0 (frame #32548) -- it is now locked against any other access until the eviction finishes.
+#333 Page 0 has been fully evicted -- its data is safely on disk in slot 9, and its now-empty frame is about to be reused for page 5.
+#334 [trace ring full -- the oldest recorded event was discarded to make room for this one; 1 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=5 slot=11 frame=32548 victim_vpn=none]
+#335 [trace ring full -- the oldest recorded event was discarded to make room for this one; 2 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=5 slot=11 frame=32548 victim_vpn=none]
+#336 [trace ring full -- the oldest recorded event was discarded to make room for this one; 3 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=5 slot=11 frame=32548 victim_vpn=none]
+#337 [trace ring full -- the oldest recorded event was discarded to make room for this one; 4 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=0 slot=9 frame=none victim_vpn=none]
+#338 [trace ring full -- the oldest recorded event was discarded to make room for this one; 5 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=0 slot=7 frame=32549 victim_vpn=7]
+#339 [trace ring full -- the oldest recorded event was discarded to make room for this one; 6 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=7 slot=7 frame=32549 victim_vpn=7]
+#340 [trace ring full -- the oldest recorded event was discarded to make room for this one; 7 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=7 slot=7 frame=32549 victim_vpn=0]
+#341 [trace ring full -- the oldest recorded event was discarded to make room for this one; 8 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=0 slot=9 frame=32549 victim_vpn=none]
+#342 [trace ring full -- the oldest recorded event was discarded to make room for this one; 9 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=0 slot=9 frame=32549 victim_vpn=none]
+#343 [trace ring full -- the oldest recorded event was discarded to make room for this one; 10 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=0 slot=9 frame=32549 victim_vpn=none]
+#344 [trace ring full -- the oldest recorded event was discarded to make room for this one; 11 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=1 slot=10 frame=none victim_vpn=none]
+#345 [trace ring full -- the oldest recorded event was discarded to make room for this one; 12 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=1 slot=8 frame=32550 victim_vpn=8]
+#346 [trace ring full -- the oldest recorded event was discarded to make room for this one; 13 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=8 slot=8 frame=32550 victim_vpn=8]
+#347 [trace ring full -- the oldest recorded event was discarded to make room for this one; 14 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=8 slot=8 frame=32550 victim_vpn=1]
+#348 [trace ring full -- the oldest recorded event was discarded to make room for this one; 15 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=1 slot=10 frame=32550 victim_vpn=none]
+#349 [trace ring full -- the oldest recorded event was discarded to make room for this one; 16 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=1 slot=10 frame=32550 victim_vpn=none]
+#350 [trace ring full -- the oldest recorded event was discarded to make room for this one; 17 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=1 slot=10 frame=32550 victim_vpn=none]
+#351 [trace ring full -- the oldest recorded event was discarded to make room for this one; 18 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=3 slot=3 frame=none victim_vpn=none]
+#352 [trace ring full -- the oldest recorded event was discarded to make room for this one; 19 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=3 slot=none frame=32538 victim_vpn=9]
+#353 [trace ring full -- the oldest recorded event was discarded to make room for this one; 20 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=9 slot=none frame=32538 victim_vpn=9]
+#354 [trace ring full -- the oldest recorded event was discarded to make room for this one; 21 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=9 slot=9 frame=32538 victim_vpn=none]
+#355 [trace ring full -- the oldest recorded event was discarded to make room for this one; 22 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=9 slot=9 frame=32538 victim_vpn=none]
+#356 [trace ring full -- the oldest recorded event was discarded to make room for this one; 23 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=9 slot=9 frame=32538 victim_vpn=3]
+#357 [trace ring full -- the oldest recorded event was discarded to make room for this one; 24 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=3 slot=3 frame=32538 victim_vpn=none]
+#358 [trace ring full -- the oldest recorded event was discarded to make room for this one; 25 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=3 slot=3 frame=32538 victim_vpn=none]
+#359 [trace ring full -- the oldest recorded event was discarded to make room for this one; 26 event(s) lost in total so far. This one event's own data, for what it's worth: vpn=3 slot=3 frame=32538 victim_vpn=none]
+-- end trace --
+PASS: child exited cleanly after reading swapped-in inherited data
+
+================================================
+ALL PHASES PASSED -- swap-out and swap-in both confirmed working.
+================================================
+$ 
+# RESULT PASS
+QEMU: Terminated
+

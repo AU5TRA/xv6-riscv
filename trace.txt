@@ -1,0 +1,397 @@
+# CPUS=1 timeout=60.0
+# commands=['pagingdemo']
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+$ 
+# RUN pagingdemo
+pagingdemo
+xv6 paging visual verification
+===============================
+[trace ring enabled -- every fault/evict/swap event will be listed]
+baseline resident_count=6 (this program's own code/data/stack, loaded by exec before any of this test's own memory exists)
+
+=== PHASE 1: fill 10 pages into a 10-frame budget ===
+(watch resident_count climb, then cap at 10 once the budget is full)
+note: the margin above baseline is small on purpose. FIFO evicts whichever resident page is globally OLDEST for this process, with no exception for the program's own code/stack -- so once enough heap pages are touched, you may see this program's own already-loaded pages get evicted and immediately faulted back in (a SWAP_FAULT on a very low VPN, right after an EVICT_END for that same VPN, in the trace dump below). That's not a bug: it's proof the system can transparently page out and restore even its own live, currently-executing code without corruption or a crash -- this policy simply has no special-case pin for "my own text segment."
+  touched page 0 -> resident=7 zero_faults=1 swap_faults=0 evictions=0
+  touched page 1 -> resident=8 zero_faults=2 swap_faults=0 evictions=0
+  touched page 2 -> resident=9 zero_faults=3 swap_faults=0 evictions=0
+  touched page 3 -> resident=10 zero_faults=4 swap_faults=0 evictions=0
+  touched page 4 -> resident=10 zero_faults=5 swap_faults=1 evictions=2
+  touched page 5 -> resident=10 zero_faults=6 swap_faults=2 evictions=4
+  touched page 6 -> resident=10 zero_faults=7 swap_faults=2 evictions=5
+  touched page 7 -> resident=10 zero_faults=8 swap_faults=2 evictions=6
+  touched page 8 -> resident=10 zero_faults=9 swap_faults=3 evictions=8
+  touched page 9 -> resident=10 zero_faults=10 swap_faults=3 evictions=9
+
+-- trace events: phase 1 (filling) --
+  #1 ZERO_FAULT vpn=6 slot=-1 frame=32546 victim_vpn=-1 status=0
+  #2 MAP vpn=6 slot=-1 frame=32546 victim_vpn=-1 status=0
+  #3 ZERO_FAULT vpn=7 slot=-1 frame=32596 victim_vpn=-1 status=0
+  #4 MAP vpn=7 slot=-1 frame=32596 victim_vpn=-1 status=0
+  #5 ZERO_FAULT vpn=8 slot=-1 frame=32595 victim_vpn=-1 status=0
+  #6 MAP vpn=8 slot=-1 frame=32595 victim_vpn=-1 status=0
+  #7 ZERO_FAULT vpn=9 slot=-1 frame=32581 victim_vpn=-1 status=0
+  #8 MAP vpn=9 slot=-1 frame=32581 victim_vpn=-1 status=0
+  #9 VICTIM_SELECTED vpn=10 slot=-1 frame=32542 victim_vpn=0 status=0
+  #10 EVICT_BEGIN vpn=0 slot=-1 frame=32542 victim_vpn=0 status=0
+  #11 SWAP_WRITE_BEGIN vpn=0 slot=0 frame=32542 victim_vpn=-1 status=0
+  #12 SWAP_WRITE_END vpn=0 slot=0 frame=32542 victim_vpn=-1 status=0
+  #13 EVICT_END vpn=0 slot=0 frame=32542 victim_vpn=10 status=0
+  #14 ZERO_FAULT vpn=10 slot=-1 frame=32542 victim_vpn=-1 status=0
+  #15 MAP vpn=10 slot=-1 frame=32542 victim_vpn=-1 status=0
+  #16 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+  #17 VICTIM_SELECTED vpn=0 slot=-1 frame=32539 victim_vpn=1 status=0
+  #18 EVICT_BEGIN vpn=1 slot=-1 frame=32539 victim_vpn=1 status=0
+  #19 SWAP_WRITE_BEGIN vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+  #20 SWAP_WRITE_END vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+  #21 EVICT_END vpn=1 slot=1 frame=32539 victim_vpn=0 status=0
+  #22 SWAP_READ_BEGIN vpn=0 slot=0 frame=32539 victim_vpn=-1 status=0
+  #23 SWAP_READ_END vpn=0 slot=0 frame=32539 victim_vpn=-1 status=0
+  #24 MAP vpn=0 slot=0 frame=32539 victim_vpn=-1 status=0
+  #25 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+  #26 VICTIM_SELECTED vpn=1 slot=-1 frame=32538 victim_vpn=2 status=0
+  #27 EVICT_BEGIN vpn=2 slot=-1 frame=32538 victim_vpn=2 status=0
+  #28 SWAP_WRITE_BEGIN vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+  #29 SWAP_WRITE_END vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+  #30 EVICT_END vpn=2 slot=2 frame=32538 victim_vpn=1 status=0
+  #31 SWAP_READ_BEGIN vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+  #32 SWAP_READ_END vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+  #33 MAP vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+  #34 VICTIM_SELECTED vpn=11 slot=-1 frame=32537 victim_vpn=3 status=0
+  #35 EVICT_BEGIN vpn=3 slot=-1 frame=32537 victim_vpn=3 status=0
+  #36 SWAP_WRITE_BEGIN vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+  #37 SWAP_WRITE_END vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+  #38 EVICT_END vpn=3 slot=3 frame=32537 victim_vpn=11 status=0
+  #39 ZERO_FAULT vpn=11 slot=-1 frame=32537 victim_vpn=-1 status=0
+  #40 MAP vpn=11 slot=-1 frame=32537 victim_vpn=-1 status=0
+  #41 VICTIM_SELECTED vpn=12 slot=-1 frame=32536 victim_vpn=4 status=0
+  #42 EVICT_BEGIN vpn=4 slot=-1 frame=32536 victim_vpn=4 status=0
+  #43 SWAP_WRITE_BEGIN vpn=4 slot=4 frame=32536 victim_vpn=-1 status=0
+  #44 SWAP_WRITE_END vpn=4 slot=4 frame=32536 victim_vpn=-1 status=0
+  #45 EVICT_END vpn=4 slot=4 frame=32536 victim_vpn=12 status=0
+  #46 ZERO_FAULT vpn=12 slot=-1 frame=32536 victim_vpn=-1 status=0
+  #47 MAP vpn=12 slot=-1 frame=32536 victim_vpn=-1 status=0
+  #48 VICTIM_SELECTED vpn=13 slot=-1 frame=32535 victim_vpn=5 status=0
+  #49 EVICT_BEGIN vpn=5 slot=-1 frame=32535 victim_vpn=5 status=0
+  #50 SWAP_WRITE_BEGIN vpn=5 slot=5 frame=32535 victim_vpn=-1 status=0
+  #51 SWAP_WRITE_END vpn=5 slot=5 frame=32535 victim_vpn=-1 status=0
+  #52 EVICT_END vpn=5 slot=5 frame=32535 victim_vpn=13 status=0
+  #53 ZERO_FAULT vpn=13 slot=-1 frame=32535 victim_vpn=-1 status=0
+  #54 MAP vpn=13 slot=-1 frame=32535 victim_vpn=-1 status=0
+  #55 SWAP_FAULT vpn=5 slot=5 frame=-1 victim_vpn=-1 status=0
+  #56 VICTIM_SELECTED vpn=5 slot=-1 frame=32546 victim_vpn=6 status=0
+  #57 EVICT_BEGIN vpn=6 slot=-1 frame=32546 victim_vpn=6 status=0
+  #58 SWAP_WRITE_BEGIN vpn=6 slot=6 frame=32546 victim_vpn=-1 status=0
+  #59 SWAP_WRITE_END vpn=6 slot=6 frame=32546 victim_vpn=-1 status=0
+  #60 EVICT_END vpn=6 slot=6 frame=32546 victim_vpn=5 status=0
+  #61 SWAP_READ_BEGIN vpn=5 slot=5 frame=32546 victim_vpn=-1 status=0
+  #62 SWAP_READ_END vpn=5 slot=5 frame=32546 victim_vpn=-1 status=0
+  #63 MAP vpn=5 slot=5 frame=32546 victim_vpn=-1 status=0
+  #64 VICTIM_SELECTED vpn=14 slot=-1 frame=32596 victim_vpn=7 status=0
+  #65 EVICT_BEGIN vpn=7 slot=-1 frame=32596 victim_vpn=7 status=0
+  #66 SWAP_WRITE_BEGIN vpn=7 slot=7 frame=32596 victim_vpn=-1 status=0
+  #67 SWAP_WRITE_END vpn=7 slot=7 frame=32596 victim_vpn=-1 status=0
+  #68 EVICT_END vpn=7 slot=7 frame=32596 victim_vpn=14 status=0
+  #69 ZERO_FAULT vpn=14 slot=-1 frame=32596 victim_vpn=-1 status=0
+  #70 MAP vpn=14 slot=-1 frame=32596 victim_vpn=-1 status=0
+  #71 VICTIM_SELECTED vpn=15 slot=-1 frame=32595 victim_vpn=8 status=0
+  #72 EVICT_BEGIN vpn=8 slot=-1 frame=32595 victim_vpn=8 status=0
+  #73 SWAP_WRITE_BEGIN vpn=8 slot=8 frame=32595 victim_vpn=-1 status=0
+  #74 SWAP_WRITE_END vpn=8 slot=8 frame=32595 victim_vpn=-1 status=0
+  #75 EVICT_END vpn=8 slot=8 frame=32595 victim_vpn=15 status=0
+  #76 ZERO_FAULT vpn=15 slot=-1 frame=32595 victim_vpn=-1 status=0
+  #77 MAP vpn=15 slot=-1 frame=32595 victim_vpn=-1 status=0
+  #78 SWAP_FAULT vpn=3 slot=3 frame=-1 victim_vpn=-1 status=0
+  #79 VICTIM_SELECTED vpn=3 slot=-1 frame=32581 victim_vpn=9 status=0
+  #80 EVICT_BEGIN vpn=9 slot=-1 frame=32581 victim_vpn=9 status=0
+  #81 SWAP_WRITE_BEGIN vpn=9 slot=9 frame=32581 victim_vpn=-1 status=0
+  #82 SWAP_WRITE_END vpn=9 slot=9 frame=32581 victim_vpn=-1 status=0
+  #83 EVICT_END vpn=9 slot=9 frame=32581 victim_vpn=3 status=0
+  #84 SWAP_READ_BEGIN vpn=3 slot=3 frame=32581 victim_vpn=-1 status=0
+  #85 SWAP_READ_END vpn=3 slot=3 frame=32581 victim_vpn=-1 status=0
+  #86 MAP vpn=3 slot=3 frame=32581 victim_vpn=-1 status=0
+-- end trace --
+
+=== PHASE 2: confirm real disk writes happened ===
+evictions   : 0 -> 9 (delta 9)
+page_writes : 0 -> 9 (delta 9)
+PASS: 9 page(s) were genuinely evicted and written to swap
+
+=== PHASE 3: touch an evicted page again and watch it come back ===
+re-read page 0: value=1 (expected 1)
+swap_faults : 3 -> 5 (delta 2)
+page_reads  : 3 -> 5 (delta 2)
+PASS: page 0 was fetched back from disk with byte-exact content
+verifying all 10 pages still round-trip correctly after the eviction pressure above...
+PASS: all 10 pages byte-exact after thrashing through swap
+
+-- trace events: phase 3 (swap back in) --
+  #87 SWAP_FAULT vpn=6 slot=6 frame=-1 victim_vpn=-1 status=0
+  #88 VICTIM_SELECTED vpn=6 slot=-1 frame=32542 victim_vpn=10 status=0
+  #89 EVICT_BEGIN vpn=10 slot=-1 frame=32542 victim_vpn=10 status=0
+  #90 SWAP_WRITE_BEGIN vpn=10 slot=10 frame=32542 victim_vpn=-1 status=0
+  #91 SWAP_WRITE_END vpn=10 slot=10 frame=32542 victim_vpn=-1 status=0
+  #92 EVICT_END vpn=10 slot=10 frame=32542 victim_vpn=6 status=0
+  #93 SWAP_READ_BEGIN vpn=6 slot=6 frame=32542 victim_vpn=-1 status=0
+  #94 SWAP_READ_END vpn=6 slot=6 frame=32542 victim_vpn=-1 status=0
+  #95 MAP vpn=6 slot=6 frame=32542 victim_vpn=-1 status=0
+  #96 SWAP_FAULT vpn=7 slot=7 frame=-1 victim_vpn=-1 status=0
+  #97 VICTIM_SELECTED vpn=7 slot=0 frame=32539 victim_vpn=0 status=0
+  #98 EVICT_BEGIN vpn=0 slot=0 frame=32539 victim_vpn=0 status=0
+  #99 EVICT_END vpn=0 slot=0 frame=32539 victim_vpn=7 status=0
+  #100 SWAP_READ_BEGIN vpn=7 slot=7 frame=32539 victim_vpn=-1 status=0
+  #101 SWAP_READ_END vpn=7 slot=7 frame=32539 victim_vpn=-1 status=0
+  #102 MAP vpn=7 slot=7 frame=32539 victim_vpn=-1 status=0
+  #103 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+  #104 VICTIM_SELECTED vpn=0 slot=1 frame=32538 victim_vpn=1 status=0
+  #105 EVICT_BEGIN vpn=1 slot=1 frame=32538 victim_vpn=1 status=0
+  #106 EVICT_END vpn=1 slot=1 frame=32538 victim_vpn=0 status=0
+  #107 SWAP_READ_BEGIN vpn=0 slot=0 frame=32538 victim_vpn=-1 status=0
+  #108 SWAP_READ_END vpn=0 slot=0 frame=32538 victim_vpn=-1 status=0
+  #109 MAP vpn=0 slot=0 frame=32538 victim_vpn=-1 status=0
+  #110 SWAP_FAULT vpn=8 slot=8 frame=-1 victim_vpn=-1 status=0
+  #111 VICTIM_SELECTED vpn=8 slot=-1 frame=32537 victim_vpn=11 status=0
+  #112 EVICT_BEGIN vpn=11 slot=-1 frame=32537 victim_vpn=11 status=0
+  #113 SWAP_WRITE_BEGIN vpn=11 slot=11 frame=32537 victim_vpn=-1 status=0
+  #114 SWAP_WRITE_END vpn=11 slot=11 frame=32537 victim_vpn=-1 status=0
+  #115 EVICT_END vpn=11 slot=11 frame=32537 victim_vpn=8 status=0
+  #116 SWAP_READ_BEGIN vpn=8 slot=8 frame=32537 victim_vpn=-1 status=0
+  #117 SWAP_READ_END vpn=8 slot=8 frame=32537 victim_vpn=-1 status=0
+  #118 MAP vpn=8 slot=8 frame=32537 victim_vpn=-1 status=0
+  #119 SWAP_FAULT vpn=9 slot=9 frame=-1 victim_vpn=-1 status=0
+  #120 VICTIM_SELECTED vpn=9 slot=-1 frame=32536 victim_vpn=12 status=0
+  #121 EVICT_BEGIN vpn=12 slot=-1 frame=32536 victim_vpn=12 status=0
+  #122 SWAP_WRITE_BEGIN vpn=12 slot=12 frame=32536 victim_vpn=-1 status=0
+  #123 SWAP_WRITE_END vpn=12 slot=12 frame=32536 victim_vpn=-1 status=0
+  #124 EVICT_END vpn=12 slot=12 frame=32536 victim_vpn=9 status=0
+  #125 SWAP_READ_BEGIN vpn=9 slot=9 frame=32536 victim_vpn=-1 status=0
+  #126 SWAP_READ_END vpn=9 slot=9 frame=32536 victim_vpn=-1 status=0
+  #127 MAP vpn=9 slot=9 frame=32536 victim_vpn=-1 status=0
+  #128 SWAP_FAULT vpn=10 slot=10 frame=-1 victim_vpn=-1 status=0
+  #129 VICTIM_SELECTED vpn=10 slot=-1 frame=32535 victim_vpn=13 status=0
+  #130 EVICT_BEGIN vpn=13 slot=-1 frame=32535 victim_vpn=13 status=0
+  #131 SWAP_WRITE_BEGIN vpn=13 slot=13 frame=32535 victim_vpn=-1 status=0
+  #132 SWAP_WRITE_END vpn=13 slot=13 frame=32535 victim_vpn=-1 status=0
+  #133 EVICT_END vpn=13 slot=13 frame=32535 victim_vpn=10 status=0
+  #134 SWAP_READ_BEGIN vpn=10 slot=10 frame=32535 victim_vpn=-1 status=0
+  #135 SWAP_READ_END vpn=10 slot=10 frame=32535 victim_vpn=-1 status=0
+  #136 MAP vpn=10 slot=10 frame=32535 victim_vpn=-1 status=0
+  #137 SWAP_FAULT vpn=11 slot=11 frame=-1 victim_vpn=-1 status=0
+  #138 VICTIM_SELECTED vpn=11 slot=5 frame=32546 victim_vpn=5 status=0
+  #139 EVICT_BEGIN vpn=5 slot=5 frame=32546 victim_vpn=5 status=0
+  #140 SWAP_WRITE_BEGIN vpn=5 slot=14 frame=32546 victim_vpn=-1 status=0
+  #141 SWAP_WRITE_END vpn=5 slot=14 frame=32546 victim_vpn=-1 status=0
+  #142 EVICT_END vpn=5 slot=14 frame=32546 victim_vpn=11 status=0
+  #143 SWAP_READ_BEGIN vpn=11 slot=11 frame=32546 victim_vpn=-1 status=0
+  #144 SWAP_READ_END vpn=11 slot=11 frame=32546 victim_vpn=-1 status=0
+  #145 MAP vpn=11 slot=11 frame=32546 victim_vpn=-1 status=0
+  #146 SWAP_FAULT vpn=12 slot=12 frame=-1 victim_vpn=-1 status=0
+  #147 VICTIM_SELECTED vpn=12 slot=-1 frame=32596 victim_vpn=14 status=0
+  #148 EVICT_BEGIN vpn=14 slot=-1 frame=32596 victim_vpn=14 status=0
+  #149 SWAP_WRITE_BEGIN vpn=14 slot=5 frame=32596 victim_vpn=-1 status=0
+  #150 SWAP_WRITE_END vpn=14 slot=5 frame=32596 victim_vpn=-1 status=0
+  #151 EVICT_END vpn=14 slot=5 frame=32596 victim_vpn=12 status=0
+  #152 SWAP_READ_BEGIN vpn=12 slot=12 frame=32596 victim_vpn=-1 status=0
+  #153 SWAP_READ_END vpn=12 slot=12 frame=32596 victim_vpn=-1 status=0
+  #154 MAP vpn=12 slot=12 frame=32596 victim_vpn=-1 status=0
+  #155 SWAP_FAULT vpn=13 slot=13 frame=-1 victim_vpn=-1 status=0
+  #156 VICTIM_SELECTED vpn=13 slot=-1 frame=32595 victim_vpn=15 status=0
+  #157 EVICT_BEGIN vpn=15 slot=-1 frame=32595 victim_vpn=15 status=0
+  #158 SWAP_WRITE_BEGIN vpn=15 slot=15 frame=32595 victim_vpn=-1 status=0
+  #159 SWAP_WRITE_END vpn=15 slot=15 frame=32595 victim_vpn=-1 status=0
+  #160 EVICT_END vpn=15 slot=15 frame=32595 victim_vpn=13 status=0
+  #161 SWAP_READ_BEGIN vpn=13 slot=13 frame=32595 victim_vpn=-1 status=0
+  #162 SWAP_READ_END vpn=13 slot=13 frame=32595 victim_vpn=-1 status=0
+  #163 MAP vpn=13 slot=13 frame=32595 victim_vpn=-1 status=0
+  #164 SWAP_FAULT vpn=14 slot=5 frame=-1 victim_vpn=-1 status=0
+  #165 VICTIM_SELECTED vpn=14 slot=3 frame=32581 victim_vpn=3 status=0
+  #166 EVICT_BEGIN vpn=3 slot=3 frame=32581 victim_vpn=3 status=0
+  #167 EVICT_END vpn=3 slot=3 frame=32581 victim_vpn=14 status=0
+  #168 SWAP_READ_BEGIN vpn=14 slot=5 frame=32581 victim_vpn=-1 status=0
+  #169 SWAP_READ_END vpn=14 slot=5 frame=32581 victim_vpn=-1 status=0
+  #170 MAP vpn=14 slot=5 frame=32581 victim_vpn=-1 status=0
+  #171 SWAP_FAULT vpn=15 slot=15 frame=-1 victim_vpn=-1 status=0
+  #172 VICTIM_SELECTED vpn=15 slot=6 frame=32542 victim_vpn=6 status=0
+  #173 EVICT_BEGIN vpn=6 slot=6 frame=32542 victim_vpn=6 status=0
+  #174 EVICT_END vpn=6 slot=6 frame=32542 victim_vpn=15 status=0
+  #175 SWAP_READ_BEGIN vpn=15 slot=15 frame=32542 victim_vpn=-1 status=0
+  #176 SWAP_READ_END vpn=15 slot=15 frame=32542 victim_vpn=-1 status=0
+  #177 MAP vpn=15 slot=15 frame=32542 victim_vpn=-1 status=0
+  #178 SWAP_FAULT vpn=5 slot=14 frame=-1 victim_vpn=-1 status=0
+  #179 VICTIM_SELECTED vpn=5 slot=7 frame=32539 victim_vpn=7 status=0
+  #180 EVICT_BEGIN vpn=7 slot=7 frame=32539 victim_vpn=7 status=0
+  #181 EVICT_END vpn=7 slot=7 frame=32539 victim_vpn=5 status=0
+  #182 SWAP_READ_BEGIN vpn=5 slot=14 frame=32539 victim_vpn=-1 status=0
+  #183 SWAP_READ_END vpn=5 slot=14 frame=32539 victim_vpn=-1 status=0
+  #184 MAP vpn=5 slot=14 frame=32539 victim_vpn=-1 status=0
+  #185 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+  #186 VICTIM_SELECTED vpn=1 slot=0 frame=32538 victim_vpn=0 status=0
+  #187 EVICT_BEGIN vpn=0 slot=0 frame=32538 victim_vpn=0 status=0
+  #188 EVICT_END vpn=0 slot=0 frame=32538 victim_vpn=1 status=0
+  #189 SWAP_READ_BEGIN vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+  #190 SWAP_READ_END vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+  #191 MAP vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+  #192 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+  #193 VICTIM_SELECTED vpn=0 slot=8 frame=32537 victim_vpn=8 status=0
+  #194 EVICT_BEGIN vpn=8 slot=8 frame=32537 victim_vpn=8 status=0
+  #195 EVICT_END vpn=8 slot=8 frame=32537 victim_vpn=0 status=0
+  #196 SWAP_READ_BEGIN vpn=0 slot=0 frame=32537 victim_vpn=-1 status=0
+  #197 SWAP_READ_END vpn=0 slot=0 frame=32537 victim_vpn=-1 status=0
+  #198 MAP vpn=0 slot=0 frame=32537 victim_vpn=-1 status=0
+  #199 SWAP_FAULT vpn=3 slot=3 frame=-1 victim_vpn=-1 status=0
+  #200 VICTIM_SELECTED vpn=3 slot=9 frame=32536 victim_vpn=9 status=0
+  #201 EVICT_BEGIN vpn=9 slot=9 frame=32536 victim_vpn=9 status=0
+  #202 EVICT_END vpn=9 slot=9 frame=32536 victim_vpn=3 status=0
+  #203 SWAP_READ_BEGIN vpn=3 slot=3 frame=32536 victim_vpn=-1 status=0
+  #204 SWAP_READ_END vpn=3 slot=3 frame=32536 victim_vpn=-1 status=0
+  #205 MAP vpn=3 slot=3 frame=32536 victim_vpn=-1 status=0
+-- end trace --
+
+=== PHASE 4: fork() while a page is on disk ===
+parent: resident_count=6 evictions=30 (some of the 6 pages are now on disk, not RAM)
+child pid=5: reading pages the PARENT had already swapped out before I existed...
+child PASS: inherited swapped page(s) read back correctly
+
+-- trace events: phase 4 (fork with swapped page) --
+  #232 VICTIM_SELECTED vpn=10 slot=0 frame=32537 victim_vpn=0 status=0
+  #233 EVICT_BEGIN vpn=0 slot=0 frame=32537 victim_vpn=0 status=0
+  #234 EVICT_END vpn=0 slot=0 frame=32537 victim_vpn=10 status=0
+  #235 ZERO_FAULT vpn=10 slot=-1 frame=32537 victim_vpn=-1 status=0
+  #236 MAP vpn=10 slot=-1 frame=32537 victim_vpn=-1 status=0
+  #237 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+  #238 VICTIM_SELECTED vpn=0 slot=3 frame=32536 victim_vpn=3 status=0
+  #239 EVICT_BEGIN vpn=3 slot=3 frame=32536 victim_vpn=3 status=0
+  #240 EVICT_END vpn=3 slot=3 frame=32536 victim_vpn=0 status=0
+  #241 SWAP_READ_BEGIN vpn=0 slot=0 frame=32536 victim_vpn=-1 status=0
+  #242 SWAP_READ_END vpn=0 slot=0 frame=32536 victim_vpn=-1 status=0
+  #243 MAP vpn=0 slot=0 frame=32536 victim_vpn=-1 status=0
+  #244 VICTIM_SELECTED vpn=11 slot=-1 frame=32542 victim_vpn=6 status=0
+  #245 EVICT_BEGIN vpn=6 slot=-1 frame=32542 victim_vpn=6 status=0
+  #246 SWAP_WRITE_BEGIN vpn=6 slot=6 frame=32542 victim_vpn=-1 status=0
+  #247 SWAP_WRITE_END vpn=6 slot=6 frame=32542 victim_vpn=-1 status=0
+  #248 EVICT_END vpn=6 slot=6 frame=32542 victim_vpn=11 status=0
+  #249 ZERO_FAULT vpn=11 slot=-1 frame=32542 victim_vpn=-1 status=0
+  #250 MAP vpn=11 slot=-1 frame=32542 victim_vpn=-1 status=0
+  #251 SWAP_FAULT vpn=5 slot=5 frame=-1 victim_vpn=-1 status=0
+  #252 VICTIM_SELECTED vpn=5 slot=-1 frame=32581 victim_vpn=7 status=0
+  #253 EVICT_BEGIN vpn=7 slot=-1 frame=32581 victim_vpn=7 status=0
+  #254 SWAP_WRITE_BEGIN vpn=7 slot=7 frame=32581 victim_vpn=-1 status=0
+  #255 SWAP_WRITE_END vpn=7 slot=7 frame=32581 victim_vpn=-1 status=0
+  #256 EVICT_END vpn=7 slot=7 frame=32581 victim_vpn=5 status=0
+  #257 SWAP_READ_BEGIN vpn=5 slot=5 frame=32581 victim_vpn=-1 status=0
+  #258 SWAP_READ_END vpn=5 slot=5 frame=32581 victim_vpn=-1 status=0
+  #259 MAP vpn=5 slot=5 frame=32581 victim_vpn=-1 status=0
+  #260 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+  #261 VICTIM_SELECTED vpn=1 slot=-1 frame=32539 victim_vpn=8 status=0
+  #262 EVICT_BEGIN vpn=8 slot=-1 frame=32539 victim_vpn=8 status=0
+  #263 SWAP_WRITE_BEGIN vpn=8 slot=8 frame=32539 victim_vpn=-1 status=0
+  #264 SWAP_WRITE_END vpn=8 slot=8 frame=32539 victim_vpn=-1 status=0
+  #265 EVICT_END vpn=8 slot=8 frame=32539 victim_vpn=1 status=0
+  #266 SWAP_READ_BEGIN vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+  #267 SWAP_READ_END vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+  #268 MAP vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+  #269 SWAP_FAULT vpn=6 slot=6 frame=-1 victim_vpn=-1 status=0
+  #270 VICTIM_SELECTED vpn=6 slot=-1 frame=32578 victim_vpn=0 status=0
+  #271 EVICT_BEGIN vpn=0 slot=-1 frame=32578 victim_vpn=0 status=0
+  #272 SWAP_WRITE_BEGIN vpn=0 slot=9 frame=32578 victim_vpn=-1 status=0
+  #273 SWAP_WRITE_END vpn=0 slot=9 frame=32578 victim_vpn=-1 status=0
+  #274 EVICT_END vpn=0 slot=9 frame=32578 victim_vpn=6 status=0
+  #275 SWAP_READ_BEGIN vpn=6 slot=6 frame=32578 victim_vpn=-1 status=0
+  #276 SWAP_READ_END vpn=6 slot=6 frame=32578 victim_vpn=-1 status=0
+  #277 MAP vpn=6 slot=6 frame=32578 victim_vpn=-1 status=0
+  #278 SWAP_FAULT vpn=0 slot=9 frame=-1 victim_vpn=-1 status=0
+  #279 VICTIM_SELECTED vpn=0 slot=-1 frame=32548 victim_vpn=1 status=0
+  #280 EVICT_BEGIN vpn=1 slot=-1 frame=32548 victim_vpn=1 status=0
+  #281 SWAP_WRITE_BEGIN vpn=1 slot=10 frame=32548 victim_vpn=-1 status=0
+  #282 SWAP_WRITE_END vpn=1 slot=10 frame=32548 victim_vpn=-1 status=0
+  #283 EVICT_END vpn=1 slot=10 frame=32548 victim_vpn=0 status=0
+  #284 SWAP_READ_BEGIN vpn=0 slot=9 frame=32548 victim_vpn=-1 status=0
+  #285 SWAP_READ_END vpn=0 slot=9 frame=32548 victim_vpn=-1 status=0
+  #286 MAP vpn=0 slot=9 frame=32548 victim_vpn=-1 status=0
+  #287 SWAP_FAULT vpn=7 slot=7 frame=-1 victim_vpn=-1 status=0
+  #288 VICTIM_SELECTED vpn=7 slot=-1 frame=32549 victim_vpn=5 status=0
+  #289 EVICT_BEGIN vpn=5 slot=-1 frame=32549 victim_vpn=5 status=0
+  #290 SWAP_WRITE_BEGIN vpn=5 slot=11 frame=32549 victim_vpn=-1 status=0
+  #291 SWAP_WRITE_END vpn=5 slot=11 frame=32549 victim_vpn=-1 status=0
+  #292 EVICT_END vpn=5 slot=11 frame=32549 victim_vpn=7 status=0
+  #293 SWAP_READ_BEGIN vpn=7 slot=7 frame=32549 victim_vpn=-1 status=0
+  #294 SWAP_READ_END vpn=7 slot=7 frame=32549 victim_vpn=-1 status=0
+  #295 MAP vpn=7 slot=7 frame=32549 victim_vpn=-1 status=0
+  #296 SWAP_FAULT vpn=8 slot=8 frame=-1 victim_vpn=-1 status=0
+  #297 VICTIM_SELECTED vpn=8 slot=-1 frame=32550 victim_vpn=9 status=0
+  #298 EVICT_BEGIN vpn=9 slot=-1 frame=32550 victim_vpn=9 status=0
+  #299 SWAP_WRITE_BEGIN vpn=9 slot=12 frame=32550 victim_vpn=-1 status=0
+  #300 SWAP_WRITE_END vpn=9 slot=12 frame=32550 victim_vpn=-1 status=0
+  #301 EVICT_END vpn=9 slot=12 frame=32550 victim_vpn=8 status=0
+  #302 SWAP_READ_BEGIN vpn=8 slot=8 frame=32550 victim_vpn=-1 status=0
+  #303 SWAP_READ_END vpn=8 slot=8 frame=32550 victim_vpn=-1 status=0
+  #304 MAP vpn=8 slot=8 frame=32550 victim_vpn=-1 status=0
+  #305 SWAP_FAULT vpn=9 slot=12 frame=-1 victim_vpn=-1 status=0
+  #306 VICTIM_SELECTED vpn=9 slot=-1 frame=32551 victim_vpn=10 status=0
+  #307 EVICT_BEGIN vpn=10 slot=-1 frame=32551 victim_vpn=10 status=0
+  #308 SWAP_WRITE_BEGIN vpn=10 slot=13 frame=32551 victim_vpn=-1 status=0
+  #309 SWAP_WRITE_END vpn=10 slot=13 frame=32551 victim_vpn=-1 status=0
+  #310 EVICT_END vpn=10 slot=13 frame=32551 victim_vpn=9 status=0
+  #311 SWAP_READ_BEGIN vpn=9 slot=12 frame=32551 victim_vpn=-1 status=0
+  #312 SWAP_READ_END vpn=9 slot=12 frame=32551 victim_vpn=-1 status=0
+  #313 MAP vpn=9 slot=12 frame=32551 victim_vpn=-1 status=0
+  #314 SWAP_FAULT vpn=10 slot=13 frame=-1 victim_vpn=-1 status=0
+  #315 VICTIM_SELECTED vpn=10 slot=-1 frame=32552 victim_vpn=11 status=0
+  #316 EVICT_BEGIN vpn=11 slot=-1 frame=32552 victim_vpn=11 status=0
+  #317 SWAP_WRITE_BEGIN vpn=11 slot=14 frame=32552 victim_vpn=-1 status=0
+  #318 SWAP_WRITE_END vpn=11 slot=14 frame=32552 victim_vpn=-1 status=0
+  #319 EVICT_END vpn=11 slot=14 frame=32552 victim_vpn=10 status=0
+  #320 SWAP_READ_BEGIN vpn=10 slot=13 frame=32552 victim_vpn=-1 status=0
+  #321 SWAP_READ_END vpn=10 slot=13 frame=32552 victim_vpn=-1 status=0
+  #322 MAP vpn=10 slot=13 frame=32552 victim_vpn=-1 status=0
+  #323 SWAP_FAULT vpn=11 slot=14 frame=-1 victim_vpn=-1 status=0
+  #324 VICTIM_SELECTED vpn=11 slot=6 frame=32578 victim_vpn=6 status=0
+  #325 EVICT_BEGIN vpn=6 slot=6 frame=32578 victim_vpn=6 status=0
+  #326 EVICT_END vpn=6 slot=6 frame=32578 victim_vpn=11 status=0
+  #327 SWAP_READ_BEGIN vpn=11 slot=14 frame=32578 victim_vpn=-1 status=0
+  #328 SWAP_READ_END vpn=11 slot=14 frame=32578 victim_vpn=-1 status=0
+  #329 MAP vpn=11 slot=14 frame=32578 victim_vpn=-1 status=0
+  #330 SWAP_FAULT vpn=5 slot=11 frame=-1 victim_vpn=-1 status=0
+  #331 VICTIM_SELECTED vpn=5 slot=9 frame=32548 victim_vpn=0 status=0
+  #332 EVICT_BEGIN vpn=0 slot=9 frame=32548 victim_vpn=0 status=0
+  #333 EVICT_END vpn=0 slot=9 frame=32548 victim_vpn=5 status=0
+  #334 TRACE_DROP vpn=5 slot=11 frame=32548 victim_vpn=-1 status=1
+  #335 TRACE_DROP vpn=5 slot=11 frame=32548 victim_vpn=-1 status=2
+  #336 TRACE_DROP vpn=5 slot=11 frame=32548 victim_vpn=-1 status=3
+  #337 TRACE_DROP vpn=0 slot=9 frame=-1 victim_vpn=-1 status=4
+  #338 TRACE_DROP vpn=0 slot=7 frame=32549 victim_vpn=7 status=5
+  #339 TRACE_DROP vpn=7 slot=7 frame=32549 victim_vpn=7 status=6
+  #340 TRACE_DROP vpn=7 slot=7 frame=32549 victim_vpn=0 status=7
+  #341 TRACE_DROP vpn=0 slot=9 frame=32549 victim_vpn=-1 status=8
+  #342 TRACE_DROP vpn=0 slot=9 frame=32549 victim_vpn=-1 status=9
+  #343 TRACE_DROP vpn=0 slot=9 frame=32549 victim_vpn=-1 status=10
+  #344 TRACE_DROP vpn=1 slot=10 frame=-1 victim_vpn=-1 status=11
+  #345 TRACE_DROP vpn=1 slot=8 frame=32550 victim_vpn=8 status=12
+  #346 TRACE_DROP vpn=8 slot=8 frame=32550 victim_vpn=8 status=13
+  #347 TRACE_DROP vpn=8 slot=8 frame=32550 victim_vpn=1 status=14
+  #348 TRACE_DROP vpn=1 slot=10 frame=32550 victim_vpn=-1 status=15
+  #349 TRACE_DROP vpn=1 slot=10 frame=32550 victim_vpn=-1 status=16
+  #350 TRACE_DROP vpn=1 slot=10 frame=32550 victim_vpn=-1 status=17
+  #351 TRACE_DROP vpn=3 slot=3 frame=-1 victim_vpn=-1 status=18
+  #352 TRACE_DROP vpn=3 slot=-1 frame=32538 victim_vpn=9 status=19
+  #353 TRACE_DROP vpn=9 slot=-1 frame=32538 victim_vpn=9 status=20
+  #354 TRACE_DROP vpn=9 slot=9 frame=32538 victim_vpn=-1 status=21
+  #355 TRACE_DROP vpn=9 slot=9 frame=32538 victim_vpn=-1 status=22
+  #356 TRACE_DROP vpn=9 slot=9 frame=32538 victim_vpn=3 status=23
+  #357 TRACE_DROP vpn=3 slot=3 frame=32538 victim_vpn=-1 status=24
+  #358 TRACE_DROP vpn=3 slot=3 frame=32538 victim_vpn=-1 status=25
+  #359 TRACE_DROP vpn=3 slot=3 frame=32538 victim_vpn=-1 status=26
+-- end trace --
+PASS: child exited cleanly after reading swapped-in inherited data
+
+================================================
+ALL PHASES PASSED -- swap-out and swap-in both confirmed working.
+================================================
+$ 
+# RESULT PASS
+QEMU: Terminated
+

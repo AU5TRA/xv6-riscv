@@ -12,3 +12,5 @@ _*
 TAGS
 /test-logs/
 *.pdf
+*.patch
+help.md
