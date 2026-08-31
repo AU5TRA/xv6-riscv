@@ -96,17 +96,18 @@ main(void)
 
   if(vmstats(&s0) < 0)
     fail("vmstats");
+
   printf("baseline resident_count=%ld "
          "(this program's own code/data/stack, loaded by exec before "
          "any of this test's own memory exists)\n", s0.resident_count);
 
-  int limit = (int)s0.resident_count + 4;
+  int limit = (int)s0.resident_count + 4; // 4 pages more
+
   if(vmctl(VM_SET_LIMIT, limit) < 0)
     fail("vmctl VM_SET_LIMIT");
-  printf("\n=== PHASE 1: fill %d pages into a %d-frame budget ===\n",
-         NPAGES, limit);
-  printf("(watch resident_count climb, then cap at %d once the budget is full)\n",
-         limit);
+
+  printf("\n=== PHASE 1: fill %d pages into a %d-frame budget ===\n", NPAGES, limit);
+  printf("(watch resident_count climb, then cap at %d once the budget is full)\n", limit);
   printf("note: the margin above baseline is small on purpose. FIFO evicts "
          "whichever resident page is globally OLDEST for this process, with "
          "no exception for the program's own code/stack -- so once enough "
@@ -134,26 +135,24 @@ main(void)
   dump_trace("phase 1 (filling)");
 
   printf("\n=== PHASE 2: confirm real disk writes happened ===\n");
-  printf("evictions   : %ld -> %ld (delta %ld)\n", s0.evictions, s1.evictions,
-         s1.evictions - s0.evictions);
-  printf("page_writes : %ld -> %ld (delta %ld)\n", s0.page_writes,
-         s1.page_writes, s1.page_writes - s0.page_writes);
+  printf("evictions   : %ld -> %ld (delta %ld)\n", s0.evictions, s1.evictions, s1.evictions - s0.evictions);
+  printf("page_writes : %ld -> %ld (delta %ld)\n", s0.page_writes, s1.page_writes, s1.page_writes - s0.page_writes);
+  
   if(s1.evictions <= s0.evictions || s1.page_writes <= s0.page_writes)
     fail("no eviction / disk write happened -- paging is NOT working");
-  printf("PASS: %ld page(s) were genuinely evicted and written to swap\n",
-         s1.evictions - s0.evictions);
+
+  printf("PASS: %ld page(s) were genuinely evicted and written to swap\n", s1.evictions - s0.evictions);
 
   printf("\n=== PHASE 3: touch an evicted page again and watch it come back ===\n");
   s2 = s1;
   char v = mem[0]; // page 0 was touched first -> likely evicted first under FIFO
   vmstats(&s3);
   printf("re-read page 0: value=%d (expected 1)\n", v);
-  printf("swap_faults : %ld -> %ld (delta %ld)\n", s2.swap_faults,
-         s3.swap_faults, s3.swap_faults - s2.swap_faults);
-  printf("page_reads  : %ld -> %ld (delta %ld)\n", s2.page_reads,
-         s3.page_reads, s3.page_reads - s2.page_reads);
+  printf("swap_faults : %ld -> %ld (delta %ld)\n", s2.swap_faults, s3.swap_faults, s3.swap_faults - s2.swap_faults);
+  printf("page_reads  : %ld -> %ld (delta %ld)\n", s2.page_reads, s3.page_reads, s3.page_reads - s2.page_reads);
   if(v != 1 || s3.swap_faults <= s2.swap_faults || s3.page_reads <= s2.page_reads)
     fail("page did not swap back in correctly");
+
   printf("PASS: page 0 was fetched back from disk with byte-exact content\n");
 
   printf("verifying all %d pages still round-trip correctly after the "
@@ -161,14 +160,13 @@ main(void)
   int ok = 1;
   for(int i = 0; i < NPAGES; i++)
     if(mem[i * PGSIZE] != (char)(i + 1)){
-      printf("  MISMATCH at page %d: got %d expected %d\n", i,
-             mem[i * PGSIZE], i + 1);
+      printf("  MISMATCH at page %d: got %d expected %d\n", i, mem[i * PGSIZE], i + 1);
       ok = 0;
     }
   if(!ok)
     fail("data corruption detected across swap round trips");
-  printf("PASS: all %d pages byte-exact after thrashing through swap\n",
-         NPAGES);
+
+  printf("PASS: all %d pages byte-exact after thrashing through swap\n", NPAGES);
   dump_trace("phase 3 (swap back in)");
 
   if(sbrk(-NPAGES * PGSIZE) == SBRK_ERROR)
@@ -198,8 +196,7 @@ main(void)
     int cok = 1;
     for(int i = 0; i < 6; i++)
       if(fmem[i * PGSIZE] != (char)(100 + i)){
-        printf("  child MISMATCH page %d: got %d expected %d\n", i,
-               fmem[i * PGSIZE], 100 + i);
+        printf("  child MISMATCH page %d: got %d expected %d\n", i, fmem[i * PGSIZE], 100 + i);
         cok = 0;
       }
     printf(cok ? "child PASS: inherited swapped page(s) read back correctly\n"
