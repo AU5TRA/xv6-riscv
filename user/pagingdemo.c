@@ -52,6 +52,73 @@ fld(uint64 v)
   return (long)v;
 }
 
+// Prints one plain-language sentence explaining a single trace event.
+// Field meaning is event-type-dependent (taken directly from the
+// vmtrace_emit(...) call sites in kernel/vm.c and kernel/vmpage.c, not
+// guessed) -- e.g. for VICTIM_SELECTED, vpn is the NEW page and victim is
+// the page being evicted; for EVICT_END, victim instead holds the NEW page
+// that will reuse the just-freed frame, not a second victim.
+static void
+explain_event(int type, long vpn, long slot, long frame, long victim,
+              long status)
+{
+  printf("      in plain words: ");
+  if(type == VMTRACE_ZERO_FAULT){
+    printf("page %ld was touched for the first time (a lazy hole with "
+           "nothing behind it) -- a fresh zeroed frame (#%ld) was handed "
+           "to it, no disk involved.\n", vpn, frame);
+  } else if(type == VMTRACE_MAP && slot == -1){
+    printf("page %ld is now mapped in frame #%ld (this follows a fresh "
+           "allocation, not a restore from disk).\n", vpn, frame);
+  } else if(type == VMTRACE_MAP){
+    printf("page %ld is now mapped in frame #%ld -- its data was just "
+           "restored from swap slot %ld.\n", vpn, frame, slot);
+  } else if(type == VMTRACE_SWAP_FAULT){
+    printf("page %ld was touched, but it is currently on disk in swap "
+           "slot %ld, not in RAM. This starts the fetch-back.\n", vpn, slot);
+  } else if(type == VMTRACE_VICTIM_SELECTED){
+    printf("a frame is needed for page %ld, but the resident budget is "
+           "full -> page %ld was chosen as the victim to evict (it "
+           "currently occupies frame #%ld).\n", vpn, victim, frame);
+  } else if(type == VMTRACE_EVICT_BEGIN){
+    printf("eviction of page %ld (frame #%ld) is starting -- it is now "
+           "locked against any other access until this finishes.\n",
+           vpn, frame);
+  } else if(type == VMTRACE_SWAP_WRITE_BEGIN){
+    printf("page %ld's contents (frame #%ld) are being written out to "
+           "swap slot %ld -- the disk write starts now.\n", vpn, frame, slot);
+  } else if(type == VMTRACE_SWAP_WRITE_END && status == 0){
+    printf("the disk write of page %ld to swap slot %ld completed "
+           "successfully.\n", vpn, slot);
+  } else if(type == VMTRACE_SWAP_WRITE_END){
+    printf("the disk write of page %ld to swap slot %ld FAILED.\n",
+           vpn, slot);
+  } else if(type == VMTRACE_EVICT_END){
+    printf("virtual page number %ld, in frame #%ld, is being replaced -- "
+           "its data is now safely in swap slot %ld, and that same frame "
+           "is about to be handed over to virtual page number %ld.\n",
+           vpn, frame, slot, victim);
+  } else if(type == VMTRACE_SWAP_READ_BEGIN){
+    printf("page %ld's contents are being read back from swap slot %ld "
+           "into frame #%ld -- the disk read starts now.\n",
+           vpn, slot, frame);
+  } else if(type == VMTRACE_SWAP_READ_END && status == 0){
+    printf("the disk read of page %ld from swap slot %ld completed "
+           "successfully.\n", vpn, slot);
+  } else if(type == VMTRACE_SWAP_READ_END){
+    printf("the disk read of page %ld from swap slot %ld FAILED.\n",
+           vpn, slot);
+  } else if(type == VMTRACE_DROP){
+    printf("the trace ring was full, so the oldest recorded event was "
+           "discarded to make room for this one (%ld lost in total so "
+           "far). This is bookkeeping about the trace log itself, not a "
+           "paging event.\n", status);
+  } else {
+    printf("(no plain-language translation written yet for this event "
+           "type -- see the raw fields above).\n");
+  }
+}
+
 static void
 dump_trace(const char *label)
 {
@@ -62,11 +129,15 @@ dump_trace(const char *label)
     return;
   printf("\n-- trace events: %s --\n", label);
   while((n = vmtrace_read(ev, 8)) > 0){
-    for(int i = 0; i < n; i++)
+    for(int i = 0; i < n; i++){
       printf("  #%ld %s vpn=%ld slot=%ld frame=%ld victim_vpn=%ld status=%ld\n",
              fld(ev[i].sequence), trace_name(ev[i].type), fld(ev[i].vpn),
              fld(ev[i].swap_slot), fld(ev[i].frame_index),
              fld(ev[i].victim_vpn), fld(ev[i].status));
+      explain_event((int)ev[i].type, fld(ev[i].vpn), fld(ev[i].swap_slot),
+                    fld(ev[i].frame_index), fld(ev[i].victim_vpn),
+                    fld(ev[i].status));
+    }
   }
   printf("-- end trace --\n");
 }

@@ -169,6 +169,7 @@ UPROGS=\
 	$U/_vmtest\
 	$U/_prefetchtest\
 	$U/_pagingdemo\
+	$U/_policydemo\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

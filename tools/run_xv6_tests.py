@@ -37,6 +37,10 @@ def pass_marker(command: str) -> re.Pattern[str]:
     if program == "prefetchtest":
         name = re.escape(parts[1]) if len(parts) > 1 else r"[^\r\n]+"
         return re.compile(rf"prefetchtest: {name}: PASS")
+    if program == "pagingdemo":
+        return re.compile(r"ALL PHASES PASSED")
+    if program == "policydemo":
+        return re.compile(r"ALL POLICIES BEHAVED AS EXPECTED")
     return re.compile(r"(?:^|\r?\n)PASS(?:\r?\n|$)")
 
 
