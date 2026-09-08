@@ -72,22 +72,49 @@ def reuse_distances(refs):
     since that page's previous reference. Returns (distances,
     infinite_count) where distances is the list of finite distances in
     trace order (first-touch references excluded, counted separately).
-    O(n * unique) -- fine for this suite's trace sizes; a real
-    LRU-stack (e.g. a balanced-tree stack-distance algorithm) would be
-    needed for very large traces."""
-    seen = set()
-    recency = []  # most-recently-used at the end
+
+    O(n log n) via a Fenwick tree (binary indexed tree) over time
+    positions: position i holds 1 iff it is still the MOST RECENT
+    occurrence of its page (cleared -- decremented -- once that page
+    is seen again later). A reference's distance is then the number of
+    still-"most recent" positions strictly between its previous
+    occurrence and now -- a prefix-sum difference, O(log n) per
+    reference. Upgraded from an earlier O(n * unique) list-based
+    version (still correct, just too slow for multi-million-reference
+    real-application traces) -- both were cross-checked to produce
+    IDENTICAL output on the hand-computed example in _selftest()
+    before this one replaced it.
+    """
+    n = len(refs)
+    tree = [0] * (n + 1)
+
+    def bit_add(i, delta):
+        i += 1  # 1-indexed internally
+        while i <= n:
+            tree[i] += delta
+            i += i & (-i)
+
+    def bit_sum(i):
+        # Sum of 0-indexed positions [0, i).
+        s = 0
+        while i > 0:
+            s += tree[i]
+            i -= i & (-i)
+        return s
+
+    last_pos = {}
     distances = []
     infinite = 0
-    for vpn in refs:
-        if vpn in seen:
-            distance = len(recency) - 1 - recency.index(vpn)
+    for i, vpn in enumerate(refs):
+        if vpn in last_pos:
+            j = last_pos[vpn]
+            distance = bit_sum(i) - bit_sum(j + 1)
             distances.append(distance)
-            recency.remove(vpn)
+            bit_add(j, -1)
         else:
             infinite += 1
-            seen.add(vpn)
-        recency.append(vpn)
+        bit_add(i, 1)
+        last_pos[vpn] = i
     return distances, infinite
 
 

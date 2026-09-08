@@ -25,16 +25,30 @@
 static int *g_a, *g_b, *g_c;
 static long g_n;
 
+// g_a/g_b/g_c are contiguous within one arena (g_a is its base), so an
+// element's offset from g_a gives its page regardless of which matrix
+// it belongs to.
+static void
+matmul_trace(int *p)
+{
+  vmbench_trace_ref((char *)g_a, (uint64)(((char *)p - (char *)g_a) /
+                                           VMBENCH_PGSIZE));
+}
+
 static int
 at(int *m, long i, long j)
 {
-  return m[i * g_n + j];
+  int *p = &m[i * g_n + j];
+  matmul_trace(p);
+  return *p;
 }
 
 static void
 set_at(int *m, long i, long j, int v)
 {
-  m[i * g_n + j] = v;
+  int *p = &m[i * g_n + j];
+  matmul_trace(p);
+  *p = v;
 }
 
 static void
@@ -79,15 +93,16 @@ matmul_blocked(void)
 int
 main(int argc, char *argv[])
 {
-  if(argc != 5){
+  if(argc != 5 && argc != 6){
     printf("usage: matmulbench <footprint_pages> <resident_margin> "
-           "<n> <naive|blocked>\n");
+           "<n> <naive|blocked> [trace]\n");
     exit(1);
   }
   int footprint_pages = atoi(argv[1]);
   int resident_margin = atoi(argv[2]);
   g_n = atoi(argv[3]);
   char *variant = argv[4];
+  int trace = argc == 6 && atoi(argv[5]) != 0;
   int naive = strcmp(variant, "naive") == 0;
   if(!naive && strcmp(variant, "blocked") != 0){
     printf("matmulbench: unknown variant '%s' (want naive|blocked)\n",
@@ -143,6 +158,10 @@ main(int argc, char *argv[])
   vmbench_reset_and_snapshot(&before);
 
   vmbench_banner("matmulbench", "workload");
+  if(trace)
+    vmbench_trace_start("matmulbench", "see RESULT lines below for full "
+                        "parameters", 1, arena, footprint_pages,
+                        resident_margin);
   if(naive)
     matmul_naive();
   else
@@ -151,6 +170,9 @@ main(int argc, char *argv[])
   long checksum = 0;
   for(long i = 0; i < g_n * g_n; i++)
     checksum += g_c[i];
+
+  if(trace)
+    vmbench_trace_stop();
 
   struct vmstats after;
   vmbench_snapshot(&after);

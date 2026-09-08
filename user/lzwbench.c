@@ -34,6 +34,7 @@ struct lzw_entry {
 };
 
 static struct lzw_entry *g_table;
+static char *g_arena_base;
 static int g_next_code;
 
 static long
@@ -54,6 +55,9 @@ lzw_lookup_or_insert(int prefix, int byte)
   long slot = lzw_hash(prefix, byte);
   for(long tries = 0; tries < LZW_TABLE_SIZE; tries++){
     struct lzw_entry *e = &g_table[slot];
+    vmbench_trace_ref((char *)g_arena_base,
+                       (uint64)(((char *)e - (char *)g_arena_base) /
+                                VMBENCH_PGSIZE));
     if(e->prefix == -1){
       if(g_next_code < LZW_MAX_CODE){
         e->prefix = prefix;
@@ -72,14 +76,15 @@ lzw_lookup_or_insert(int prefix, int byte)
 int
 main(int argc, char *argv[])
 {
-  if(argc != 3){
-    printf("usage: lzwbench <resident_margin> <repeat_count>\n");
+  if(argc != 3 && argc != 4){
+    printf("usage: lzwbench <resident_margin> <repeat_count> [trace]\n");
     exit(1);
   }
   int resident_margin = atoi(argv[1]);
   int repeat_count = atoi(argv[2]);
   if(repeat_count < 1)
     repeat_count = 1;
+  int trace = argc == 4 && atoi(argv[3]) != 0;
 
   vmbench_banner("lzwbench", "setup");
   int fd = open("corpus.txt", 0);
@@ -113,6 +118,7 @@ main(int argc, char *argv[])
   uchar *input = (uchar *)arena;
   ushort *output = (ushort *)(input + total_in);
   g_table = (struct lzw_entry *)(output + total_in);
+  g_arena_base = arena;
 
   long got = 0;
   while(got < corpus_size){
@@ -152,6 +158,10 @@ main(int argc, char *argv[])
   vmbench_reset_and_snapshot(&before);
 
   vmbench_banner("lzwbench", "workload");
+  if(trace)
+    vmbench_trace_start("lzwbench", "see RESULT lines below for full "
+                        "parameters", 1, arena, footprint_pages,
+                        resident_margin);
   long out_count = 0;
   int prefix = input[0];
   for(long i = 1; i < total_in; i++){
@@ -165,6 +175,9 @@ main(int argc, char *argv[])
     }
   }
   output[out_count++] = (ushort)prefix;
+
+  if(trace)
+    vmbench_trace_stop();
 
   struct vmstats after;
   vmbench_snapshot(&after);

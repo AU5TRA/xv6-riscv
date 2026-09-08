@@ -60,7 +60,9 @@ static int g_v;
 static int
 edge_dst(int v, int k)
 {
-  return g_edges[v * AVG_DEGREE + k];
+  long idx = (long)v * AVG_DEGREE + k;
+  vmbench_trace_ref((char *)g_edges, (uint64)(idx / (VMBENCH_PGSIZE / (long)sizeof(int))));
+  return g_edges[idx];
 }
 
 static void
@@ -150,9 +152,9 @@ pagerank_iteration(void)
 int
 main(int argc, char *argv[])
 {
-  if(argc != 6){
+  if(argc != 6 && argc != 7){
     printf("usage: graphbench <footprint_pages> <resident_margin> "
-           "<pagerank_iters> <seed> <bfs|pagerank|both>\n");
+           "<pagerank_iters> <seed> <bfs|pagerank|both> [trace]\n");
     exit(1);
   }
   int footprint_pages = atoi(argv[1]);
@@ -160,6 +162,7 @@ main(int argc, char *argv[])
   int pr_iters = atoi(argv[3]);
   uint64 seed = (uint64)atoi(argv[4]);
   char *which = argv[5];
+  int trace = argc == 7 && atoi(argv[6]) != 0;
 
   vmbench_banner("graphbench", "setup");
   printf("[info] synthetic scale-free graph (preferential attachment "
@@ -218,6 +221,10 @@ main(int argc, char *argv[])
   vmbench_reset_and_snapshot(&before);
 
   vmbench_banner("graphbench", "workload");
+  if(trace)
+    vmbench_trace_start("graphbench", "see RESULT lines below for full "
+                        "parameters", seed, arena, footprint_pages,
+                        resident_margin);
   long bfs_visited = 0;
   int pr_ran = 0;
   if(strcmp(which, "bfs") == 0 || strcmp(which, "both") == 0)
@@ -235,6 +242,9 @@ main(int argc, char *argv[])
       pagerank_iteration();
     pr_ran = 1;
   }
+
+  if(trace)
+    vmbench_trace_stop();
 
   struct vmstats after;
   vmbench_snapshot(&after);

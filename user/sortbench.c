@@ -25,6 +25,16 @@
 static int *g_a, *g_b;
 static long g_n;
 
+// One accessor both arrays funnel through for trace purposes: g_a and
+// g_b are contiguous within the same arena (g_b = g_a + g_n), so a
+// pointer's offset from g_a directly gives its page.
+static void
+sort_trace(int *p)
+{
+  vmbench_trace_ref((char *)g_a, (uint64)(((char *)p - (char *)g_a) /
+                                           VMBENCH_PGSIZE));
+}
+
 static void
 merge_pass(int *src, int *dst, long run)
 {
@@ -37,27 +47,38 @@ merge_pass(int *src, int *dst, long run)
       hi = g_n;
 
     long i = lo, j = mid, k = lo;
-    while(i < mid && j < hi)
+    while(i < mid && j < hi){
+      sort_trace(&src[i]);
+      sort_trace(&src[j]);
+      sort_trace(&dst[k]);
       dst[k++] = (src[i] <= src[j]) ? src[i++] : src[j++];
-    while(i < mid)
+    }
+    while(i < mid){
+      sort_trace(&src[i]);
+      sort_trace(&dst[k]);
       dst[k++] = src[i++];
-    while(j < hi)
+    }
+    while(j < hi){
+      sort_trace(&src[j]);
+      sort_trace(&dst[k]);
       dst[k++] = src[j++];
+    }
   }
 }
 
 int
 main(int argc, char *argv[])
 {
-  if(argc != 5){
+  if(argc != 5 && argc != 6){
     printf("usage: sortbench <footprint_pages> <resident_margin> "
-           "<n_elements> <seed>\n");
+           "<n_elements> <seed> [trace]\n");
     exit(1);
   }
   int footprint_pages = atoi(argv[1]);
   int resident_margin = atoi(argv[2]);
   g_n = atoi(argv[3]);
   uint64 seed = (uint64)atoi(argv[4]);
+  int trace = argc == 6 && atoi(argv[5]) != 0;
 
   vmbench_banner("sortbench", "setup");
   char *arena = vmbench_arena(footprint_pages);
@@ -104,6 +125,10 @@ main(int argc, char *argv[])
   vmbench_reset_and_snapshot(&before);
 
   vmbench_banner("sortbench", "workload");
+  if(trace)
+    vmbench_trace_start("sortbench", "see RESULT lines below for full "
+                        "parameters", seed, arena, footprint_pages,
+                        resident_margin);
   int *src = g_a, *dst = g_b;
   long passes = 0;
   for(long run = 1; run < g_n; run *= 2){
@@ -118,6 +143,9 @@ main(int argc, char *argv[])
   for(long i = 1; i < g_n; i++)
     if(src[i - 1] > src[i])
       inversions++;
+
+  if(trace)
+    vmbench_trace_stop();
 
   struct vmstats after;
   vmbench_snapshot(&after);

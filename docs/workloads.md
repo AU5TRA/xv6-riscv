@@ -362,15 +362,35 @@ mechanism as built, not a missing analysis step; extending it would
 mean either changing `vmbench_trace_ref`'s signature and every call
 site again, or adding a parallel R/W-aware primitive).
 
-### Phase 4/5 — blocked
+### Phase 4/5 — resolved (WORK_PROMPT3.md)
 
-See `docs/calibration.md` for the full explanation: calibrating native
-workloads against real SQLite/Redis traces requires those traces to
-exist first (WORK_PROMPT.md's own dropped Phase 5), and this session
-has no `sudo`/package-install access to set up the collection tooling
-(`valgrind`, `redis-server`, `sqlite3` — all available in the standard
-repos, none installed, no passwordless `sudo` found). Reported as a
-genuine environmental blocker, not a time-management skip.
+The blocker described in the previous paragraph is resolved: `apt-get
+download` + `dpkg-deb -x` (neither needs root) got `sqlite3`,
+`valgrind`, and `redis-server` running without a source build. Real
+SQLite and Redis traces were collected under Valgrind Lackey, reduced
+to this suite's own trace format, and used to calibrate `kvbench`/
+`btreebench` against them (a Jensen-Shannon-divergence + working-set
+-RMSE distance metric, a coarse grid search, and a mandatory
+unrelated-workload control). Both native workloads measure closer to
+their real counterparts than an unrelated workload does — `btreebench`
+convincingly so (44% closer than the best control), `kvbench` more
+weakly (12% closer). Full methodology, the complete grid results, a
+genuine non-flattering finding (the internal cache feature makes
+`btreebench` *less* similar to the real, unfiltered Lackey trace, not
+more — a real "apples to oranges" measurement mismatch, not a bug),
+and the calibrated presets are all in `docs/calibration.md`.
+
+## WORK_PROMPT3.md Phase 4 — tracing extended to all six workloads
+
+Reference-stream tracing (`vmbench_trace_ref`, previously wired into
+only `btreebench`/`kvbench`) is now in all six workloads, each via its
+own dominant page-accessor function: `graphbench`'s `edge_dst()`,
+`sortbench`'s new `sort_trace()` helper (called at each `src`/`dst`
+array access in `merge_pass()`), `matmulbench`'s new `matmul_trace()`
+helper (called from `at()`/`set_at()`), and `lzwbench`'s
+`lzw_lookup_or_insert()`. All four verified capturing real reference
+data (12,865 to 47,784 references in quick smoke-test runs) before
+being used in the calibration control comparison above.
 
 ## What was deliberately not done this pass
 
