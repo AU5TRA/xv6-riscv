@@ -1,6 +1,6 @@
 K=kernel
 U=user
-NSWAPSLOTS ?= 1024
+NSWAPSLOTS ?= 8192
 
 # Derived (not hardcoded) so fs.img's swap-region offset can never silently
 # desync from kernel/param.h and kernel/fs.h if either constant changes.
@@ -136,6 +136,17 @@ $U/_forktest: $U/forktest.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_forktest $U/forktest.o $U/ulib.o $U/usys.o
 	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
 
+# Workload/benchmark programs (WORK_PROMPT.md) link against the shared
+# harness in vmbench.o. A static pattern rule, not a change to ULIB or
+# the generic _% rule, so only these programs pay for vmbench.o's size
+# (including the 4KB Zipf table) -- every other user program is
+# unaffected.
+VMBENCH_PROGS = vmbenchtest btreebench kvbench graphbench sortbench matmulbench lzwbench
+$(addprefix $U/_,$(VMBENCH_PROGS)): $U/_%: $U/%.o $U/vmbench.o $(ULIB) $U/user.ld
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $U/$*.o $U/vmbench.o $(ULIB)
+	$(OBJDUMP) -S $@ > $U/$*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $U/$*.sym
+
 mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 	gcc -Wno-unknown-attributes -I. -o mkfs/mkfs mkfs/mkfs.c
 
@@ -170,9 +181,16 @@ UPROGS=\
 	$U/_prefetchtest\
 	$U/_pagingdemo\
 	$U/_policydemo\
+	$U/_vmbenchtest\
+	$U/_btreebench\
+	$U/_kvbench\
+	$U/_graphbench\
+	$U/_sortbench\
+	$U/_matmulbench\
+	$U/_lzwbench\
 
-fs.img: mkfs/mkfs README $(UPROGS)
-	mkfs/mkfs fs.img README $(UPROGS)
+fs.img: mkfs/mkfs README corpus.txt $(UPROGS)
+	mkfs/mkfs fs.img README corpus.txt $(UPROGS)
 	truncate -s $$(($(FSSIZE) * $(BSIZE) + $(NSWAPSLOTS) * 4096)) fs.img
 
 -include kernel/*.d user/*.d
