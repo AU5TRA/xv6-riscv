@@ -14,3 +14,4 @@ TAGS
 *.pdf
 *.patch
 help.md
+HANDOFF_PROMPT.md
