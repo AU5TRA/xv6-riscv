@@ -1,0 +1,766 @@
+# CPUS=1 timeout=60.0
+# commands=['pagingdemo']
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+$ 
+# RUN pagingdemo
+pagingdemo
+xv6 paging visual verification
+===============================
+[trace ring enabled -- every fault/evict/swap event will be listed]
+baseline resident_count=6 (this program's own code/data/stack, loaded by exec before any of this test's own memory exists)
+
+=== PHASE 1: fill 10 pages into a 10-frame budget ===
+(watch resident_count climb, then cap at 10 once the budget is full)
+note: the margin above baseline is small on purpose. FIFO evicts whichever resident page is globally OLDEST for this process, with no exception for the program's own code/stack -- so once enough heap pages are touched, you may see this program's own already-loaded pages get evicted and immediately faulted back in (a SWAP_FAULT on a very low VPN, right after an EVICT_END for that same VPN, in the trace dump below). That's not a bug: it's proof the system can transparently page out and restore even its own live, currently-executing code without corruption or a crash -- this policy simply has no special-case pin for "my own text segment."
+  touched page 0 -> resident=7 zero_faults=1 swap_faults=0 evictions=0
+  touched page 1 -> resident=8 zero_faults=2 swap_faults=0 evictions=0
+  touched page 2 -> resident=9 zero_faults=3 swap_faults=0 evictions=0
+  touched page 3 -> resident=10 zero_faults=4 swap_faults=0 evictions=0
+  touched page 4 -> resident=10 zero_faults=5 swap_faults=1 evictions=2
+  touched page 5 -> resident=10 zero_faults=6 swap_faults=3 evictions=5
+  touched page 6 -> resident=10 zero_faults=7 swap_faults=3 evictions=6
+  touched page 7 -> resident=10 zero_faults=8 swap_faults=4 evictions=8
+  touched page 8 -> resident=10 zero_faults=9 swap_faults=4 evictions=9
+  touched page 9 -> resident=10 zero_faults=10 swap_faults=4 evictions=10
+
+-- trace events: phase 1 (filling) --
+  #1 ZERO_FAULT vpn=6 slot=-1 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 6 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32546) was handed to it, no disk involved.
+  #2 MAP vpn=6 slot=-1 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 6 is now mapped in frame #32546 (this follows a fresh allocation, not a restore from disk).
+  #3 ZERO_FAULT vpn=7 slot=-1 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 7 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32596) was handed to it, no disk involved.
+  #4 MAP vpn=7 slot=-1 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 7 is now mapped in frame #32596 (this follows a fresh allocation, not a restore from disk).
+  #5 ZERO_FAULT vpn=8 slot=-1 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 8 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32595) was handed to it, no disk involved.
+  #6 MAP vpn=8 slot=-1 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 8 is now mapped in frame #32595 (this follows a fresh allocation, not a restore from disk).
+  #7 ZERO_FAULT vpn=9 slot=-1 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 9 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32581) was handed to it, no disk involved.
+  #8 MAP vpn=9 slot=-1 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 9 is now mapped in frame #32581 (this follows a fresh allocation, not a restore from disk).
+  #9 VICTIM_SELECTED vpn=10 slot=-1 frame=32542 victim_vpn=0 status=0
+      in plain words: a frame is needed for page 10, but the resident budget is full -> page 0 was chosen as the victim to evict (it currently occupies frame #32542).
+  #10 EVICT_BEGIN vpn=0 slot=-1 frame=32542 victim_vpn=0 status=0
+      in plain words: eviction of page 0 (frame #32542) is starting -- it is now locked against any other access until this finishes.
+  #11 SWAP_WRITE_BEGIN vpn=0 slot=0 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 0's contents (frame #32542) are being written out to swap slot 0 -- the disk write starts now.
+  #12 SWAP_WRITE_END vpn=0 slot=0 frame=32542 victim_vpn=-1 status=0
+      in plain words: the disk write of page 0 to swap slot 0 completed successfully.
+  #13 EVICT_END vpn=0 slot=0 frame=32542 victim_vpn=10 status=0
+      in plain words: virtual page number 0, in frame #32542, is being replaced -- its data is now safely in swap slot 0, and that same frame is about to be handed over to virtual page number 10.
+  #14 ZERO_FAULT vpn=10 slot=-1 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 10 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32542) was handed to it, no disk involved.
+  #15 MAP vpn=10 slot=-1 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 10 is now mapped in frame #32542 (this follows a fresh allocation, not a restore from disk).
+  #16 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 0 was touched, but it is currently on disk in swap slot 0, not in RAM. This starts the fetch-back.
+  #17 VICTIM_SELECTED vpn=0 slot=-1 frame=32539 victim_vpn=1 status=0
+      in plain words: a frame is needed for page 0, but the resident budget is full -> page 1 was chosen as the victim to evict (it currently occupies frame #32539).
+  #18 EVICT_BEGIN vpn=1 slot=-1 frame=32539 victim_vpn=1 status=0
+      in plain words: eviction of page 1 (frame #32539) is starting -- it is now locked against any other access until this finishes.
+  #19 SWAP_WRITE_BEGIN vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+      in plain words: page 1's contents (frame #32539) are being written out to swap slot 1 -- the disk write starts now.
+  #20 SWAP_WRITE_END vpn=1 slot=1 frame=32539 victim_vpn=-1 status=0
+      in plain words: the disk write of page 1 to swap slot 1 completed successfully.
+  #21 EVICT_END vpn=1 slot=1 frame=32539 victim_vpn=0 status=0
+      in plain words: virtual page number 1, in frame #32539, is being replaced -- its data is now safely in swap slot 1, and that same frame is about to be handed over to virtual page number 0.
+  #22 SWAP_READ_BEGIN vpn=0 slot=0 frame=32539 victim_vpn=-1 status=0
+      in plain words: page 0's contents are being read back from swap slot 0 into frame #32539 -- the disk read starts now.
+  #23 SWAP_READ_END vpn=0 slot=0 frame=32539 victim_vpn=-1 status=0
+      in plain words: the disk read of page 0 from swap slot 0 completed successfully.
+  #24 MAP vpn=0 slot=0 frame=32539 victim_vpn=-1 status=0
+      in plain words: page 0 is now mapped in frame #32539 -- its data was just restored from swap slot 0.
+  #25 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 1 was touched, but it is currently on disk in swap slot 1, not in RAM. This starts the fetch-back.
+  #26 VICTIM_SELECTED vpn=1 slot=-1 frame=32538 victim_vpn=2 status=0
+      in plain words: a frame is needed for page 1, but the resident budget is full -> page 2 was chosen as the victim to evict (it currently occupies frame #32538).
+  #27 EVICT_BEGIN vpn=2 slot=-1 frame=32538 victim_vpn=2 status=0
+      in plain words: eviction of page 2 (frame #32538) is starting -- it is now locked against any other access until this finishes.
+  #28 SWAP_WRITE_BEGIN vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 2's contents (frame #32538) are being written out to swap slot 2 -- the disk write starts now.
+  #29 SWAP_WRITE_END vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+      in plain words: the disk write of page 2 to swap slot 2 completed successfully.
+  #30 EVICT_END vpn=2 slot=2 frame=32538 victim_vpn=1 status=0
+      in plain words: virtual page number 2, in frame #32538, is being replaced -- its data is now safely in swap slot 2, and that same frame is about to be handed over to virtual page number 1.
+  #31 SWAP_READ_BEGIN vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 1's contents are being read back from swap slot 1 into frame #32538 -- the disk read starts now.
+  #32 SWAP_READ_END vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+      in plain words: the disk read of page 1 from swap slot 1 completed successfully.
+  #33 MAP vpn=1 slot=1 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 1 is now mapped in frame #32538 -- its data was just restored from swap slot 1.
+  #34 SWAP_FAULT vpn=2 slot=2 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 2 was touched, but it is currently on disk in swap slot 2, not in RAM. This starts the fetch-back.
+  #35 VICTIM_SELECTED vpn=2 slot=-1 frame=32537 victim_vpn=3 status=0
+      in plain words: a frame is needed for page 2, but the resident budget is full -> page 3 was chosen as the victim to evict (it currently occupies frame #32537).
+  #36 EVICT_BEGIN vpn=3 slot=-1 frame=32537 victim_vpn=3 status=0
+      in plain words: eviction of page 3 (frame #32537) is starting -- it is now locked against any other access until this finishes.
+  #37 SWAP_WRITE_BEGIN vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 3's contents (frame #32537) are being written out to swap slot 3 -- the disk write starts now.
+  #38 SWAP_WRITE_END vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+      in plain words: the disk write of page 3 to swap slot 3 completed successfully.
+  #39 EVICT_END vpn=3 slot=3 frame=32537 victim_vpn=2 status=0
+      in plain words: virtual page number 3, in frame #32537, is being replaced -- its data is now safely in swap slot 3, and that same frame is about to be handed over to virtual page number 2.
+  #40 SWAP_READ_BEGIN vpn=2 slot=2 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 2's contents are being read back from swap slot 2 into frame #32537 -- the disk read starts now.
+  #41 SWAP_READ_END vpn=2 slot=2 frame=32537 victim_vpn=-1 status=0
+      in plain words: the disk read of page 2 from swap slot 2 completed successfully.
+  #42 MAP vpn=2 slot=2 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 2 is now mapped in frame #32537 -- its data was just restored from swap slot 2.
+  #43 VICTIM_SELECTED vpn=11 slot=-1 frame=32536 victim_vpn=4 status=0
+      in plain words: a frame is needed for page 11, but the resident budget is full -> page 4 was chosen as the victim to evict (it currently occupies frame #32536).
+  #44 EVICT_BEGIN vpn=4 slot=-1 frame=32536 victim_vpn=4 status=0
+      in plain words: eviction of page 4 (frame #32536) is starting -- it is now locked against any other access until this finishes.
+  #45 SWAP_WRITE_BEGIN vpn=4 slot=4 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 4's contents (frame #32536) are being written out to swap slot 4 -- the disk write starts now.
+  #46 SWAP_WRITE_END vpn=4 slot=4 frame=32536 victim_vpn=-1 status=0
+      in plain words: the disk write of page 4 to swap slot 4 completed successfully.
+  #47 EVICT_END vpn=4 slot=4 frame=32536 victim_vpn=11 status=0
+      in plain words: virtual page number 4, in frame #32536, is being replaced -- its data is now safely in swap slot 4, and that same frame is about to be handed over to virtual page number 11.
+  #48 ZERO_FAULT vpn=11 slot=-1 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 11 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32536) was handed to it, no disk involved.
+  #49 MAP vpn=11 slot=-1 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 11 is now mapped in frame #32536 (this follows a fresh allocation, not a restore from disk).
+  #50 VICTIM_SELECTED vpn=12 slot=-1 frame=32535 victim_vpn=5 status=0
+      in plain words: a frame is needed for page 12, but the resident budget is full -> page 5 was chosen as the victim to evict (it currently occupies frame #32535).
+  #51 EVICT_BEGIN vpn=5 slot=-1 frame=32535 victim_vpn=5 status=0
+      in plain words: eviction of page 5 (frame #32535) is starting -- it is now locked against any other access until this finishes.
+  #52 SWAP_WRITE_BEGIN vpn=5 slot=5 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 5's contents (frame #32535) are being written out to swap slot 5 -- the disk write starts now.
+  #53 SWAP_WRITE_END vpn=5 slot=5 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk write of page 5 to swap slot 5 completed successfully.
+  #54 EVICT_END vpn=5 slot=5 frame=32535 victim_vpn=12 status=0
+      in plain words: virtual page number 5, in frame #32535, is being replaced -- its data is now safely in swap slot 5, and that same frame is about to be handed over to virtual page number 12.
+  #55 ZERO_FAULT vpn=12 slot=-1 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 12 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32535) was handed to it, no disk involved.
+  #56 MAP vpn=12 slot=-1 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 12 is now mapped in frame #32535 (this follows a fresh allocation, not a restore from disk).
+  #57 SWAP_FAULT vpn=5 slot=5 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 5 was touched, but it is currently on disk in swap slot 5, not in RAM. This starts the fetch-back.
+  #58 VICTIM_SELECTED vpn=5 slot=-1 frame=32546 victim_vpn=6 status=0
+      in plain words: a frame is needed for page 5, but the resident budget is full -> page 6 was chosen as the victim to evict (it currently occupies frame #32546).
+  #59 EVICT_BEGIN vpn=6 slot=-1 frame=32546 victim_vpn=6 status=0
+      in plain words: eviction of page 6 (frame #32546) is starting -- it is now locked against any other access until this finishes.
+  #60 SWAP_WRITE_BEGIN vpn=6 slot=6 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 6's contents (frame #32546) are being written out to swap slot 6 -- the disk write starts now.
+  #61 SWAP_WRITE_END vpn=6 slot=6 frame=32546 victim_vpn=-1 status=0
+      in plain words: the disk write of page 6 to swap slot 6 completed successfully.
+  #62 EVICT_END vpn=6 slot=6 frame=32546 victim_vpn=5 status=0
+      in plain words: virtual page number 6, in frame #32546, is being replaced -- its data is now safely in swap slot 6, and that same frame is about to be handed over to virtual page number 5.
+  #63 SWAP_READ_BEGIN vpn=5 slot=5 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 5's contents are being read back from swap slot 5 into frame #32546 -- the disk read starts now.
+  #64 SWAP_READ_END vpn=5 slot=5 frame=32546 victim_vpn=-1 status=0
+      in plain words: the disk read of page 5 from swap slot 5 completed successfully.
+  #65 MAP vpn=5 slot=5 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 5 is now mapped in frame #32546 -- its data was just restored from swap slot 5.
+  #66 VICTIM_SELECTED vpn=13 slot=-1 frame=32596 victim_vpn=7 status=0
+      in plain words: a frame is needed for page 13, but the resident budget is full -> page 7 was chosen as the victim to evict (it currently occupies frame #32596).
+  #67 EVICT_BEGIN vpn=7 slot=-1 frame=32596 victim_vpn=7 status=0
+      in plain words: eviction of page 7 (frame #32596) is starting -- it is now locked against any other access until this finishes.
+  #68 SWAP_WRITE_BEGIN vpn=7 slot=7 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 7's contents (frame #32596) are being written out to swap slot 7 -- the disk write starts now.
+  #69 SWAP_WRITE_END vpn=7 slot=7 frame=32596 victim_vpn=-1 status=0
+      in plain words: the disk write of page 7 to swap slot 7 completed successfully.
+  #70 EVICT_END vpn=7 slot=7 frame=32596 victim_vpn=13 status=0
+      in plain words: virtual page number 7, in frame #32596, is being replaced -- its data is now safely in swap slot 7, and that same frame is about to be handed over to virtual page number 13.
+  #71 ZERO_FAULT vpn=13 slot=-1 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 13 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32596) was handed to it, no disk involved.
+  #72 MAP vpn=13 slot=-1 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 13 is now mapped in frame #32596 (this follows a fresh allocation, not a restore from disk).
+  #73 VICTIM_SELECTED vpn=14 slot=-1 frame=32595 victim_vpn=8 status=0
+      in plain words: a frame is needed for page 14, but the resident budget is full -> page 8 was chosen as the victim to evict (it currently occupies frame #32595).
+  #74 EVICT_BEGIN vpn=8 slot=-1 frame=32595 victim_vpn=8 status=0
+      in plain words: eviction of page 8 (frame #32595) is starting -- it is now locked against any other access until this finishes.
+  #75 SWAP_WRITE_BEGIN vpn=8 slot=8 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 8's contents (frame #32595) are being written out to swap slot 8 -- the disk write starts now.
+  #76 SWAP_WRITE_END vpn=8 slot=8 frame=32595 victim_vpn=-1 status=0
+      in plain words: the disk write of page 8 to swap slot 8 completed successfully.
+  #77 EVICT_END vpn=8 slot=8 frame=32595 victim_vpn=14 status=0
+      in plain words: virtual page number 8, in frame #32595, is being replaced -- its data is now safely in swap slot 8, and that same frame is about to be handed over to virtual page number 14.
+  #78 ZERO_FAULT vpn=14 slot=-1 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 14 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32595) was handed to it, no disk involved.
+  #79 MAP vpn=14 slot=-1 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 14 is now mapped in frame #32595 (this follows a fresh allocation, not a restore from disk).
+  #80 VICTIM_SELECTED vpn=15 slot=-1 frame=32581 victim_vpn=9 status=0
+      in plain words: a frame is needed for page 15, but the resident budget is full -> page 9 was chosen as the victim to evict (it currently occupies frame #32581).
+  #81 EVICT_BEGIN vpn=9 slot=-1 frame=32581 victim_vpn=9 status=0
+      in plain words: eviction of page 9 (frame #32581) is starting -- it is now locked against any other access until this finishes.
+  #82 SWAP_WRITE_BEGIN vpn=9 slot=9 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 9's contents (frame #32581) are being written out to swap slot 9 -- the disk write starts now.
+  #83 SWAP_WRITE_END vpn=9 slot=9 frame=32581 victim_vpn=-1 status=0
+      in plain words: the disk write of page 9 to swap slot 9 completed successfully.
+  #84 EVICT_END vpn=9 slot=9 frame=32581 victim_vpn=15 status=0
+      in plain words: virtual page number 9, in frame #32581, is being replaced -- its data is now safely in swap slot 9, and that same frame is about to be handed over to virtual page number 15.
+  #85 ZERO_FAULT vpn=15 slot=-1 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 15 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32581) was handed to it, no disk involved.
+  #86 MAP vpn=15 slot=-1 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 15 is now mapped in frame #32581 (this follows a fresh allocation, not a restore from disk).
+  #87 SWAP_FAULT vpn=3 slot=3 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 3 was touched, but it is currently on disk in swap slot 3, not in RAM. This starts the fetch-back.
+  #88 VICTIM_SELECTED vpn=3 slot=-1 frame=32542 victim_vpn=10 status=0
+      in plain words: a frame is needed for page 3, but the resident budget is full -> page 10 was chosen as the victim to evict (it currently occupies frame #32542).
+  #89 EVICT_BEGIN vpn=10 slot=-1 frame=32542 victim_vpn=10 status=0
+      in plain words: eviction of page 10 (frame #32542) is starting -- it is now locked against any other access until this finishes.
+  #90 SWAP_WRITE_BEGIN vpn=10 slot=10 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 10's contents (frame #32542) are being written out to swap slot 10 -- the disk write starts now.
+  #91 SWAP_WRITE_END vpn=10 slot=10 frame=32542 victim_vpn=-1 status=0
+      in plain words: the disk write of page 10 to swap slot 10 completed successfully.
+  #92 EVICT_END vpn=10 slot=10 frame=32542 victim_vpn=3 status=0
+      in plain words: virtual page number 10, in frame #32542, is being replaced -- its data is now safely in swap slot 10, and that same frame is about to be handed over to virtual page number 3.
+  #93 SWAP_READ_BEGIN vpn=3 slot=3 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 3's contents are being read back from swap slot 3 into frame #32542 -- the disk read starts now.
+  #94 SWAP_READ_END vpn=3 slot=3 frame=32542 victim_vpn=-1 status=0
+      in plain words: the disk read of page 3 from swap slot 3 completed successfully.
+  #95 MAP vpn=3 slot=3 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 3 is now mapped in frame #32542 -- its data was just restored from swap slot 3.
+-- end trace --
+
+=== PHASE 2: confirm real disk writes happened ===
+evictions   : 0 -> 10 (delta 10)
+page_writes : 0 -> 10 (delta 10)
+PASS: 10 page(s) were genuinely evicted and written to swap
+
+=== PHASE 3: touch an evicted page again and watch it come back ===
+re-read page 0: value=1 (expected 1)
+swap_faults : 4 -> 7 (delta 3)
+page_reads  : 4 -> 7 (delta 3)
+PASS: page 0 was fetched back from disk with byte-exact content
+verifying all 10 pages still round-trip correctly after the eviction pressure above...
+PASS: all 10 pages byte-exact after thrashing through swap
+
+-- trace events: phase 3 (swap back in) --
+  #106 EVICT_END vpn=1 slot=1 frame=32538 victim_vpn=0 status=0
+      in plain words: virtual page number 1, in frame #32538, is being replaced -- its data is now safely in swap slot 1, and that same frame is about to be handed over to virtual page number 0.
+  #107 SWAP_READ_BEGIN vpn=0 slot=0 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 0's contents are being read back from swap slot 0 into frame #32538 -- the disk read starts now.
+  #108 SWAP_READ_END vpn=0 slot=0 frame=32538 victim_vpn=-1 status=0
+      in plain words: the disk read of page 0 from swap slot 0 completed successfully.
+  #109 MAP vpn=0 slot=0 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 0 is now mapped in frame #32538 -- its data was just restored from swap slot 0.
+  #110 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 1 was touched, but it is currently on disk in swap slot 1, not in RAM. This starts the fetch-back.
+  #111 VICTIM_SELECTED vpn=1 slot=2 frame=32537 victim_vpn=2 status=0
+      in plain words: a frame is needed for page 1, but the resident budget is full -> page 2 was chosen as the victim to evict (it currently occupies frame #32537).
+  #112 EVICT_BEGIN vpn=2 slot=2 frame=32537 victim_vpn=2 status=0
+      in plain words: eviction of page 2 (frame #32537) is starting -- it is now locked against any other access until this finishes.
+  #113 EVICT_END vpn=2 slot=2 frame=32537 victim_vpn=1 status=0
+      in plain words: virtual page number 2, in frame #32537, is being replaced -- its data is now safely in swap slot 2, and that same frame is about to be handed over to virtual page number 1.
+  #114 SWAP_READ_BEGIN vpn=1 slot=1 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 1's contents are being read back from swap slot 1 into frame #32537 -- the disk read starts now.
+  #115 SWAP_READ_END vpn=1 slot=1 frame=32537 victim_vpn=-1 status=0
+      in plain words: the disk read of page 1 from swap slot 1 completed successfully.
+  #116 MAP vpn=1 slot=1 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 1 is now mapped in frame #32537 -- its data was just restored from swap slot 1.
+  #117 SWAP_FAULT vpn=2 slot=2 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 2 was touched, but it is currently on disk in swap slot 2, not in RAM. This starts the fetch-back.
+  #118 VICTIM_SELECTED vpn=2 slot=-1 frame=32536 victim_vpn=11 status=0
+      in plain words: a frame is needed for page 2, but the resident budget is full -> page 11 was chosen as the victim to evict (it currently occupies frame #32536).
+  #119 EVICT_BEGIN vpn=11 slot=-1 frame=32536 victim_vpn=11 status=0
+      in plain words: eviction of page 11 (frame #32536) is starting -- it is now locked against any other access until this finishes.
+  #120 SWAP_WRITE_BEGIN vpn=11 slot=11 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 11's contents (frame #32536) are being written out to swap slot 11 -- the disk write starts now.
+  #121 SWAP_WRITE_END vpn=11 slot=11 frame=32536 victim_vpn=-1 status=0
+      in plain words: the disk write of page 11 to swap slot 11 completed successfully.
+  #122 EVICT_END vpn=11 slot=11 frame=32536 victim_vpn=2 status=0
+      in plain words: virtual page number 11, in frame #32536, is being replaced -- its data is now safely in swap slot 11, and that same frame is about to be handed over to virtual page number 2.
+  #123 SWAP_READ_BEGIN vpn=2 slot=2 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 2's contents are being read back from swap slot 2 into frame #32536 -- the disk read starts now.
+  #124 SWAP_READ_END vpn=2 slot=2 frame=32536 victim_vpn=-1 status=0
+      in plain words: the disk read of page 2 from swap slot 2 completed successfully.
+  #125 MAP vpn=2 slot=2 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 2 is now mapped in frame #32536 -- its data was just restored from swap slot 2.
+  #126 SWAP_FAULT vpn=7 slot=7 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 7 was touched, but it is currently on disk in swap slot 7, not in RAM. This starts the fetch-back.
+  #127 VICTIM_SELECTED vpn=7 slot=-1 frame=32535 victim_vpn=12 status=0
+      in plain words: a frame is needed for page 7, but the resident budget is full -> page 12 was chosen as the victim to evict (it currently occupies frame #32535).
+  #128 EVICT_BEGIN vpn=12 slot=-1 frame=32535 victim_vpn=12 status=0
+      in plain words: eviction of page 12 (frame #32535) is starting -- it is now locked against any other access until this finishes.
+  #129 SWAP_WRITE_BEGIN vpn=12 slot=12 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 12's contents (frame #32535) are being written out to swap slot 12 -- the disk write starts now.
+  #130 SWAP_WRITE_END vpn=12 slot=12 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk write of page 12 to swap slot 12 completed successfully.
+  #131 EVICT_END vpn=12 slot=12 frame=32535 victim_vpn=7 status=0
+      in plain words: virtual page number 12, in frame #32535, is being replaced -- its data is now safely in swap slot 12, and that same frame is about to be handed over to virtual page number 7.
+  #132 SWAP_READ_BEGIN vpn=7 slot=7 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 7's contents are being read back from swap slot 7 into frame #32535 -- the disk read starts now.
+  #133 SWAP_READ_END vpn=7 slot=7 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk read of page 7 from swap slot 7 completed successfully.
+  #134 MAP vpn=7 slot=7 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 7 is now mapped in frame #32535 -- its data was just restored from swap slot 7.
+  #135 SWAP_FAULT vpn=8 slot=8 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 8 was touched, but it is currently on disk in swap slot 8, not in RAM. This starts the fetch-back.
+  #136 VICTIM_SELECTED vpn=8 slot=5 frame=32546 victim_vpn=5 status=0
+      in plain words: a frame is needed for page 8, but the resident budget is full -> page 5 was chosen as the victim to evict (it currently occupies frame #32546).
+  #137 EVICT_BEGIN vpn=5 slot=5 frame=32546 victim_vpn=5 status=0
+      in plain words: eviction of page 5 (frame #32546) is starting -- it is now locked against any other access until this finishes.
+  #138 SWAP_WRITE_BEGIN vpn=5 slot=13 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 5's contents (frame #32546) are being written out to swap slot 13 -- the disk write starts now.
+  #139 SWAP_WRITE_END vpn=5 slot=13 frame=32546 victim_vpn=-1 status=0
+      in plain words: the disk write of page 5 to swap slot 13 completed successfully.
+  #140 EVICT_END vpn=5 slot=13 frame=32546 victim_vpn=8 status=0
+      in plain words: virtual page number 5, in frame #32546, is being replaced -- its data is now safely in swap slot 13, and that same frame is about to be handed over to virtual page number 8.
+  #141 SWAP_READ_BEGIN vpn=8 slot=8 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 8's contents are being read back from swap slot 8 into frame #32546 -- the disk read starts now.
+  #142 SWAP_READ_END vpn=8 slot=8 frame=32546 victim_vpn=-1 status=0
+      in plain words: the disk read of page 8 from swap slot 8 completed successfully.
+  #143 MAP vpn=8 slot=8 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 8 is now mapped in frame #32546 -- its data was just restored from swap slot 8.
+  #144 SWAP_FAULT vpn=9 slot=9 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 9 was touched, but it is currently on disk in swap slot 9, not in RAM. This starts the fetch-back.
+  #145 VICTIM_SELECTED vpn=9 slot=-1 frame=32596 victim_vpn=13 status=0
+      in plain words: a frame is needed for page 9, but the resident budget is full -> page 13 was chosen as the victim to evict (it currently occupies frame #32596).
+  #146 EVICT_BEGIN vpn=13 slot=-1 frame=32596 victim_vpn=13 status=0
+      in plain words: eviction of page 13 (frame #32596) is starting -- it is now locked against any other access until this finishes.
+  #147 SWAP_WRITE_BEGIN vpn=13 slot=5 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 13's contents (frame #32596) are being written out to swap slot 5 -- the disk write starts now.
+  #148 SWAP_WRITE_END vpn=13 slot=5 frame=32596 victim_vpn=-1 status=0
+      in plain words: the disk write of page 13 to swap slot 5 completed successfully.
+  #149 EVICT_END vpn=13 slot=5 frame=32596 victim_vpn=9 status=0
+      in plain words: virtual page number 13, in frame #32596, is being replaced -- its data is now safely in swap slot 5, and that same frame is about to be handed over to virtual page number 9.
+  #150 SWAP_READ_BEGIN vpn=9 slot=9 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 9's contents are being read back from swap slot 9 into frame #32596 -- the disk read starts now.
+  #151 SWAP_READ_END vpn=9 slot=9 frame=32596 victim_vpn=-1 status=0
+      in plain words: the disk read of page 9 from swap slot 9 completed successfully.
+  #152 MAP vpn=9 slot=9 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 9 is now mapped in frame #32596 -- its data was just restored from swap slot 9.
+  #153 SWAP_FAULT vpn=10 slot=10 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 10 was touched, but it is currently on disk in swap slot 10, not in RAM. This starts the fetch-back.
+  #154 VICTIM_SELECTED vpn=10 slot=-1 frame=32595 victim_vpn=14 status=0
+      in plain words: a frame is needed for page 10, but the resident budget is full -> page 14 was chosen as the victim to evict (it currently occupies frame #32595).
+  #155 EVICT_BEGIN vpn=14 slot=-1 frame=32595 victim_vpn=14 status=0
+      in plain words: eviction of page 14 (frame #32595) is starting -- it is now locked against any other access until this finishes.
+  #156 SWAP_WRITE_BEGIN vpn=14 slot=14 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 14's contents (frame #32595) are being written out to swap slot 14 -- the disk write starts now.
+  #157 SWAP_WRITE_END vpn=14 slot=14 frame=32595 victim_vpn=-1 status=0
+      in plain words: the disk write of page 14 to swap slot 14 completed successfully.
+  #158 EVICT_END vpn=14 slot=14 frame=32595 victim_vpn=10 status=0
+      in plain words: virtual page number 14, in frame #32595, is being replaced -- its data is now safely in swap slot 14, and that same frame is about to be handed over to virtual page number 10.
+  #159 SWAP_READ_BEGIN vpn=10 slot=10 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 10's contents are being read back from swap slot 10 into frame #32595 -- the disk read starts now.
+  #160 SWAP_READ_END vpn=10 slot=10 frame=32595 victim_vpn=-1 status=0
+      in plain words: the disk read of page 10 from swap slot 10 completed successfully.
+  #161 MAP vpn=10 slot=10 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 10 is now mapped in frame #32595 -- its data was just restored from swap slot 10.
+  #162 SWAP_FAULT vpn=11 slot=11 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 11 was touched, but it is currently on disk in swap slot 11, not in RAM. This starts the fetch-back.
+  #163 VICTIM_SELECTED vpn=11 slot=-1 frame=32581 victim_vpn=15 status=0
+      in plain words: a frame is needed for page 11, but the resident budget is full -> page 15 was chosen as the victim to evict (it currently occupies frame #32581).
+  #164 EVICT_BEGIN vpn=15 slot=-1 frame=32581 victim_vpn=15 status=0
+      in plain words: eviction of page 15 (frame #32581) is starting -- it is now locked against any other access until this finishes.
+  #165 SWAP_WRITE_BEGIN vpn=15 slot=15 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 15's contents (frame #32581) are being written out to swap slot 15 -- the disk write starts now.
+  #166 SWAP_WRITE_END vpn=15 slot=15 frame=32581 victim_vpn=-1 status=0
+      in plain words: the disk write of page 15 to swap slot 15 completed successfully.
+  #167 EVICT_END vpn=15 slot=15 frame=32581 victim_vpn=11 status=0
+      in plain words: virtual page number 15, in frame #32581, is being replaced -- its data is now safely in swap slot 15, and that same frame is about to be handed over to virtual page number 11.
+  #168 SWAP_READ_BEGIN vpn=11 slot=11 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 11's contents are being read back from swap slot 11 into frame #32581 -- the disk read starts now.
+  #169 SWAP_READ_END vpn=11 slot=11 frame=32581 victim_vpn=-1 status=0
+      in plain words: the disk read of page 11 from swap slot 11 completed successfully.
+  #170 MAP vpn=11 slot=11 frame=32581 victim_vpn=-1 status=0
+      in plain words: page 11 is now mapped in frame #32581 -- its data was just restored from swap slot 11.
+  #171 SWAP_FAULT vpn=12 slot=12 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 12 was touched, but it is currently on disk in swap slot 12, not in RAM. This starts the fetch-back.
+  #172 VICTIM_SELECTED vpn=12 slot=3 frame=32542 victim_vpn=3 status=0
+      in plain words: a frame is needed for page 12, but the resident budget is full -> page 3 was chosen as the victim to evict (it currently occupies frame #32542).
+  #173 EVICT_BEGIN vpn=3 slot=3 frame=32542 victim_vpn=3 status=0
+      in plain words: eviction of page 3 (frame #32542) is starting -- it is now locked against any other access until this finishes.
+  #174 EVICT_END vpn=3 slot=3 frame=32542 victim_vpn=12 status=0
+      in plain words: virtual page number 3, in frame #32542, is being replaced -- its data is now safely in swap slot 3, and that same frame is about to be handed over to virtual page number 12.
+  #175 SWAP_READ_BEGIN vpn=12 slot=12 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 12's contents are being read back from swap slot 12 into frame #32542 -- the disk read starts now.
+  #176 SWAP_READ_END vpn=12 slot=12 frame=32542 victim_vpn=-1 status=0
+      in plain words: the disk read of page 12 from swap slot 12 completed successfully.
+  #177 MAP vpn=12 slot=12 frame=32542 victim_vpn=-1 status=0
+      in plain words: page 12 is now mapped in frame #32542 -- its data was just restored from swap slot 12.
+  #178 SWAP_FAULT vpn=13 slot=5 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 13 was touched, but it is currently on disk in swap slot 5, not in RAM. This starts the fetch-back.
+  #179 VICTIM_SELECTED vpn=13 slot=6 frame=32539 victim_vpn=6 status=0
+      in plain words: a frame is needed for page 13, but the resident budget is full -> page 6 was chosen as the victim to evict (it currently occupies frame #32539).
+  #180 EVICT_BEGIN vpn=6 slot=6 frame=32539 victim_vpn=6 status=0
+      in plain words: eviction of page 6 (frame #32539) is starting -- it is now locked against any other access until this finishes.
+  #181 EVICT_END vpn=6 slot=6 frame=32539 victim_vpn=13 status=0
+      in plain words: virtual page number 6, in frame #32539, is being replaced -- its data is now safely in swap slot 6, and that same frame is about to be handed over to virtual page number 13.
+  #182 SWAP_READ_BEGIN vpn=13 slot=5 frame=32539 victim_vpn=-1 status=0
+      in plain words: page 13's contents are being read back from swap slot 5 into frame #32539 -- the disk read starts now.
+  #183 SWAP_READ_END vpn=13 slot=5 frame=32539 victim_vpn=-1 status=0
+      in plain words: the disk read of page 13 from swap slot 5 completed successfully.
+  #184 MAP vpn=13 slot=5 frame=32539 victim_vpn=-1 status=0
+      in plain words: page 13 is now mapped in frame #32539 -- its data was just restored from swap slot 5.
+  #185 SWAP_FAULT vpn=14 slot=14 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 14 was touched, but it is currently on disk in swap slot 14, not in RAM. This starts the fetch-back.
+  #186 VICTIM_SELECTED vpn=14 slot=0 frame=32538 victim_vpn=0 status=0
+      in plain words: a frame is needed for page 14, but the resident budget is full -> page 0 was chosen as the victim to evict (it currently occupies frame #32538).
+  #187 EVICT_BEGIN vpn=0 slot=0 frame=32538 victim_vpn=0 status=0
+      in plain words: eviction of page 0 (frame #32538) is starting -- it is now locked against any other access until this finishes.
+  #188 EVICT_END vpn=0 slot=0 frame=32538 victim_vpn=14 status=0
+      in plain words: virtual page number 0, in frame #32538, is being replaced -- its data is now safely in swap slot 0, and that same frame is about to be handed over to virtual page number 14.
+  #189 SWAP_READ_BEGIN vpn=14 slot=14 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 14's contents are being read back from swap slot 14 into frame #32538 -- the disk read starts now.
+  #190 SWAP_READ_END vpn=14 slot=14 frame=32538 victim_vpn=-1 status=0
+      in plain words: the disk read of page 14 from swap slot 14 completed successfully.
+  #191 MAP vpn=14 slot=14 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 14 is now mapped in frame #32538 -- its data was just restored from swap slot 14.
+  #192 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 0 was touched, but it is currently on disk in swap slot 0, not in RAM. This starts the fetch-back.
+  #193 VICTIM_SELECTED vpn=0 slot=1 frame=32537 victim_vpn=1 status=0
+      in plain words: a frame is needed for page 0, but the resident budget is full -> page 1 was chosen as the victim to evict (it currently occupies frame #32537).
+  #194 EVICT_BEGIN vpn=1 slot=1 frame=32537 victim_vpn=1 status=0
+      in plain words: eviction of page 1 (frame #32537) is starting -- it is now locked against any other access until this finishes.
+  #195 EVICT_END vpn=1 slot=1 frame=32537 victim_vpn=0 status=0
+      in plain words: virtual page number 1, in frame #32537, is being replaced -- its data is now safely in swap slot 1, and that same frame is about to be handed over to virtual page number 0.
+  #196 SWAP_READ_BEGIN vpn=0 slot=0 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 0's contents are being read back from swap slot 0 into frame #32537 -- the disk read starts now.
+  #197 SWAP_READ_END vpn=0 slot=0 frame=32537 victim_vpn=-1 status=0
+      in plain words: the disk read of page 0 from swap slot 0 completed successfully.
+  #198 MAP vpn=0 slot=0 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 0 is now mapped in frame #32537 -- its data was just restored from swap slot 0.
+  #199 SWAP_FAULT vpn=15 slot=15 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 15 was touched, but it is currently on disk in swap slot 15, not in RAM. This starts the fetch-back.
+  #200 VICTIM_SELECTED vpn=15 slot=2 frame=32536 victim_vpn=2 status=0
+      in plain words: a frame is needed for page 15, but the resident budget is full -> page 2 was chosen as the victim to evict (it currently occupies frame #32536).
+  #201 EVICT_BEGIN vpn=2 slot=2 frame=32536 victim_vpn=2 status=0
+      in plain words: eviction of page 2 (frame #32536) is starting -- it is now locked against any other access until this finishes.
+  #202 EVICT_END vpn=2 slot=2 frame=32536 victim_vpn=15 status=0
+      in plain words: virtual page number 2, in frame #32536, is being replaced -- its data is now safely in swap slot 2, and that same frame is about to be handed over to virtual page number 15.
+  #203 SWAP_READ_BEGIN vpn=15 slot=15 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 15's contents are being read back from swap slot 15 into frame #32536 -- the disk read starts now.
+  #204 SWAP_READ_END vpn=15 slot=15 frame=32536 victim_vpn=-1 status=0
+      in plain words: the disk read of page 15 from swap slot 15 completed successfully.
+  #205 MAP vpn=15 slot=15 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 15 is now mapped in frame #32536 -- its data was just restored from swap slot 15.
+  #206 SWAP_FAULT vpn=5 slot=13 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 5 was touched, but it is currently on disk in swap slot 13, not in RAM. This starts the fetch-back.
+  #207 VICTIM_SELECTED vpn=5 slot=7 frame=32535 victim_vpn=7 status=0
+      in plain words: a frame is needed for page 5, but the resident budget is full -> page 7 was chosen as the victim to evict (it currently occupies frame #32535).
+  #208 EVICT_BEGIN vpn=7 slot=7 frame=32535 victim_vpn=7 status=0
+      in plain words: eviction of page 7 (frame #32535) is starting -- it is now locked against any other access until this finishes.
+  #209 EVICT_END vpn=7 slot=7 frame=32535 victim_vpn=5 status=0
+      in plain words: virtual page number 7, in frame #32535, is being replaced -- its data is now safely in swap slot 7, and that same frame is about to be handed over to virtual page number 5.
+  #210 SWAP_READ_BEGIN vpn=5 slot=13 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 5's contents are being read back from swap slot 13 into frame #32535 -- the disk read starts now.
+  #211 SWAP_READ_END vpn=5 slot=13 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk read of page 5 from swap slot 13 completed successfully.
+  #212 MAP vpn=5 slot=13 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 5 is now mapped in frame #32535 -- its data was just restored from swap slot 13.
+  #213 SWAP_FAULT vpn=2 slot=2 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 2 was touched, but it is currently on disk in swap slot 2, not in RAM. This starts the fetch-back.
+  #214 VICTIM_SELECTED vpn=2 slot=8 frame=32546 victim_vpn=8 status=0
+      in plain words: a frame is needed for page 2, but the resident budget is full -> page 8 was chosen as the victim to evict (it currently occupies frame #32546).
+  #215 EVICT_BEGIN vpn=8 slot=8 frame=32546 victim_vpn=8 status=0
+      in plain words: eviction of page 8 (frame #32546) is starting -- it is now locked against any other access until this finishes.
+  #216 EVICT_END vpn=8 slot=8 frame=32546 victim_vpn=2 status=0
+      in plain words: virtual page number 8, in frame #32546, is being replaced -- its data is now safely in swap slot 8, and that same frame is about to be handed over to virtual page number 2.
+  #217 SWAP_READ_BEGIN vpn=2 slot=2 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 2's contents are being read back from swap slot 2 into frame #32546 -- the disk read starts now.
+  #218 SWAP_READ_END vpn=2 slot=2 frame=32546 victim_vpn=-1 status=0
+      in plain words: the disk read of page 2 from swap slot 2 completed successfully.
+  #219 MAP vpn=2 slot=2 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 2 is now mapped in frame #32546 -- its data was just restored from swap slot 2.
+  #220 SWAP_FAULT vpn=3 slot=3 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 3 was touched, but it is currently on disk in swap slot 3, not in RAM. This starts the fetch-back.
+  #221 VICTIM_SELECTED vpn=3 slot=9 frame=32596 victim_vpn=9 status=0
+      in plain words: a frame is needed for page 3, but the resident budget is full -> page 9 was chosen as the victim to evict (it currently occupies frame #32596).
+  #222 EVICT_BEGIN vpn=9 slot=9 frame=32596 victim_vpn=9 status=0
+      in plain words: eviction of page 9 (frame #32596) is starting -- it is now locked against any other access until this finishes.
+  #223 EVICT_END vpn=9 slot=9 frame=32596 victim_vpn=3 status=0
+      in plain words: virtual page number 9, in frame #32596, is being replaced -- its data is now safely in swap slot 9, and that same frame is about to be handed over to virtual page number 3.
+  #224 TRACE_DROP vpn=3 slot=3 frame=32596 victim_vpn=-1 status=1
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (1 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #225 TRACE_DROP vpn=3 slot=3 frame=32596 victim_vpn=-1 status=2
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (2 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #226 TRACE_DROP vpn=3 slot=3 frame=32596 victim_vpn=-1 status=3
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (3 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #227 TRACE_DROP vpn=1 slot=1 frame=-1 victim_vpn=-1 status=4
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (4 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #228 TRACE_DROP vpn=1 slot=10 frame=32595 victim_vpn=10 status=5
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (5 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #229 TRACE_DROP vpn=10 slot=10 frame=32595 victim_vpn=10 status=6
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (6 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #230 TRACE_DROP vpn=10 slot=10 frame=32595 victim_vpn=1 status=7
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (7 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #231 TRACE_DROP vpn=1 slot=1 frame=32595 victim_vpn=-1 status=8
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (8 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #232 TRACE_DROP vpn=1 slot=1 frame=32595 victim_vpn=-1 status=9
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (9 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #233 TRACE_DROP vpn=1 slot=1 frame=32595 victim_vpn=-1 status=10
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (10 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+-- end trace --
+
+=== PHASE 4: fork() while a page is on disk ===
+parent: resident_count=7 evictions=34 (some of the 6 pages are now on disk, not RAM)
+child pid=5: reading pages the PARENT had already swapped out before I existed...
+child PASS: inherited swapped page(s) read back correctly
+
+-- trace events: phase 4 (fork with swapped page) --
+  #237 UNMAP vpn=9 slot=9 frame=-1 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #238 UNMAP vpn=10 slot=10 frame=-1 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #239 UNMAP vpn=11 slot=-1 frame=32581 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #240 UNMAP vpn=12 slot=-1 frame=32542 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #241 UNMAP vpn=13 slot=-1 frame=32539 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #242 UNMAP vpn=14 slot=-1 frame=32538 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #243 UNMAP vpn=15 slot=-1 frame=32536 victim_vpn=-1 status=0
+      in plain words: (no plain-language translation written yet for this event type -- see the raw fields above).
+  #244 ZERO_FAULT vpn=6 slot=-1 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 6 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32536) was handed to it, no disk involved.
+  #245 MAP vpn=6 slot=-1 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 6 is now mapped in frame #32536 (this follows a fresh allocation, not a restore from disk).
+  #246 ZERO_FAULT vpn=7 slot=-1 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 7 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32538) was handed to it, no disk involved.
+  #247 MAP vpn=7 slot=-1 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 7 is now mapped in frame #32538 (this follows a fresh allocation, not a restore from disk).
+  #248 VICTIM_SELECTED vpn=8 slot=0 frame=32537 victim_vpn=0 status=0
+      in plain words: a frame is needed for page 8, but the resident budget is full -> page 0 was chosen as the victim to evict (it currently occupies frame #32537).
+  #249 EVICT_BEGIN vpn=0 slot=0 frame=32537 victim_vpn=0 status=0
+      in plain words: eviction of page 0 (frame #32537) is starting -- it is now locked against any other access until this finishes.
+  #250 EVICT_END vpn=0 slot=0 frame=32537 victim_vpn=8 status=0
+      in plain words: virtual page number 0, in frame #32537, is being replaced -- its data is now safely in swap slot 0, and that same frame is about to be handed over to virtual page number 8.
+  #251 ZERO_FAULT vpn=8 slot=-1 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 8 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32537) was handed to it, no disk involved.
+  #252 MAP vpn=8 slot=-1 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 8 is now mapped in frame #32537 (this follows a fresh allocation, not a restore from disk).
+  #253 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 0 was touched, but it is currently on disk in swap slot 0, not in RAM. This starts the fetch-back.
+  #254 VICTIM_SELECTED vpn=0 slot=13 frame=32535 victim_vpn=5 status=0
+      in plain words: a frame is needed for page 0, but the resident budget is full -> page 5 was chosen as the victim to evict (it currently occupies frame #32535).
+  #255 EVICT_BEGIN vpn=5 slot=13 frame=32535 victim_vpn=5 status=0
+      in plain words: eviction of page 5 (frame #32535) is starting -- it is now locked against any other access until this finishes.
+  #256 SWAP_WRITE_BEGIN vpn=5 slot=5 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 5's contents (frame #32535) are being written out to swap slot 5 -- the disk write starts now.
+  #257 SWAP_WRITE_END vpn=5 slot=5 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk write of page 5 to swap slot 5 completed successfully.
+  #258 EVICT_END vpn=5 slot=5 frame=32535 victim_vpn=0 status=0
+      in plain words: virtual page number 5, in frame #32535, is being replaced -- its data is now safely in swap slot 5, and that same frame is about to be handed over to virtual page number 0.
+  #259 SWAP_READ_BEGIN vpn=0 slot=0 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 0's contents are being read back from swap slot 0 into frame #32535 -- the disk read starts now.
+  #260 SWAP_READ_END vpn=0 slot=0 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk read of page 0 from swap slot 0 completed successfully.
+  #261 MAP vpn=0 slot=0 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 0 is now mapped in frame #32535 -- its data was just restored from swap slot 0.
+  #262 VICTIM_SELECTED vpn=9 slot=2 frame=32546 victim_vpn=2 status=0
+      in plain words: a frame is needed for page 9, but the resident budget is full -> page 2 was chosen as the victim to evict (it currently occupies frame #32546).
+  #263 EVICT_BEGIN vpn=2 slot=2 frame=32546 victim_vpn=2 status=0
+      in plain words: eviction of page 2 (frame #32546) is starting -- it is now locked against any other access until this finishes.
+  #264 EVICT_END vpn=2 slot=2 frame=32546 victim_vpn=9 status=0
+      in plain words: virtual page number 2, in frame #32546, is being replaced -- its data is now safely in swap slot 2, and that same frame is about to be handed over to virtual page number 9.
+  #265 ZERO_FAULT vpn=9 slot=-1 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 9 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32546) was handed to it, no disk involved.
+  #266 MAP vpn=9 slot=-1 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 9 is now mapped in frame #32546 (this follows a fresh allocation, not a restore from disk).
+  #267 VICTIM_SELECTED vpn=10 slot=3 frame=32596 victim_vpn=3 status=0
+      in plain words: a frame is needed for page 10, but the resident budget is full -> page 3 was chosen as the victim to evict (it currently occupies frame #32596).
+  #268 EVICT_BEGIN vpn=3 slot=3 frame=32596 victim_vpn=3 status=0
+      in plain words: eviction of page 3 (frame #32596) is starting -- it is now locked against any other access until this finishes.
+  #269 EVICT_END vpn=3 slot=3 frame=32596 victim_vpn=10 status=0
+      in plain words: virtual page number 3, in frame #32596, is being replaced -- its data is now safely in swap slot 3, and that same frame is about to be handed over to virtual page number 10.
+  #270 ZERO_FAULT vpn=10 slot=-1 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 10 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32596) was handed to it, no disk involved.
+  #271 MAP vpn=10 slot=-1 frame=32596 victim_vpn=-1 status=0
+      in plain words: page 10 is now mapped in frame #32596 (this follows a fresh allocation, not a restore from disk).
+  #272 VICTIM_SELECTED vpn=11 slot=1 frame=32595 victim_vpn=1 status=0
+      in plain words: a frame is needed for page 11, but the resident budget is full -> page 1 was chosen as the victim to evict (it currently occupies frame #32595).
+  #273 EVICT_BEGIN vpn=1 slot=1 frame=32595 victim_vpn=1 status=0
+      in plain words: eviction of page 1 (frame #32595) is starting -- it is now locked against any other access until this finishes.
+  #274 EVICT_END vpn=1 slot=1 frame=32595 victim_vpn=11 status=0
+      in plain words: virtual page number 1, in frame #32595, is being replaced -- its data is now safely in swap slot 1, and that same frame is about to be handed over to virtual page number 11.
+  #275 ZERO_FAULT vpn=11 slot=-1 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 11 was touched for the first time (a lazy hole with nothing behind it) -- a fresh zeroed frame (#32595) was handed to it, no disk involved.
+  #276 MAP vpn=11 slot=-1 frame=32595 victim_vpn=-1 status=0
+      in plain words: page 11 is now mapped in frame #32595 (this follows a fresh allocation, not a restore from disk).
+  #277 SWAP_FAULT vpn=5 slot=5 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 5 was touched, but it is currently on disk in swap slot 5, not in RAM. This starts the fetch-back.
+  #278 VICTIM_SELECTED vpn=5 slot=-1 frame=32536 victim_vpn=6 status=0
+      in plain words: a frame is needed for page 5, but the resident budget is full -> page 6 was chosen as the victim to evict (it currently occupies frame #32536).
+  #279 EVICT_BEGIN vpn=6 slot=-1 frame=32536 victim_vpn=6 status=0
+      in plain words: eviction of page 6 (frame #32536) is starting -- it is now locked against any other access until this finishes.
+  #280 SWAP_WRITE_BEGIN vpn=6 slot=6 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 6's contents (frame #32536) are being written out to swap slot 6 -- the disk write starts now.
+  #281 SWAP_WRITE_END vpn=6 slot=6 frame=32536 victim_vpn=-1 status=0
+      in plain words: the disk write of page 6 to swap slot 6 completed successfully.
+  #282 EVICT_END vpn=6 slot=6 frame=32536 victim_vpn=5 status=0
+      in plain words: virtual page number 6, in frame #32536, is being replaced -- its data is now safely in swap slot 6, and that same frame is about to be handed over to virtual page number 5.
+  #283 SWAP_READ_BEGIN vpn=5 slot=5 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 5's contents are being read back from swap slot 5 into frame #32536 -- the disk read starts now.
+  #284 SWAP_READ_END vpn=5 slot=5 frame=32536 victim_vpn=-1 status=0
+      in plain words: the disk read of page 5 from swap slot 5 completed successfully.
+  #285 MAP vpn=5 slot=5 frame=32536 victim_vpn=-1 status=0
+      in plain words: page 5 is now mapped in frame #32536 -- its data was just restored from swap slot 5.
+  #286 SWAP_FAULT vpn=2 slot=2 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 2 was touched, but it is currently on disk in swap slot 2, not in RAM. This starts the fetch-back.
+  #287 VICTIM_SELECTED vpn=2 slot=-1 frame=32538 victim_vpn=7 status=0
+      in plain words: a frame is needed for page 2, but the resident budget is full -> page 7 was chosen as the victim to evict (it currently occupies frame #32538).
+  #288 EVICT_BEGIN vpn=7 slot=-1 frame=32538 victim_vpn=7 status=0
+      in plain words: eviction of page 7 (frame #32538) is starting -- it is now locked against any other access until this finishes.
+  #289 SWAP_WRITE_BEGIN vpn=7 slot=7 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 7's contents (frame #32538) are being written out to swap slot 7 -- the disk write starts now.
+  #290 SWAP_WRITE_END vpn=7 slot=7 frame=32538 victim_vpn=-1 status=0
+      in plain words: the disk write of page 7 to swap slot 7 completed successfully.
+  #291 EVICT_END vpn=7 slot=7 frame=32538 victim_vpn=2 status=0
+      in plain words: virtual page number 7, in frame #32538, is being replaced -- its data is now safely in swap slot 7, and that same frame is about to be handed over to virtual page number 2.
+  #292 SWAP_READ_BEGIN vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 2's contents are being read back from swap slot 2 into frame #32538 -- the disk read starts now.
+  #293 SWAP_READ_END vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+      in plain words: the disk read of page 2 from swap slot 2 completed successfully.
+  #294 MAP vpn=2 slot=2 frame=32538 victim_vpn=-1 status=0
+      in plain words: page 2 is now mapped in frame #32538 -- its data was just restored from swap slot 2.
+  #295 SWAP_FAULT vpn=6 slot=6 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 6 was touched, but it is currently on disk in swap slot 6, not in RAM. This starts the fetch-back.
+  #296 VICTIM_SELECTED vpn=6 slot=-1 frame=32575 victim_vpn=0 status=0
+      in plain words: a frame is needed for page 6, but the resident budget is full -> page 0 was chosen as the victim to evict (it currently occupies frame #32575).
+  #297 EVICT_BEGIN vpn=0 slot=-1 frame=32575 victim_vpn=0 status=0
+      in plain words: eviction of page 0 (frame #32575) is starting -- it is now locked against any other access until this finishes.
+  #298 SWAP_WRITE_BEGIN vpn=0 slot=8 frame=32575 victim_vpn=-1 status=0
+      in plain words: page 0's contents (frame #32575) are being written out to swap slot 8 -- the disk write starts now.
+  #299 SWAP_WRITE_END vpn=0 slot=8 frame=32575 victim_vpn=-1 status=0
+      in plain words: the disk write of page 0 to swap slot 8 completed successfully.
+  #300 EVICT_END vpn=0 slot=8 frame=32575 victim_vpn=6 status=0
+      in plain words: virtual page number 0, in frame #32575, is being replaced -- its data is now safely in swap slot 8, and that same frame is about to be handed over to virtual page number 6.
+  #301 SWAP_READ_BEGIN vpn=6 slot=6 frame=32575 victim_vpn=-1 status=0
+      in plain words: page 6's contents are being read back from swap slot 6 into frame #32575 -- the disk read starts now.
+  #302 SWAP_READ_END vpn=6 slot=6 frame=32575 victim_vpn=-1 status=0
+      in plain words: the disk read of page 6 from swap slot 6 completed successfully.
+  #303 MAP vpn=6 slot=6 frame=32575 victim_vpn=-1 status=0
+      in plain words: page 6 is now mapped in frame #32575 -- its data was just restored from swap slot 6.
+  #304 SWAP_FAULT vpn=0 slot=8 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 0 was touched, but it is currently on disk in swap slot 8, not in RAM. This starts the fetch-back.
+  #305 VICTIM_SELECTED vpn=0 slot=-1 frame=32549 victim_vpn=2 status=0
+      in plain words: a frame is needed for page 0, but the resident budget is full -> page 2 was chosen as the victim to evict (it currently occupies frame #32549).
+  #306 EVICT_BEGIN vpn=2 slot=-1 frame=32549 victim_vpn=2 status=0
+      in plain words: eviction of page 2 (frame #32549) is starting -- it is now locked against any other access until this finishes.
+  #307 SWAP_WRITE_BEGIN vpn=2 slot=9 frame=32549 victim_vpn=-1 status=0
+      in plain words: page 2's contents (frame #32549) are being written out to swap slot 9 -- the disk write starts now.
+  #308 SWAP_WRITE_END vpn=2 slot=9 frame=32549 victim_vpn=-1 status=0
+      in plain words: the disk write of page 2 to swap slot 9 completed successfully.
+  #309 EVICT_END vpn=2 slot=9 frame=32549 victim_vpn=0 status=0
+      in plain words: virtual page number 2, in frame #32549, is being replaced -- its data is now safely in swap slot 9, and that same frame is about to be handed over to virtual page number 0.
+  #310 SWAP_READ_BEGIN vpn=0 slot=8 frame=32549 victim_vpn=-1 status=0
+      in plain words: page 0's contents are being read back from swap slot 8 into frame #32549 -- the disk read starts now.
+  #311 SWAP_READ_END vpn=0 slot=8 frame=32549 victim_vpn=-1 status=0
+      in plain words: the disk read of page 0 from swap slot 8 completed successfully.
+  #312 MAP vpn=0 slot=8 frame=32549 victim_vpn=-1 status=0
+      in plain words: page 0 is now mapped in frame #32549 -- its data was just restored from swap slot 8.
+  #313 SWAP_FAULT vpn=7 slot=7 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 7 was touched, but it is currently on disk in swap slot 7, not in RAM. This starts the fetch-back.
+  #314 VICTIM_SELECTED vpn=7 slot=-1 frame=32550 victim_vpn=5 status=0
+      in plain words: a frame is needed for page 7, but the resident budget is full -> page 5 was chosen as the victim to evict (it currently occupies frame #32550).
+  #315 EVICT_BEGIN vpn=5 slot=-1 frame=32550 victim_vpn=5 status=0
+      in plain words: eviction of page 5 (frame #32550) is starting -- it is now locked against any other access until this finishes.
+  #316 SWAP_WRITE_BEGIN vpn=5 slot=10 frame=32550 victim_vpn=-1 status=0
+      in plain words: page 5's contents (frame #32550) are being written out to swap slot 10 -- the disk write starts now.
+  #317 SWAP_WRITE_END vpn=5 slot=10 frame=32550 victim_vpn=-1 status=0
+      in plain words: the disk write of page 5 to swap slot 10 completed successfully.
+  #318 EVICT_END vpn=5 slot=10 frame=32550 victim_vpn=7 status=0
+      in plain words: virtual page number 5, in frame #32550, is being replaced -- its data is now safely in swap slot 10, and that same frame is about to be handed over to virtual page number 7.
+  #319 SWAP_READ_BEGIN vpn=7 slot=7 frame=32550 victim_vpn=-1 status=0
+      in plain words: page 7's contents are being read back from swap slot 7 into frame #32550 -- the disk read starts now.
+  #320 SWAP_READ_END vpn=7 slot=7 frame=32550 victim_vpn=-1 status=0
+      in plain words: the disk read of page 7 from swap slot 7 completed successfully.
+  #321 MAP vpn=7 slot=7 frame=32550 victim_vpn=-1 status=0
+      in plain words: page 7 is now mapped in frame #32550 -- its data was just restored from swap slot 7.
+  #322 SWAP_FAULT vpn=5 slot=10 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 5 was touched, but it is currently on disk in swap slot 10, not in RAM. This starts the fetch-back.
+  #323 VICTIM_SELECTED vpn=5 slot=-1 frame=32551 victim_vpn=8 status=0
+      in plain words: a frame is needed for page 5, but the resident budget is full -> page 8 was chosen as the victim to evict (it currently occupies frame #32551).
+  #324 EVICT_BEGIN vpn=8 slot=-1 frame=32551 victim_vpn=8 status=0
+      in plain words: eviction of page 8 (frame #32551) is starting -- it is now locked against any other access until this finishes.
+  #325 SWAP_WRITE_BEGIN vpn=8 slot=11 frame=32551 victim_vpn=-1 status=0
+      in plain words: page 8's contents (frame #32551) are being written out to swap slot 11 -- the disk write starts now.
+  #326 SWAP_WRITE_END vpn=8 slot=11 frame=32551 victim_vpn=-1 status=0
+      in plain words: the disk write of page 8 to swap slot 11 completed successfully.
+  #327 EVICT_END vpn=8 slot=11 frame=32551 victim_vpn=5 status=0
+      in plain words: virtual page number 8, in frame #32551, is being replaced -- its data is now safely in swap slot 11, and that same frame is about to be handed over to virtual page number 5.
+  #328 SWAP_READ_BEGIN vpn=5 slot=10 frame=32551 victim_vpn=-1 status=0
+      in plain words: page 5's contents are being read back from swap slot 10 into frame #32551 -- the disk read starts now.
+  #329 SWAP_READ_END vpn=5 slot=10 frame=32551 victim_vpn=-1 status=0
+      in plain words: the disk read of page 5 from swap slot 10 completed successfully.
+  #330 MAP vpn=5 slot=10 frame=32551 victim_vpn=-1 status=0
+      in plain words: page 5 is now mapped in frame #32551 -- its data was just restored from swap slot 10.
+  #331 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 1 was touched, but it is currently on disk in swap slot 1, not in RAM. This starts the fetch-back.
+  #332 VICTIM_SELECTED vpn=1 slot=-1 frame=32552 victim_vpn=9 status=0
+      in plain words: a frame is needed for page 1, but the resident budget is full -> page 9 was chosen as the victim to evict (it currently occupies frame #32552).
+  #333 EVICT_BEGIN vpn=9 slot=-1 frame=32552 victim_vpn=9 status=0
+      in plain words: eviction of page 9 (frame #32552) is starting -- it is now locked against any other access until this finishes.
+  #334 SWAP_WRITE_BEGIN vpn=9 slot=12 frame=32552 victim_vpn=-1 status=0
+      in plain words: page 9's contents (frame #32552) are being written out to swap slot 12 -- the disk write starts now.
+  #335 SWAP_WRITE_END vpn=9 slot=12 frame=32552 victim_vpn=-1 status=0
+      in plain words: the disk write of page 9 to swap slot 12 completed successfully.
+  #336 EVICT_END vpn=9 slot=12 frame=32552 victim_vpn=1 status=0
+      in plain words: virtual page number 9, in frame #32552, is being replaced -- its data is now safely in swap slot 12, and that same frame is about to be handed over to virtual page number 1.
+  #337 SWAP_READ_BEGIN vpn=1 slot=1 frame=32552 victim_vpn=-1 status=0
+      in plain words: page 1's contents are being read back from swap slot 1 into frame #32552 -- the disk read starts now.
+  #338 SWAP_READ_END vpn=1 slot=1 frame=32552 victim_vpn=-1 status=0
+      in plain words: the disk read of page 1 from swap slot 1 completed successfully.
+  #339 MAP vpn=1 slot=1 frame=32552 victim_vpn=-1 status=0
+      in plain words: page 1 is now mapped in frame #32552 -- its data was just restored from swap slot 1.
+  #340 SWAP_FAULT vpn=3 slot=3 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 3 was touched, but it is currently on disk in swap slot 3, not in RAM. This starts the fetch-back.
+  #341 VICTIM_SELECTED vpn=3 slot=-1 frame=32537 victim_vpn=8 status=0
+      in plain words: a frame is needed for page 3, but the resident budget is full -> page 8 was chosen as the victim to evict (it currently occupies frame #32537).
+  #342 EVICT_BEGIN vpn=8 slot=-1 frame=32537 victim_vpn=8 status=0
+      in plain words: eviction of page 8 (frame #32537) is starting -- it is now locked against any other access until this finishes.
+  #343 SWAP_WRITE_BEGIN vpn=8 slot=8 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 8's contents (frame #32537) are being written out to swap slot 8 -- the disk write starts now.
+  #344 SWAP_WRITE_END vpn=8 slot=8 frame=32537 victim_vpn=-1 status=0
+      in plain words: the disk write of page 8 to swap slot 8 completed successfully.
+  #345 EVICT_END vpn=8 slot=8 frame=32537 victim_vpn=3 status=0
+      in plain words: virtual page number 8, in frame #32537, is being replaced -- its data is now safely in swap slot 8, and that same frame is about to be handed over to virtual page number 3.
+  #346 SWAP_READ_BEGIN vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 3's contents are being read back from swap slot 3 into frame #32537 -- the disk read starts now.
+  #347 SWAP_READ_END vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+      in plain words: the disk read of page 3 from swap slot 3 completed successfully.
+  #348 MAP vpn=3 slot=3 frame=32537 victim_vpn=-1 status=0
+      in plain words: page 3 is now mapped in frame #32537 -- its data was just restored from swap slot 3.
+  #349 SWAP_FAULT vpn=1 slot=1 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 1 was touched, but it is currently on disk in swap slot 1, not in RAM. This starts the fetch-back.
+  #350 VICTIM_SELECTED vpn=1 slot=0 frame=32535 victim_vpn=0 status=0
+      in plain words: a frame is needed for page 1, but the resident budget is full -> page 0 was chosen as the victim to evict (it currently occupies frame #32535).
+  #351 EVICT_BEGIN vpn=0 slot=0 frame=32535 victim_vpn=0 status=0
+      in plain words: eviction of page 0 (frame #32535) is starting -- it is now locked against any other access until this finishes.
+  #352 EVICT_END vpn=0 slot=0 frame=32535 victim_vpn=1 status=0
+      in plain words: virtual page number 0, in frame #32535, is being replaced -- its data is now safely in swap slot 0, and that same frame is about to be handed over to virtual page number 1.
+  #353 SWAP_READ_BEGIN vpn=1 slot=1 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 1's contents are being read back from swap slot 1 into frame #32535 -- the disk read starts now.
+  #354 SWAP_READ_END vpn=1 slot=1 frame=32535 victim_vpn=-1 status=0
+      in plain words: the disk read of page 1 from swap slot 1 completed successfully.
+  #355 MAP vpn=1 slot=1 frame=32535 victim_vpn=-1 status=0
+      in plain words: page 1 is now mapped in frame #32535 -- its data was just restored from swap slot 1.
+  #356 SWAP_FAULT vpn=0 slot=0 frame=-1 victim_vpn=-1 status=0
+      in plain words: page 0 was touched, but it is currently on disk in swap slot 0, not in RAM. This starts the fetch-back.
+  #357 VICTIM_SELECTED vpn=0 slot=-1 frame=32546 victim_vpn=9 status=0
+      in plain words: a frame is needed for page 0, but the resident budget is full -> page 9 was chosen as the victim to evict (it currently occupies frame #32546).
+  #358 EVICT_BEGIN vpn=9 slot=-1 frame=32546 victim_vpn=9 status=0
+      in plain words: eviction of page 9 (frame #32546) is starting -- it is now locked against any other access until this finishes.
+  #359 SWAP_WRITE_BEGIN vpn=9 slot=9 frame=32546 victim_vpn=-1 status=0
+      in plain words: page 9's contents (frame #32546) are being written out to swap slot 9 -- the disk write starts now.
+  #360 SWAP_WRITE_END vpn=9 slot=9 frame=32546 victim_vpn=-1 status=0
+      in plain words: the disk write of page 9 to swap slot 9 completed successfully.
+  #361 EVICT_END vpn=9 slot=9 frame=32546 victim_vpn=0 status=0
+      in plain words: virtual page number 9, in frame #32546, is being replaced -- its data is now safely in swap slot 9, and that same frame is about to be handed over to virtual page number 0.
+  #362 TRACE_DROP vpn=0 slot=0 frame=32546 victim_vpn=-1 status=11
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (11 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #363 TRACE_DROP vpn=0 slot=0 frame=32546 victim_vpn=-1 status=12
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (12 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+  #364 TRACE_DROP vpn=0 slot=0 frame=32546 victim_vpn=-1 status=13
+      in plain words: the trace ring was full, so the oldest recorded event was discarded to make room for this one (13 lost in total so far). This is bookkeeping about the trace log itself, not a paging event.
+-- end trace --
+PASS: child exited cleanly after reading swapped-in inherited data
+
+================================================
+ALL PHASES PASSED -- swap-out and swap-in both confirmed working.
+================================================
+$ 
+# RESULT PASS
+QEMU: Terminated
+
