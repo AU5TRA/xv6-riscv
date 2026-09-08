@@ -1200,24 +1200,38 @@ dirty_writeback(void)
 static int
 random_workload(uint seed, int iterations)
 {
-  enum { RANDOM_PAGES = 24 };
-  uchar expected[RANDOM_PAGES];
+  // The region must stay strictly larger than the resident capacity for
+  // the whole run, or the soak stops being a paging soak.  A fixed 24
+  // pages did that when a process arrived from exec holding about eleven
+  // frames; at USERSTACK=16 it holds 27, the limit derived from it is 35,
+  // and 24 random pages fit inside it with room to spare.  The workload
+  // then paged eighteen times during warm-up and never again: a capture of
+  // 400,000 operations emitted 174 events, and every "soak" in the matrix
+  // was really a 4-second test of a steady state.  Same failure as
+  // sections 2.5 to 2.7 of the Phase 0/1 report -- a fixed magnitude
+  // competing against a baseline that grew underneath it.
+  enum { RANDOM_MAX_PAGES = 160 };
+  uchar expected[RANDOM_MAX_PAGES];
   struct vmstats before, after;
-  if(iterations <= 0 || vmstats(&before) < 0 ||
+  if(iterations <= 0 || vmstats(&before) < 0)
+    return -1;
+  int pages = (int)before.resident_count + 24;
+  if(pages > RANDOM_MAX_PAGES ||
+     before.resident_count + 8 > VM_MAX_RESIDENT_LIMIT ||
      vmctl(VM_SET_LIMIT, before.resident_count + 8) < 0)
     return -1;
   volatile uchar *memory = (volatile uchar *)
-    sbrklazy(RANDOM_PAGES * 4096);
+    sbrklazy(pages * 4096);
   if((char *)memory == SBRK_ERROR)
     return -1;
-  for(int i = 0; i < RANDOM_PAGES; i++){
+  for(int i = 0; i < pages; i++){
     expected[i] = i ^ 0x5a;
     memory[i * 4096] = expected[i];
   }
   uint state = seed ? seed : 1;
   for(int operation = 0; operation < iterations; operation++){
     state = state * 1664525U + 1013904223U;
-    int page = state % RANDOM_PAGES;
+    int page = state % pages;
     if(state & 3){
       if(memory[page * 4096] != expected[page])
         return -1;
@@ -1226,12 +1240,24 @@ random_workload(uint seed, int iterations)
       memory[page * 4096] = expected[page];
     }
   }
-  for(int i = 0; i < RANDOM_PAGES; i++)
+  for(int i = 0; i < pages; i++)
     if(memory[i * 4096] != expected[i])
       return -1;
+  // Precondition guard, not a property: if the run did not actually page
+  // it proved nothing, and a soak that silently stopped paging is exactly
+  // what this assertion exists to catch next time.
   if(vmstats(&after) < 0 || after.resident_count > after.resident_limit ||
-     sbrk(-RANDOM_PAGES * 4096) == SBRK_ERROR)
+     after.swap_faults <= before.swap_faults ||
+     after.evictions <= before.evictions ||
+     sbrk(-pages * 4096) == SBRK_ERROR)
     return -1;
+  printf("vmtest random: pages=%d limit=%d swap_faults=%d evictions=%d "
+         "page_reads=%d page_writes=%d\n",
+         pages, (int)after.resident_limit,
+         (int)(after.swap_faults - before.swap_faults),
+         (int)(after.evictions - before.evictions),
+         (int)(after.page_reads - before.page_reads),
+         (int)(after.page_writes - before.page_writes));
   return vmcheck();
 }
 
