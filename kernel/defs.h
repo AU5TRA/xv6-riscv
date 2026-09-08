@@ -133,6 +133,7 @@ int             vmtrace_control(int, uint64);
 void            vmtrace_emit(struct proc*, int, uint64, int, int, uint64,
                              uint64, int, uint64, uint64, int);
 int             vmtrace_read(struct proc*, uint64, int);
+int             vmtrace_info(struct proc*, uint64);
 
 // vmstate.c
 void            vmstate_init(struct proc*);
@@ -155,6 +156,7 @@ int             swap_slot_put(int);
 int             swap_slot_valid(int);
 uint64          swap_free_slots(void);
 int             swap_page_read(int, uint64);
+int             swap_page_read_owner(struct proc *, int, uint64);
 int             swap_page_write(int, uint64);
 int             swap_check_invariants(void);
 int             swap_debug_test(int, int);

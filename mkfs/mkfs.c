@@ -33,7 +33,6 @@ int nblocks; // Number of data blocks
 
 int fsfd;
 struct superblock sb;
-char zeroes[BSIZE];
 uint freeinode = 1;
 uint freeblock;
 
@@ -111,8 +110,11 @@ main(int argc, char *argv[])
 
   freeblock = nmeta; // the first free block that we can allocate
 
-  for (i = 0; i < FSSIZE; i++)
-    wsect(i, zeroes);
+  // Size the image in one step. The file was just opened with O_TRUNC, so
+  // every block nothing writes reads back as zeros -- identical to writing
+  // FSSIZE zero blocks, which at FSSIZE=100000 was 100k write syscalls.
+  if (ftruncate(fsfd, (off_t)FSSIZE * BSIZE) < 0)
+    die("ftruncate");
 
   memset(buf, 0, sizeof(buf));
   memmove(buf, &sb, sizeof(sb));
@@ -241,16 +243,23 @@ void
 balloc(int used)
 {
   uchar buf[BSIZE];
-  int i;
+  int base, i, n;
 
   printf("balloc: first %d blocks have been allocated\n", used);
-  assert(used < BPB);
-  bzero(buf, BSIZE);
-  for (i = 0; i < used; i++) {
-    buf[i / 8] = buf[i / 8] | (0x1 << (i % 8));
+  assert(used < FSSIZE);
+  // The free bitmap spans several blocks once FSSIZE exceeds BPB, so mark
+  // one bitmap block at a time instead of assuming there is only one.
+  for (base = 0; base < used; base += BPB) {
+    n = used - base;
+    if (n > BPB)
+      n = BPB;
+    bzero(buf, BSIZE);
+    for (i = 0; i < n; i++) {
+      buf[i / 8] = buf[i / 8] | (0x1 << (i % 8));
+    }
+    printf("balloc: write bitmap block at sector %d\n", BBLOCK(base, sb));
+    wsect(BBLOCK(base, sb), buf);
   }
-  printf("balloc: write bitmap block at sector %d\n", sb.bmapstart);
-  wsect(sb.bmapstart, buf);
 }
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -263,6 +272,8 @@ iappend(uint inum, void *xp, int n)
   struct dinode din;
   char buf[BSIZE];
   uint indirect[NINDIRECT];
+  uint indirect2[NINDIRECT];
+  uint dbn, l1, l2, l1blk;
   uint x;
 
   rinode(inum, &din);
@@ -276,7 +287,7 @@ iappend(uint inum, void *xp, int n)
         din.addrs[fbn] = xint(freeblock++);
       }
       x = xint(din.addrs[fbn]);
-    } else {
+    } else if (fbn < NDIRECT + NINDIRECT) {
       if (xint(din.addrs[NDIRECT]) == 0) {
         din.addrs[NDIRECT] = xint(freeblock++);
       }
@@ -286,6 +297,27 @@ iappend(uint inum, void *xp, int n)
         wsect(xint(din.addrs[NDIRECT]), (char *)indirect);
       }
       x = xint(indirect[fbn - NDIRECT]);
+    } else {
+      // Doubly-indirect: addrs[NDIRECT+1] holds a block of pointers to
+      // blocks of block numbers. Must mirror bmap() in kernel/fs.c.
+      dbn = fbn - NDIRECT - NINDIRECT;
+      l1 = dbn / NINDIRECT;
+      l2 = dbn % NINDIRECT;
+      if (xint(din.addrs[NDIRECT + 1]) == 0) {
+        din.addrs[NDIRECT + 1] = xint(freeblock++);
+      }
+      rsect(xint(din.addrs[NDIRECT + 1]), (char *)indirect);
+      if (indirect[l1] == 0) {
+        indirect[l1] = xint(freeblock++);
+        wsect(xint(din.addrs[NDIRECT + 1]), (char *)indirect);
+      }
+      l1blk = xint(indirect[l1]);
+      rsect(l1blk, (char *)indirect2);
+      if (indirect2[l2] == 0) {
+        indirect2[l2] = xint(freeblock++);
+        wsect(l1blk, (char *)indirect2);
+      }
+      x = xint(indirect2[l2]);
     }
     n1 = min(n, (fbn + 1) * BSIZE - off);
     rsect(x, buf);

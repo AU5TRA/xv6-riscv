@@ -1,6 +1,6 @@
 K=kernel
 U=user
-NSWAPSLOTS ?= 1024
+NSWAPSLOTS ?= 8192
 
 # Derived (not hardcoded) so fs.img's swap-region offset can never silently
 # desync from kernel/param.h and kernel/fs.h if either constant changes.
@@ -169,6 +169,8 @@ UPROGS=\
 	$U/_vmtest\
 	$U/_prefetchtest\
 	$U/_pagingdemo\
+	$U/_bigfiletest\
+	$U/_vmdrain\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

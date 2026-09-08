@@ -8,6 +8,7 @@ import datetime as dt
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 
@@ -63,6 +64,64 @@ def terminate(child: pexpect.spawn) -> None:
         child.terminate(force=True)
 
 
+def tool_version(command: list[str]) -> str:
+    """First line of a --version banner, or a marker if the tool is absent."""
+    try:
+        out = subprocess.run(
+            command, capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unavailable"
+    text = (out.stdout or out.stderr).strip().splitlines()
+    return text[0] if text else "unavailable"
+
+
+def provenance(repo: Path, args: argparse.Namespace) -> list[str]:
+    """Everything Phase 2 acceptance criterion 15 requires on the host side.
+
+    The guest prints its own compile-time configuration at boot (see
+    kernel/main.c:vm_print_config). This covers what the guest cannot know:
+    which commit, which toolchain, whether the tree was dirty, and which
+    build configuration the harness asked for. A transcript is only usable
+    as evidence if it carries both halves.
+    """
+    # core.autocrlf is forced on for every query. The worktree is checked
+    # out by Windows Git with CRLF conversion, so a Linux Git that does not
+    # apply the same conversion reports all 104 tracked text files as
+    # modified. That is not a dirty tree, it is a line-ending mismatch, and
+    # a provenance header that cried "dirty" on every run would be ignored
+    # exactly when it mattered.
+    def git(*a: str) -> str:
+        try:
+            out = subprocess.run(
+                ["git", "-c", "core.autocrlf=true", "-C", str(repo), *a],
+                capture_output=True, text=True, timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "unavailable"
+        return out.stdout.strip() or ""
+
+    def count(text: str) -> int:
+        return len(text.splitlines()) if text else 0
+
+    modified = git("diff", "--name-only", "HEAD")
+    untracked = git("ls-files", "--others", "--exclude-standard")
+    lines = [
+        f"# date={dt.datetime.now().isoformat(timespec='seconds')}",
+        f"# commit={git('rev-parse', 'HEAD') or 'unavailable'}",
+        f"# describe={git('describe', '--tags', '--always', '--dirty') or 'unavailable'}",
+        f"# worktree=modified({count(modified)}) untracked({count(untracked)})",
+        f"# cpus={args.cpus} timeout={args.timeout}",
+        f"# vm_debug={os.environ.get('VM_DEBUG', '0')}",
+        f"# cc={tool_version(['riscv64-unknown-elf-gcc', '--version'])}",
+        f"# qemu={tool_version([args.qemu or 'qemu-system-riscv64', '--version'])}",
+        f"# python={sys.version.split()[0]}",
+        f"# host={tool_version(['uname', '-srm'])}",
+        f"# commands={args.commands!r}",
+    ]
+    return lines
+
+
 def run(args: argparse.Namespace) -> int:
     repo = Path(__file__).resolve().parents[1]
     logs = repo / "test-logs"
@@ -78,8 +137,8 @@ def run(args: argparse.Namespace) -> int:
         make_args.append(f"QEMU={args.qemu}")
 
     with log_path.open("w", encoding="utf-8", errors="replace") as transcript:
-        transcript.write(f"# CPUS={args.cpus} timeout={args.timeout}\n")
-        transcript.write(f"# commands={args.commands!r}\n")
+        for line in provenance(repo, args):
+            transcript.write(line + "\n")
         transcript.flush()
         try:
             child = pexpect.spawn(

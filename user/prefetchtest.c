@@ -7,6 +7,11 @@
 #define TARGET_PAGE 4
 #define TARGET(memory) ((memory) + TARGET_PAGE * PGSIZE)
 
+// Pages of scratch swept after the region is loaded, so that nothing of
+// the region can still be resident. Recorded here because finish() has to
+// give the memory back.
+static int scratch_pages;
+
 static char *
 make_swapped(struct vmstats *before)
 {
@@ -15,11 +20,31 @@ make_swapped(struct vmstats *before)
      vmctl(VM_PREFETCH_AUTOMATIC, 0) < 0 ||
      vmctl(VM_SET_LIMIT, before->resident_count + 5) < 0)
     return SBRK_ERROR;
+  // Scratch is allocated first so the region under test stays the topmost
+  // allocation: unmap_queued() and shrink_inflight() unmap it with
+  // sbrk(-PAGES * PGSIZE) and would otherwise unmap the scratch instead.
+  scratch_pages = (int)before->resident_count + 8;
+  char *scratch = sbrklazy(scratch_pages * PGSIZE);
+  if(scratch == SBRK_ERROR){
+    scratch_pages = 0;
+    return SBRK_ERROR;
+  }
   char *memory = sbrklazy(PAGES * PGSIZE);
   if(memory == SBRK_ERROR)
     return SBRK_ERROR;
   for(int i = 0; i < PAGES; i++)
     memory[i * PGSIZE] = i + 1;
+
+  // Every subtest below assumes the whole region is in swap. Loading it
+  // is not enough to guarantee that: the resident limit is relative to
+  // the pages the process already holds, so those are eligible victims
+  // too and which of the region survives depends on the policy. Sweeping
+  // the scratch region -- larger than the limit -- twice afterwards
+  // leaves no frame for a region page under FIFO, Clock or Aging.
+  for(int pass = 0; pass < 2; pass++)
+    for(int i = 0; i < scratch_pages; i++)
+      scratch[i * PGSIZE] = (char)(i + pass);
+
   if(vmctl(VM_PREFETCH_ENABLE, 1) < 0)
     return SBRK_ERROR;
   return memory;
@@ -34,7 +59,7 @@ finish(char *memory)
      stats.inflight_io != 0 || vmctl(VM_PREFETCH_ENABLE, 0) < 0 ||
      vmctl(VM_PREFETCH_AUTOMATIC, 0) < 0 ||
      vmctl(VM_PREFETCH_MODE, 0) < 0 ||
-     sbrk(-PAGES * PGSIZE) == SBRK_ERROR)
+     sbrk(-(PAGES + scratch_pages) * PGSIZE) == SBRK_ERROR)
     return -1;
   return vmcheck();
 }
@@ -245,7 +270,8 @@ unmap_queued(void)
      sbrk(-PAGES * PGSIZE) == SBRK_ERROR || vmstats(&after) < 0 ||
      after.queued_prefetch != 0 || after.inflight_io != 0 ||
      after.prefetch_canceled <= before.prefetch_canceled ||
-     vmctl(VM_PREFETCH_MODE, 0) < 0)
+     vmctl(VM_PREFETCH_MODE, 0) < 0 ||
+     sbrk(-scratch_pages * PGSIZE) == SBRK_ERROR)
     return -1;
   return vmcheck();
 }
@@ -262,7 +288,8 @@ shrink_inflight(void)
      sbrk(-PAGES * PGSIZE) == SBRK_ERROR || vmstats(&after) < 0 ||
      after.queued_prefetch != 0 || after.inflight_io != 0 ||
      after.prefetch_canceled <= before.prefetch_canceled ||
-     vmctl(VM_PREFETCH_MODE, 0) < 0)
+     vmctl(VM_PREFETCH_MODE, 0) < 0 ||
+     sbrk(-scratch_pages * PGSIZE) == SBRK_ERROR)
     return -1;
   return vmcheck();
 }
@@ -458,6 +485,25 @@ int
 main(int argc, char **argv)
 {
   char *name = argc > 1 ? argv[1] : "harness";
+
+  // Optional second argument forces a replacement policy for this run,
+  // mirroring "vmtest all-policy <policy>". Every subtest here allocates
+  // and evicts in this process (or in children that inherit vm state at
+  // fork), so setting it once up front covers the whole run.
+  if(argc > 2){
+    int policy = -1;
+    if(strcmp(argv[2], "fifo") == 0)
+      policy = VM_POLICY_FIFO;
+    else if(strcmp(argv[2], "clock") == 0)
+      policy = VM_POLICY_CLOCK;
+    else if(strcmp(argv[2], "aging") == 0)
+      policy = VM_POLICY_AGING;
+    if(policy < 0 || vmctl(VM_SET_POLICY, policy) < 0){
+      printf("prefetchtest: %s: FAIL\n", name);
+      exit(1);
+    }
+  }
+
   if(run(name) < 0){
     printf("prefetchtest: %s: FAIL\n", name);
     exit(1);

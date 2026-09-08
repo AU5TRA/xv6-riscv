@@ -50,3 +50,4 @@ entry("vmfailinject");
 entry("vmtestop");
 entry("vmprefetch");
 entry("vmtrace_read");
+entry("vmtrace_info");

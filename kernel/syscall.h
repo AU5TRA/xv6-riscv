@@ -28,3 +28,4 @@
 #define SYS_vmtestop 27
 #define SYS_vmprefetch 28
 #define SYS_vmtrace_read 29
+#define SYS_vmtrace_info 30

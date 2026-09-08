@@ -93,10 +93,15 @@ swap_free_slots(void)
   return free;
 }
 
+// The owner is passed in rather than taken from myproc() because the
+// asynchronous prefetch worker performs reads on behalf of another
+// process: crediting myproc() there billed every async prefetch read to
+// the worker's own (never-read) counters, so an owner's page_reads came
+// out exactly equal to its swap_faults no matter how much device traffic
+// the prefetcher had actually generated.
 static void
-account_io(int write, int error)
+account_io(struct proc *p, int write, int error)
 {
-  struct proc *p = myproc();
   if(p == 0)
     return;
   acquire(&p->vm.lock);
@@ -113,7 +118,7 @@ account_io(int write, int error)
 }
 
 static int
-swap_page_io(int slot, uint64 pa, int write)
+swap_page_io(struct proc *owner, int slot, uint64 pa, int write)
 {
   if(pa % PGSIZE != 0 || !swap_slot_valid(slot))
     return -1;
@@ -131,26 +136,35 @@ swap_page_io(int slot, uint64 pa, int write)
     release(&tickslock);
   }
   if(vmdebug_should_fail(write ? VM_FAIL_SWAP_WRITE : VM_FAIL_SWAP_READ)){
-    account_io(write, 1);
+    account_io(owner, write, 1);
     return -1;
   }
 #endif
   int result = virtio_disk_raw_rw(SWAP_SECTOR(slot), (void *)pa, PGSIZE,
                                   write);
-  account_io(write, result < 0);
+  account_io(owner, write, result < 0);
   return result;
 }
 
 int
 swap_page_read(int slot, uint64 pa)
 {
-  return swap_page_io(slot, pa, 0);
+  return swap_page_io(myproc(), slot, pa, 0);
+}
+
+// Same read, but billed to the process the page belongs to. Only the
+// asynchronous prefetch worker needs this; every other caller runs in the
+// context of the owner already.
+int
+swap_page_read_owner(struct proc *owner, int slot, uint64 pa)
+{
+  return swap_page_io(owner, slot, pa, 0);
 }
 
 int
 swap_page_write(int slot, uint64 pa)
 {
-  return swap_page_io(slot, pa, 1);
+  return swap_page_io(myproc(), slot, pa, 1);
 }
 
 int
