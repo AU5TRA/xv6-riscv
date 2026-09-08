@@ -75,12 +75,13 @@ Supporting infrastructure: `tools/run_xv6_tests.py` (pexpect harness),
 | Phase 8 | Synchronous prefetch lifecycle | Implemented |
 | Phase 9 | Asynchronous prefetch and race completion | Implemented |
 | Tracing | Bounded binary ring buffer and measurement interface | Implemented |
-| Regression matrix | Full debug/release/policy/soak matrix | **Not signed off** |
-| Acceptance criteria | The 15-item completion checklist | **Not signed off** |
+| Regression matrix | Full debug/release/policy/soak matrix | Signed off — `platform-v1.0` |
+| Acceptance criteria | The 15-item completion checklist | Signed off — `platform-v1.0` |
 
-Every test named in the plan exists in `vmtest.c` / `prefetchtest.c`. What is
-missing is the *recorded, clean execution* of the whole matrix. The full text of
-both outstanding items is reproduced in Phase 2 below.
+Every test named in the plan exists in `vmtest.c` / `prefetchtest.c`. Both
+outstanding items were discharged by Phase 2: 74 matrix steps, 0 failures,
+tagged `platform-v1.0`. The full text of both is reproduced in Phase 2 below,
+and the evidence is in `docs/phase2/`.
 
 ---
 
@@ -198,6 +199,25 @@ wins throughout**.
 
 ## Part 4 — Phases
 
+> **Status: Phases 0, 1 and 2 are complete.**
+> Phase 0 and Phase 1: `docs/phase0-phase1-report.md`.
+> Phase 2: `docs/phase2/report.md` (analysis and conclusions),
+> `docs/phase2/static-checks.md` (Step 1), `docs/phase2/gate-results.txt`
+> (74 steps, 0 failures), `docs/vm-baseline.txt` (Step 9), tag
+> `platform-v1.0`. Reproduce with `bash tools/phase2_gate.sh all`.
+>
+> Phase 2 found three defects — a kernel I/O-accounting bug that undercounted
+> asynchronous prefetch reads by 41%, a randomised soak that had silently
+> stopped paging, and a measurement artefact in Phase 2's own baseline that
+> ran each policy at a different resident limit — and one measured negative
+> result: lossless tracing does not currently reach dataset scale
+> (~5.3k records/s drained against ~12k records/s emitted). That last one
+> is a blocker for Phase 5 and is carried into Phase 4.
+>
+> **Next: Phase 3 (SQLite spike), or Phase 4 if the reduced-scope fallback
+> in Part 7 applies.**
+
+
 Each phase lists steps, an exit gate, and — under **What this establishes** —
 the conclusion the phase actually supports. Do not start a phase before its
 predecessor's gate is green.
@@ -210,37 +230,37 @@ predecessor's gate is green.
 
 **Steps**
 
-- [ ] Raise `VMTRACE_CAPACITY` from 128 to 65536 in `kernel/vmtrace.h`
-- [ ] Raise `VMTRACE_READ_MAX` from 8 to 256
-- [ ] Pack `struct vmtrace_event`:
-  - [ ] Move `version` and `size` out of the per-record struct into a one-time
+- [x] Raise `VMTRACE_CAPACITY` from 128 to 65536 in `kernel/vmtrace.h`
+- [x] Raise `VMTRACE_READ_MAX` from 8 to 256
+- [x] Pack `struct vmtrace_event`:
+  - [x] Move `version` and `size` out of the per-record struct into a one-time
         header returned by a separate call or written once at file start
-  - [ ] Narrow `type`, `access`, `page_state`, `status`, `policy` to `uint8`
-  - [ ] Narrow `vpn`, `victim_vpn`, `frame_index`, `swap_slot`,
+  - [x] Narrow `type`, `access`, `page_state`, `status`, `policy` to `uint8`
+  - [x] Narrow `vpn`, `victim_vpn`, `frame_index`, `swap_slot`,
         `resident_count`, `pid`, `queue_id` to `uint32`
-  - [ ] Keep `sequence`, `cycle`, `ticks`, `generation`, `pte_flags` at 64 bits
-  - [ ] Target ≤ 48 bytes per record
-- [ ] Bump `VMTRACE_VERSION` and update the schema test
-- [ ] Write `user/vmdrain.c` — a dedicated process that loops on
+  - [x] Keep `sequence`, `cycle`, `ticks`, `generation`, `pte_flags` at 64 bits
+  - [x] Target ≤ 48 bytes per record
+- [x] Bump `VMTRACE_VERSION` and update the schema test
+- [x] Write `user/vmdrain.c` — a dedicated process that loops on
       `vmtrace_read()` and writes raw records to a file
-- [ ] Write `tools/decode_trace.py` — host-side binary → structured records
-- [ ] Add a `drops` assertion path: any experiment with `drops != 0` is marked
+- [x] Write `tools/decode_trace.py` — host-side binary → structured records
+- [x] Add a `drops` assertion path: any experiment with `drops != 0` is marked
       invalid, not merely warned about
 
 **Gate**
 
-- [ ] `vmtest swap-repeat` under tracing completes with `drops == 0`
-- [ ] `vmtest trace-schema`, `trace-wrap`, `trace-disabled`, `trace-drop` pass
-- [ ] Decoder round-trips a 1M-event capture without loss or misalignment
-- [ ] The original tracing requirements still hold after the rework:
-  - [ ] Event records have a stable version and byte size
-  - [ ] Ring wrap preserves the ordering of retained records
-  - [ ] Overflow increments `TRACE_DROP` without corrupting adjacent kernel
+- [x] `vmtest swap-repeat` under tracing completes with `drops == 0`
+- [x] `vmtest trace-schema`, `trace-wrap`, `trace-disabled`, `trace-drop` pass
+- [x] Decoder round-trips a 1M-event capture without loss or misalignment
+- [x] The original tracing requirements still hold after the rework:
+  - [x] Event records have a stable version and byte size
+  - [x] Ring wrap preserves the ordering of retained records
+  - [x] Overflow increments `TRACE_DROP` without corrupting adjacent kernel
         memory
-  - [ ] Disabled tracing emits no records and does not change paging results
-  - [ ] Trace buffers and metadata are non-pageable
-  - [ ] Trace reads crossing swapped user-buffer pages complete correctly
-- [ ] Every experiment is run twice thereafter: once with tracing enabled for
+  - [x] Disabled tracing emits no records and does not change paging results
+  - [x] Trace buffers and metadata are non-pageable
+  - [x] Trace reads crossing swapped user-buffer pages complete correctly
+- [x] Every experiment is run twice thereafter: once with tracing enabled for
       the dataset, once with tracing disabled for uncontaminated timing
 
 **What this establishes**
@@ -267,27 +287,27 @@ predecessor's gate is green.
 
 **Steps**
 
-- [ ] `kernel/swap.h`: `NSWAPSLOTS` 1024 → 8192 (32MB swap)
-- [ ] `kernel/param.h`: `USERSTACK` 1 → 16
-- [ ] `kernel/param.h`: `FSSIZE` 2000 → 100000
-- [ ] `kernel/fs.h`: `NDIRECT` 12 → 11; add doubly-indirect entry; update
+- [x] `kernel/swap.h`: `NSWAPSLOTS` 1024 → 8192 (32MB swap)
+- [x] `kernel/param.h`: `USERSTACK` 1 → 16
+- [x] `kernel/param.h`: `FSSIZE` 2000 → 100000
+- [x] `kernel/fs.h`: `NDIRECT` 12 → 11; add doubly-indirect entry; update
       `MAXFILE` to `NDIRECT + NINDIRECT + NINDIRECT*NINDIRECT` (65803 blocks
       ≈ 64MB); keep `addrs[]` the same size in `struct dinode`
-- [ ] `kernel/file.h`: match `addrs[]` length in `struct inode`
-- [ ] `kernel/fs.c`: extend `bmap()` for the doubly-indirect level
-- [ ] `kernel/fs.c`: extend `itrunc()` to free doubly-indirect blocks
-- [ ] **`mkfs/mkfs.c`: apply the same block-mapping change** — it has its own
+- [x] `kernel/file.h`: match `addrs[]` length in `struct inode`
+- [x] `kernel/fs.c`: extend `bmap()` for the doubly-indirect level
+- [x] `kernel/fs.c`: extend `itrunc()` to free doubly-indirect blocks
+- [x] **`mkfs/mkfs.c`: apply the same block-mapping change** — it has its own
       independent copy of the logic
-- [ ] Confirm `fs.img` truncation arithmetic in the Makefile still resolves
+- [x] Confirm `fs.img` truncation arithmetic in the Makefile still resolves
       (`FSSIZE * BSIZE + NSWAPSLOTS * 4096`)
 
 **Gate**
 
-- [ ] `usertests -q` passes
-- [ ] `grind` passes
-- [ ] A 5MB file writes, reads back byte-exact, and deletes with no block leak
-- [ ] `vmtest all` and `prefetchtest all` pass under FIFO, Clock, and Aging
-- [ ] `vmcheck` clean after each
+- [x] `usertests -q` passes
+- [x] `grind` passes
+- [x] A 5MB file writes, reads back byte-exact, and deletes with no block leak
+- [x] `vmtest all` and `prefetchtest all` pass under FIFO, Clock, and Aging
+- [x] `vmcheck` clean after each
 
 **Risk:** the `mkfs` half is the one that gets forgotten. The symptom is a
 kernel that can read large files but a build that cannot create them.
@@ -388,50 +408,50 @@ done
 
 **Step 7 — Regression gate**
 
-- [ ] The complete debug and release matrices pass from a clean build
-- [ ] Every randomised seed passes, or has a preserved reproducible failure log
-- [ ] All policy and prefetch modes produce identical application data results
-- [ ] `vmcheck` and final statistics report zero leaked frames, slots, requests,
+- [x] The complete debug and release matrices pass from a clean build
+- [x] Every randomised seed passes, or has a preserved reproducible failure log
+- [x] All policy and prefetch modes produce identical application data results
+- [x] `vmcheck` and final statistics report zero leaked frames, slots, requests,
       and in-flight operations after the test processes exit
-- [ ] `git diff --check` is clean and `git status` shows no unintended files
+- [x] `git diff --check` is clean and `git status` shows no unintended files
 
 **Step 8 — Final acceptance criteria.** The platform is complete only if every
 statement below is true:
 
-- [ ] Existing xv6 `usertests` and `grind` pass
-- [ ] A process can correctly use much more virtual memory than its resident
+- [x] Existing xv6 `usertests` and `grind` pass
+- [x] A process can correctly use much more virtual memory than its resident
       frame limit
-- [ ] Byte patterns survive repeated swap-out/swap-in under FIFO, Clock, and
+- [x] Byte patterns survive repeated swap-out/swap-in under FIFO, Clock, and
       Aging
-- [ ] Lazy holes, resident pages, swapped pages, and fetching pages are never
+- [x] Lazy holes, resident pages, swapped pages, and fetching pages are never
       confused
-- [ ] Unmap, shrink, failed exec, successful exec, exit, and kill release every
+- [x] Unmap, shrink, failed exec, successful exec, exit, and kill release every
       frame, slot, request, and I/O reference
-- [ ] Fork works when source pages are lazy, resident, swapped, or temporarily
+- [x] Fork works when source pages are lazy, resident, swapped, or temporarily
       busy
-- [ ] `copyin`, `copyout`, and `copyinstr` work across swapped page boundaries
-- [ ] Original read/write/execute/user permissions survive swapping
-- [ ] Swap-full and disk-error cases fail gracefully without corrupting the
+- [x] `copyin`, `copyout`, and `copyinstr` work across swapped page boundaries
+- [x] Original read/write/execute/user permissions survive swapping
+- [x] Swap-full and disk-error cases fail gracefully without corrupting the
       filesystem or panicking the kernel
-- [ ] Policies cannot select pinned, busy, foreign, or invalid pages
-- [ ] Invalid learned/predictive decisions fall back to Clock
-- [ ] Prefetch hints are bounded, duplicate requests are coalesced, demand has
+- [x] Policies cannot select pinned, busy, foreign, or invalid pages
+- [x] Invalid learned/predictive decisions fall back to Clock
+- [x] Prefetch hints are bounded, duplicate requests are coalesced, demand has
       priority, and usefulness/waste are measurable
-- [ ] Demand-vs-prefetch, unmap-vs-prefetch, exit-vs-prefetch, and I/O-error
+- [x] Demand-vs-prefetch, unmap-vs-prefetch, exit-vs-prefetch, and I/O-error
       races pass deterministic delay-injection tests
-- [ ] `vmcheck` passes throughout debug stress and all counters return to their
+- [x] `vmcheck` passes throughout debug stress and all counters return to their
       baseline after test processes exit
-- [ ] The exact baseline commit, tool versions, configuration, frame limit,
+- [x] The exact baseline commit, tool versions, configuration, frame limit,
       swap size, policy, prefetch mode, and random seed are printed for every
       experiment
 
 **Step 9 — Record and tag**
 
-- [ ] Record compiler and QEMU versions in `docs/vm-baseline.txt`
-- [ ] Record baseline fault/eviction counts for FIFO, Clock, and Aging on the
+- [x] Record compiler and QEMU versions in `docs/vm-baseline.txt`
+- [x] Record baseline fault/eviction counts for FIFO, Clock, and Aging on the
       existing test programs
-- [ ] Tag the commit `platform-v1.0`
-- [ ] Retain all logs under `test-logs/`
+- [x] Tag the commit `platform-v1.0`
+- [x] Retain all logs under `test-logs/`
 
 **What this establishes**
 
