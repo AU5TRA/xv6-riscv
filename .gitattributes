@@ -11,4 +11,4 @@
 # Captured tool output, committed verbatim as evidence. Whitespace
 # checking it is meaningless: the trailing spaces are make's, not ours,
 # and normalising them would make the record no longer a record.
-docs/phase2/gate-results*.txt  -whitespace
+docs/phase2/gate-results*.txt  -whitespace text eol=lf
