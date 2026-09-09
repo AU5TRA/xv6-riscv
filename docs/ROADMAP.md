@@ -210,9 +210,11 @@ wins throughout**.
 > asynchronous prefetch reads by 41%, a randomised soak that had silently
 > stopped paging, and a measurement artefact in Phase 2's own baseline that
 > ran each policy at a different resident limit — and one measured negative
-> result: lossless tracing does not currently reach dataset scale
-> (~5.3k records/s drained against ~12k records/s emitted). That last one
-> is a blocker for Phase 5 and is carried into Phase 4.
+> result: lossless tracing does not currently reach dataset scale. Under a
+> real paging workload the drainer keeps 53% of the stream, and only 32% of
+> emitted events arrive with an intact event type; tracing also costs 2.1x
+> wall clock. That last one is a blocker for Phase 5 and is carried into
+> Phase 4.
 >
 > **Next: Phase 3 (SQLite spike), or Phase 4 if the reduced-scope fallback
 > in Part 7 applies.**

@@ -453,34 +453,34 @@
   \phasehead{Phase 2}{Results --- one measured negative result}
   \small
   \textbf{Lossless tracing does not yet reach dataset scale.} Fixing defect 2
-  raised the fault rate to a realistic level --- and the trace ring immediately
-  could not keep up.
+  raised the fault rate to a realistic level, and the ring could not keep up.
 
   \smallskip
   \begin{table}\small
-    \begin{tabular}{@{}ll@{}}
+    \begin{tabular}{@{}lr@{}}
       \toprule
-      Emission rate, paging workload & \ca 12{,}000 records/s \\
-      Drain rate, \texttt{vmdrain} to the xv6 filesystem & \ca 5{,}300 records/s \\
-      Ring capacity / time to overflow & 65{,}536 records / \ca 10\,s \\
+      Events emitted (deterministic across runs)   & 302{,}243 \\
+      Records that reached the file                & 161{,}285 \quad 53.4\% \\
+      \dots\ of which are \texttt{DROP} markers, not data & 65{,}588 \\
       \midrule
-      Measured & 302{,}243 emitted, \alert{142{,}629 dropped (47\%)} \\
+      \textbf{Arrived with an intact event type}   & \alert{95{,}697 \quad 31.7\%} \\
+      \midrule
+      Emission / drain rate during the run & \ca 1{,}980 / \ca 1{,}050 per s \\
+      Wall-clock cost of tracing           & 72.5\,s $\to$ 152.4\,s (2.1x) \\
       \bottomrule
     \end{tabular}
   \end{table}
 
   \vspace{-1mm}
-  \textbf{This is a finding, not a gap.} Phase 0's gate explicitly allowed for
-  it: if the packed record still cannot keep up, that is itself a result about
-  the cost of kernel-resident instrumentation. The matrix now contains
-  \emph{both} outcomes on purpose --- one lossless capture, and one that
-  \good{must be rejected}, which is positive evidence that the drop discipline
-  fires.
+  \textbf{This is a finding, not a gap.} Phase 0's gate explicitly allowed
+  for it. The matrix now records \emph{both} outcomes on purpose --- one
+  lossless capture, and one that \good{must be rejected} --- which is
+  positive evidence that the drop discipline fires.
 
   \smallskip
-  \textbf{Three remedies, costed:} pace the workload (changes nothing about the
-  system under test); enlarge the ring to 32\,MiB (shifts every absolute page
-  count); or stop emitting I/O span markers (loses I/O latency).
+  \textbf{Three remedies, costed:} pace the workload (changes nothing about
+  the system under test); enlarge the ring (bigger backlog, but shifts every
+  absolute page count); or emit fewer event types (loses I/O latency).
 \end{frame}
 
 \begin{frame}

@@ -278,24 +278,60 @@ vmdrain: INVALID: dropped=142629 drop_records=69874 sequence_gaps=252
 FAILED -- capture lost records; discard it
 ```
 
-The emitted count is deterministic across runs (302,243 both times); the
-dropped count is not (142,280 and 142,629), because it depends on how the
-drainer and the workload interleave.
+**Where the 47% comes from.** It is one subtraction, not a model. Every event
+the kernel emits gets a sequence number whether it survives or not, so the
+capture's own numbering says exactly how much never arrived:
 
-**47% of events were lost.** The arithmetic is not subtle:
+```
+302,243 emitted  -  159,614 that reached the file  =  142,629 lost  =  47.2%
+```
+
+Equivalently: the drainer kept 52.8% of the stream. It is the ratio of what
+was drained to what was produced, and nothing else.
+
+**Reproducibility.** The emitted count is a property of the workload and is
+bit-identical across runs (302,243, three times). The lost count is not
+(142,629 and 140,958), because it depends on how the drainer and the workload
+interleave on the single CPU. The loss fraction is stable at 46-47%.
+
+**The full composition is worse than the headline.** Decoding the rejected
+capture shows that "arrived" and "usable" are not the same thing, because on
+overrun the incoming record keeps its sequence number but has its *type*
+overwritten with a `DROP` marker:
+
+| Fate of an emitted event | Count | Share |
+|---|---:|---:|
+| Never reached the file at all (a gap in the numbering) | 140,958 | 46.6% |
+| Reached the file, but as a `DROP` marker with no event type | 65,588 | 21.7% |
+| **Reached the file intact — actually usable as data** | **95,697** | **31.7%** |
+| Total emitted | 302,243 | 100% |
+
+(This breakdown is from the reproduction run, whose capture was decoded
+rather than discarded; the gate run's figures differ by under 1%.)
+
+**Measured rates.** Over a 152.4-second traced run (boot and build excluded):
 
 | | |
 |---|---|
-| Emission rate, paging workload | ~12,000 records/s |
-| Drain rate, `vmdrain` to the xv6 filesystem | ~5,300 records/s |
-| Ring capacity | 65,536 records |
-| Time to overflow at that deficit | ~10 s |
+| Emission | ~1,980 records/s |
+| Drain, `vmdrain` to the xv6 filesystem | ~1,050 records/s, or ~66 KB/s |
+| Wall-clock cost of tracing | 72.5 s to 152.4 s, i.e. **2.1x slower** |
 
 The bottleneck is the guest filesystem write path, not the ring and not the
-record size. `vmdrain` wrote 160k records in about 30 seconds — 10.2 MB at
-roughly 400 KB/s, which is what xv6's log-per-transaction write path
-sustains with 16 KB writes. The Phase 0 packing work (152 B → 64 B per
-record) bought a factor of 2.4 and was necessary; it was not sufficient.
+record size. 66 KB/s is in the same range as every other xv6 write measurement
+on this host (`writebig` sustains ~50 KB/s, `bigfiletest` ~100 KB/s) — and the
+drainer is achieving it while sharing one CPU with the workload it is
+recording. The Phase 0 packing work (152 B to 64 B per record) bought a factor
+of 2.4 and was necessary; it was not sufficient.
+
+Two qualifications on those rates. First, they are not two independent speeds
+racing: on one CPU the drainer and the workload share the processor, so what
+is really measured is the equilibrium split between them. The stable number is
+the capture fraction, not either rate on its own. Second, the ring buys a
+fixed *backlog*, not a rate — the capture stayed perfectly lossless for its
+first 30,725 records, and only began losing events once the drainer had fallen
+65,536 events behind. After that, loss is continuous rather than bursty: every
+256-record drain batch was preceded by a gap of roughly 550 events.
 
 **Why this is a finding and not a gap.** It converts an unknown into a
 number. The lossless envelope is now stated rather than assumed:

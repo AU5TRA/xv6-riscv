@@ -139,16 +139,34 @@ Timings on the reference host:
 Measured trace-capture envelope
 -------------------------------
 
-vmdrain sustains roughly 5,300 records/s to the xv6 filesystem. A paging
-workload emits roughly 12,000 records/s. A capture is therefore lossless
-only while the emission rate stays below the drain rate:
+A capture is lossless only while the drainer keeps up with the emitter. On
+one CPU the two share the processor, so the meaningful measurement is the
+fraction of the stream that survives, not either rate in isolation.
 
   vmtest swap-repeat   28,274 records, 0 drops          -- lossless
   vmtest random 1e5   302,243 emitted, 142,629 dropped  -- REJECTED
 
-The emitted count is deterministic (302,243 in both runs); the dropped
-count is not (142,280 and 142,629), because it depends on how the drainer
-and the workload interleave.
+Composition of the rejected capture, from tools/decode_trace.py:
+
+  emitted                        302,243   (deterministic across runs)
+  reached the file               161,285   53.4%
+    of which DROP markers         65,588
+  arrived with an intact type     95,697   31.7%
+  never arrived at all           140,958   46.6%
+
+Rates during that run (workload 152.4 s, excluding boot and build):
+
+  emission                 ~1,980 records/s
+  drain                    ~1,050 records/s  (~66 KB/s of 64-byte records)
+  cost of tracing          72.5 s -> 152.4 s, i.e. 2.1x wall clock
+
+The emitted count is deterministic (302,243 in all three runs). The dropped
+count is not (142,629, 140,958), because it depends on how the drainer and
+the workload interleave.
+
+The ring buys a fixed backlog rather than a rate: the capture above stayed
+perfectly lossless for its first 30,725 records, then lost roughly 550
+events before every subsequent 256-record drain batch.
 
 Both outcomes are in the matrix on purpose. The second is the evidence
 that the drop discipline fires; a capture that overruns is discarded
