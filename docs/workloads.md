@@ -5,7 +5,7 @@ ML page-replacement research: what each workload models, why it was
 chosen, its parameters, its measured access-pattern statistics, and its
 oracle gap (headroom above Belady's optimal). See `WORK_PROMPT.md` for
 the full task specification this suite was built against, and
-`HANDOFF_CLAUDE.md` for the paging subsystem itself.
+`HANDOFF_TO_CLAUDE.md` for the paging subsystem itself.
 
 ## Why native workloads, not ported real applications
 
