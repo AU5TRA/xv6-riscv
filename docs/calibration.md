@@ -106,6 +106,61 @@ needed a much larger footprint (200 vs. 30) — heavy-tailed values
 (up to 2KB) exhaust a small value arena; this is a real operational
 constraint on the preset, not a tuning nicety.
 
+### kvbench N/S/TTL sweep (follow-up task, `tools/calibrate_grid.py`)
+
+The grid above did not sweep Zipf skew (`S`), key-space size (`N`), or
+TTL — `N`/`S` are not `kvbench` CLI arguments; they are module-level
+constants in `tools/gen_zipf_table.py` baked into the committed
+`user/zipf_table.h` at build time. `tools/calibrate_grid.py` automates
+rewriting those constants, regenerating the header, building+running
+`kvbench` inside xv6, and restoring both files to their original
+committed content afterward (verified via `git diff --stat`, printed at
+the end of every run).
+
+Coarse, coordinate-descent-style sweep around the known-best point
+(mode A, valuesize on, rehash off, footprint=margin=200, op_count=2000,
+seed=1, `N=1024`/`S=0.99`/`ttl=0`, distance 0.442) — one dimension varied
+at a time rather than a full `N`×`S`×`ttl` cross product, consistent with
+this project's own "coarse grid" precedent:
+
+| sweep | value | distance | JS | WS-RMSE |
+|---|---|---|---|---|
+| ttl | **20** | **0.4372 (best)** | 0.3832 | 0.5631 |
+| baseline | S=0.99, N=1024, ttl=0 | 0.4424 | 0.3925 | 0.5590 |
+| ttl | 200 | 0.4424 (identical to baseline) | 0.3925 | 0.5590 |
+| S | 0.8 | 0.4469 | 0.4021 | 0.5515 |
+| S | 0.7 | 0.4565 | 0.4171 | 0.5483 |
+| N | 200 | 0.4598 | 0.4348 | 0.5182 |
+| N | 500 (matches real trace's own keyspace) | 0.4668 | 0.4239 | 0.5669 |
+| S | 1.2 | 0.4862 (worst) | 0.4778 | 0.5058 |
+
+**Result, reported plainly**: none of the three swept dimensions produced
+a meaningful improvement. The single best point (`ttl_ticks=20`) improved
+distance from 0.442 to 0.4372 — a 1.2% relative reduction — which moves
+the control margin from 12% to about **12.7%** (control: sortbench,
+0.501). `ttl=200` had no effect at all (identical to `ttl=0` to four
+decimal places), meaning 200 ticks never elapses within this 2000-op run
+— too coarse to matter. Every `S` and `N` value tried made the match
+*worse* than the committed defaults, including `N=500`, the value that
+actually matches the real trace's own key-space (see the module docstring
+of `tools/calibrate_grid.py` for why this is the right, apples-to-apples
+comparison to make against the fixed real trace) — i.e. deliberately
+mismatching `N` from the real trace's own 500-key setup does not hurt the
+match, and in this grid slightly *helps* it. This is a genuine,
+non-obvious finding, consistent with this project's precedent of
+reporting flat/negative results rather than only headlining wins (see
+the btreebench-internal-cache finding above): `kvbench`'s calibration
+weakness does not appear to be fixable by tuning skew, key-space size, or
+TTL in isolation. The likely limiting factor is something the CLI
+doesn't currently expose at all (e.g. the fixed 60% initial load factor,
+the fixed SET-then-GET op ordering, or the value-size distribution
+shape) — a real target for a future task, not this one.
+
+**Working tree state after this sweep**: clean.
+`tools/gen_zipf_table.py` and `user/zipf_table.h` match their committed
+content (`N=1024`, `S=0.99`) — every regenerated grid point was
+transient and reverted at the end of the run.
+
 ### `btreebench` vs. real SQLite (footprint=40, margin=40, op_count=600, seed=1)
 
 | mix | wal | cache | distance |
