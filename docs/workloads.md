@@ -5,7 +5,7 @@ ML page-replacement research: what each workload models, why it was
 chosen, its parameters, its measured access-pattern statistics, and its
 oracle gap (headroom above Belady's optimal). See `WORK_PROMPT.md` for
 the full task specification this suite was built against, and
-`HANDOFF.md` for the paging subsystem itself.
+`HANDOFF_CLAUDE.md` for the paging subsystem itself.
 
 ## Why native workloads, not ported real applications
 
@@ -392,11 +392,134 @@ helper (called from `at()`/`set_at()`), and `lzwbench`'s
 data (12,865 to 47,784 references in quick smoke-test runs) before
 being used in the calibration control comparison above.
 
+## `user/tracereplay.c` — real-application trace replay through the actual kernel (follow-up task)
+
+Previously dropped as Phase 5 (see below), revisited as a dedicated
+follow-up task once Phases 0-4 and the calibration work
+(`docs/calibration.md`) were done. Closes a gap nothing else in this
+suite closes: `tools/sim.py` (the host-side simulator) is validated
+against the real kernel's own `vmstats`, but only using *native
+workload* traces as input; `tools/calibrate.py` compares real-vs-native
+trace *statistics*, but never drives the real kernel with a real access
+pattern. `user/tracereplay.c` reads a slice of the real Redis reference
+trace and reissues it as real memory touches inside xv6, so the actual
+`kernel/vmpage.c` fault/evict logic runs on it directly.
+
+**Scope, stated plainly**: this is a feasibility investigation with a
+positive result, not a general-purpose trace replayer. The real Redis
+trace (`traces/real/redis_real.trace`) is 12.3M references / 70MB. Two
+filesystem constraints were checked before writing any replay code:
+
+- **Aggregate free space**: `FSSIZE=8000` blocks (`kernel/param.h`) =
+  ~8MB total filesystem; ~6.3MB free after everything else already
+  shipped in `fs.img`. This alone would rule out embedding either full
+  real trace (50-70MB), but still sounds like it should fit a
+  meaningfully large slice.
+- **The actual binding constraint, found second**: `MAXFILE = NDIRECT(12)
+  + NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks ≈ 268KB` — a hard
+  cap on any SINGLE file, regardless of aggregate free space
+  (`kernel/fs.h`). This is far tighter than the aggregate budget and is
+  what actually shapes the design.
+
+**Approach taken — option (a) from the task, "truncate to a prefix,"
+adapted to route around the per-file cap rather than the aggregate one**:
+the first 825,000 references (~6.7% of the full trace) are pre-split on
+the host, by `tools/gen_tracereplay_chunks.py`, into 16 files
+(`user/redisreplay0` .. `redisreplay15`, ~3.81MB total) each packed by
+byte budget (not a fixed line count — see below) to stay safely under
+the 268KB cap. `user/tracereplay.c` opens each chunk in turn and streams
+it through a single 4KB buffer, touching `arena_base + vpn*PGSIZE` for
+each `T <vpn>` reference via `touch_w()`.
+
+**Two real bugs found while building this, reported per this project's
+own honesty norm**:
+
+1. A first attempt chunked by a *fixed line count* (55,000 lines).
+   VPN values grow in digit-count as the trace progresses (more
+   distinct pages get first-seen over time), so a fixed-line chunk near
+   the end of the prefix came out meaningfully bigger than one near the
+   start — one hit 307,374 bytes, over the 274,432-byte cap. Caught
+   before it broke a build; fixed by packing whole lines into each
+   chunk up to a *byte* budget instead (`tools/gen_tracereplay_chunks.py`).
+2. A first version of `tracereplay.c` read a whole chunk into one
+   256KB static buffer. `kernel/exec.c`'s `uvmalloc()` **eagerly** maps
+   every page of a program's `.bss` at process start (a real physical
+   frame per page — unlike `vmbench_arena()`'s `sbrklazy()`-backed lazy
+   holes), so that buffer alone made 64 pages resident before `main()`
+   ran, more than `vmbench_burn()`'s fixed 64-scratch-touch budget could
+   evict through — `vmbench_burn()` failed outright. Fixed by streaming
+   through a single 4KB page-sized buffer instead, which also happens to
+   be a more honest test of "many small sequential reads" throughput.
+
+**Known limitation, stated plainly**: `tools/trace_reduce.py` collapses
+Valgrind's L (load) and S (store) lines into one undifferentiated `T
+<vpn>` reference — the read/write distinction from the real trace is
+already lost upstream of this program and cannot be recovered here.
+Every replayed reference uses `touch_w()` (write), the more conservative
+choice — it exercises both `PTE_A` and `PTE_D`, and therefore the
+write-back path, whereas read-only replay would never exercise dirty
+-page write-back at all. Eviction/write-back counts below are an upper
+bound on what real Redis's actual read/write mix would produce, not an
+exact reproduction of it.
+
+**Results** (arena sized to 835 pages — the actual max VPN referenced
+within this 825,000-reference prefix is 834, not the full trace's own
+1416, since later pages are simply never reached by this slice):
+
+| resident_margin | % of arena | swap_faults | evictions | page_writes | ticks elapsed |
+|---|---|---|---|---|---|
+| 950 (fully generous) | 114% | 3 | 0 | 0 | 13 |
+| 835 (= arena size) | 100% | 7 | 6 | 4 | 13 |
+| 300 | 36% | 317 | 851 | 845 | 444 |
+| 150 | 18% | 1169 | 1853 | 1830 | 510 |
+| 80 | 9.6% | 9920 | 10674 | 10427 | 5339 |
+
+All 825,000 references replay in every run (`total_refs_replayed=825000`,
+`zero_faults=834` — every distinct page in the prefix is touched at
+least once, confirming the parser walks the whole slice correctly). The
+small nonzero `swap_faults` at the fully-generous margin (950) is
+consistent with an already-documented class of noise elsewhere in this
+suite (baseline/code-page resident-set fluctuation during the timed
+window, not an arena-data effect — see the Phase 4 simulator-validation
+note above). Behavior below that is clean and monotonic: tighter margin
+→ more evictions/swap faults, exactly as expected, and a real kernel
+-observed confirmation (not a simulated one) that real Redis-shaped
+memory pressure produces substantial eviction activity in this range.
+
+The `margin=80` run (~9.6% of arena) is itself a real, reportable
+finding distinct from the filesystem-capacity wall: it timed out at a
+150-second QEMU budget (the other margins above all finished in well
+under a minute) and needed a 700-second budget to complete — `ticks
+elapsed` jumped from 510 (margin=150) to 5339, roughly 10x, tracking the
+roughly 10x jump in evictions/swap_faults. Replaying hundreds of
+thousands of references under very tight memory pressure means
+correspondingly many real (emulated) disk I/Os for swap-in/swap-out, and
+wall-clock cost scales with that, not just with reference count.
+Whoever explores tighter margins than this with this tool should budget
+accordingly (the project's existing slow-test precedent —
+`exit-leak`/`usertests -q`/`grind 2000` needing 900-1500s+ — is the
+right comparison, not a bug to chase).
+
+**The one-line summary to have in mind before citing this result**: a
+real 825,000-reference slice of a real Redis Valgrind trace, replayed
+through the actual (not simulated) xv6 paging kernel, produces
+substantial, margin-sensitive eviction activity that grows smoothly as
+memory pressure increases from 36% down to 9.6% of the working set —
+direct, real-kernel corroboration of the
+moderate-pressure oracle-gap zone found earlier (Phase 4/`docs/calibration.md`),
+using a real rather than native-workload access pattern for the first
+time. It does not prove the full-trace or full-working-set behavior
+(this is a 6.7% prefix), and it cannot distinguish what a real Redis
+read/write mix would have produced (every reference replays as a
+write).
+
 ## What was deliberately not done this pass
 
-- **Phase 5 (real-application trace replay)** was dropped per the
-  task's own explicit guidance ("if time is short, this phase is the
-  one to drop") given the time already spent on Phases 0-4.
+- **Phase 5 (real-application trace replay)** was dropped in the
+  original WORK_PROMPT.md pass per the task's own explicit guidance
+  ("if time is short, this phase is the one to drop") given the time
+  already spent on Phases 0-4. Later revisited as its own follow-up
+  task, see `user/tracereplay.c` above.
 - Tracing (Phase 3) was wired into `btreebench` and `kvbench` only, not
   all six workloads — the pattern (one `vmbench_trace_ref()` call in
   each workload's own page-accessor function) is proven and
