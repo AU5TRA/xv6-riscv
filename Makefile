@@ -141,7 +141,7 @@ $U/_forktest: $U/forktest.o $(ULIB)
 # the generic _% rule, so only these programs pay for vmbench.o's size
 # (including the 4KB Zipf table) -- every other user program is
 # unaffected.
-VMBENCH_PROGS = vmbenchtest btreebench kvbench graphbench sortbench matmulbench lzwbench tracereplay
+VMBENCH_PROGS = vmbenchtest btreebench kvbench graphbench sortbench matmulbench lzwbench tracereplay sqlitereplay
 $(addprefix $U/_,$(VMBENCH_PROGS)): $U/_%: $U/%.o $U/vmbench.o $(ULIB) $U/user.ld
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $U/$*.o $U/vmbench.o $(ULIB)
 	$(OBJDUMP) -S $@ > $U/$*.asm
@@ -189,14 +189,16 @@ UPROGS=\
 	$U/_matmulbench\
 	$U/_lzwbench\
 	$U/_tracereplay\
+	$U/_sqlitereplay\
 
-# Pre-split (on the host, see the header comment in user/tracereplay.c)
-# slice of traces/real/redis_real.trace: 825,000 references / 16 files,
-# each kept under xv6's MAXFILE=268-block per-file cap (kernel/fs.h).
+# Pre-split (on the host, see the header comments in user/tracereplay.c
+# and user/sqlitereplay.c) slices of the real Redis/SQLite traces, each
+# file kept under xv6's MAXFILE=268-block per-file cap (kernel/fs.h).
 TRACEREPLAY_DATA=$(addprefix $U/redisreplay,0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)
+SQLITEREPLAY_DATA=$(addprefix $U/sqlitereplay,0 1 2 3 4 5 6)
 
-fs.img: mkfs/mkfs README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA)
-	mkfs/mkfs fs.img README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA)
+fs.img: mkfs/mkfs README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
+	mkfs/mkfs fs.img README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
 	truncate -s $$(($(FSSIZE) * $(BSIZE) + $(NSWAPSLOTS) * 4096)) fs.img
 
 -include kernel/*.d user/*.d

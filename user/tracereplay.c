@@ -125,7 +125,7 @@ main(int argc, char *argv[])
   // by watching for a victim selected from inside the arena's VPN
   // range, which requires the arena to already have at least one
   // resident page (see user/vmbench.h's vmbench_burn() docstring; this
-  // exact ordering bug bit an earlier workload, see HANDOFF_CLAUDE.md
+  // exact ordering bug bit an earlier workload, see HANDOFF_TO_CLAUDE.md
   // SS3 item 1).
   touch_w(arena, 0, 0);
 

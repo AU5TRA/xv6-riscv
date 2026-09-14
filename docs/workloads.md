@@ -513,6 +513,108 @@ time. It does not prove the full-trace or full-working-set behavior
 read/write mix would have produced (every reference replays as a
 write).
 
+### `user/sqlitereplay.c` — the same replay, for real SQLite (second follow-up task)
+
+Extends the `tracereplay.c` result above to a second real application,
+via `traces/real/sqlite_real.trace`, so the interesting question becomes
+a comparison rather than a single data point (see below).
+
+**Design decision**: a separate sibling program (`user/sqlitereplay.c`),
+not a generalized `tracereplay.c` that takes a trace-selector argument.
+Chosen deliberately: this project's own precedent throughout — six
+independent workload programs (`btreebench`/`kvbench`/`graphbench`/
+`sortbench`/`matmulbench`/`lzwbench`), never one parameterized
+"megabench" — favors separate purpose-built programs, and duplicating
+`tracereplay.c`'s small (~150-line) streaming/burn logic carries zero
+risk to its already-verified, already-committed Redis replay path.
+Generalizing it in place would have meant re-verifying that path end to
+end (the task's own explicit warning) for a marginal reduction in
+duplication — not worth the risk for this scope.
+
+**Filesystem headroom, checked empirically before picking a prefix
+size, not assumed**: committing the Redis chunks already used most of
+what was free. A clean rebuild of the tree as it stood before this task
+showed `5785` of `7953` data blocks allocated — only **2168 blocks
+(~2.17MB) free**, well under half of what was available for the
+original `tracereplay.c` task. `tools/gen_tracereplay_chunks.py` was
+generalized (CLI flags for source trace / output prefix / prefix size —
+re-verified to reproduce the existing Redis chunks byte-for-byte after
+the change, before generating anything new) and used to take the first
+**300,000 references (3.51% of the full 8,556,194-reference SQLite
+trace)** — a meaningfully *smaller* fraction than Redis's 6.70%, stated
+plainly rather than letting the smaller absolute number look like an
+equivalent-sized slice. This produced 7 chunk files
+(`user/sqlitereplay0`..`sqlitereplay6`, ~1.52MB total), leaving the
+final build at `7416`/`7953` blocks — comfortable, but with real slack
+now gone (~550KB free after `sqlitereplay`'s own compiled binary too).
+
+**Known limitation**: identical to `tracereplay.c`'s — the read/write
+distinction was already collapsed by `tools/trace_reduce.py` upstream of
+both traces, before either was ever chunked, so it cannot be recovered
+for SQLite any more than it could for Redis. Every reference replays via
+`touch_w()`, the same conservative (write, not read) choice, for the
+same reason (exercises the full write-back path; eviction/write-back
+counts here are an upper bound, not an exact reproduction).
+
+**Results** (arena sized to 282 pages — the actual max VPN referenced
+within this 300,000-reference prefix is 281, not the full trace's own
+283):
+
+| resident_margin | % of arena | swap_faults | evictions | page_writes | ticks elapsed |
+|---|---|---|---|---|---|
+| 282 (= arena size) | 100% | 9 | 8 | 6 | 7 |
+| 100 | 35% | 258 | 439 | 430 | 188 |
+| 50 | 18% | 2011 | 2242 | 2163 | 578 |
+| 25 | 9% | 16662 | 16918 | 15778 | 3983 |
+
+All 300,000 references replay in every run (`total_refs_replayed=300000`,
+`zero_faults=281` confirms the whole prefix is walked correctly). The
+small nonzero `swap_faults`/`evictions` at the fully-generous margin
+(9/8) match the same already-documented baseline/code-page noise class
+seen in `tracereplay.c`'s own generous-margin run (7/6) — consistent,
+not a new effect. Behavior below that is clean and monotonic, same
+shape as the Redis result. `margin=25` (~9% of arena) needed a
+much-longer QEMU budget than 100/50 to complete (timed out at 280s,
+finished within 800s) — the exact same pattern as Redis's own tightest
+margin (`tracereplay.c`'s `margin=80`), for the same reason: wall-clock
+cost scales with real (emulated) swap I/O volume, not just reference
+count.
+
+### Redis vs. SQLite: the actual point of doing a second trace
+
+The real comparison, not just a second set of numbers: does SQLite's
+mostly-sequential-scan-plus-point-lookup access shape produce a
+different eviction ramp than Redis's Zipfian-hot-set shape, across a
+comparable margin range?
+
+Looking at the ratio of evictions to ticks elapsed (a rough proxy for
+how "bursty" the eviction pressure is relative to wall-clock/CPU-tick
+cost) at two comparable pressure points, **SQLite shows a consistently
+steeper ramp than Redis, and the gap widens under tighter pressure**:
+
+| pressure level | SQLite evictions/ticks | Redis evictions/ticks |
+|---|---|---|
+| ~35-36% of arena | 439/188 ≈ 2.33 | 851/444 ≈ 1.92 |
+| ~9-9.6% of arena | 16918/3983 ≈ 4.25 | 10674/5339 ≈ 2.00 |
+
+At loose pressure the two are fairly close (2.33 vs. 1.92). At tight
+pressure SQLite's ratio more than doubles Redis's (4.25 vs. 2.00) —
+SQLite's eviction activity per unit of elapsed time grows faster as
+memory gets scarcer. This is a plausible, qualitatively sensible
+difference given the two access shapes: SQLite's trace is
+insert-then-lookup/scan (a bulk sequential phase that pushes a lot of
+distinct pages through the arena in a short span, then a smaller, more
+localized working set — see `docs/calibration.md`'s own real-trace
+working-set-over-time finding, "a large working set during bulk insert,
+collapsing to a small, stable one during point-lookup/range-scan"),
+which likely concentrates its eviction pressure more sharply than
+Redis's steadier, hot-set-driven SET/GET pattern. This is offered as a
+plausible reading of the data, not a strong claim — the margin points
+aren't perfectly matched between the two traces (35% vs. 36%, 9% vs.
+9.6%, not identical), and a rigorous version of this comparison would
+need matched relative margins and matched op counts, which wasn't done
+here.
+
 ## What was deliberately not done this pass
 
 - **Phase 5 (real-application trace replay)** was dropped in the
