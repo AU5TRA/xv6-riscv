@@ -3,7 +3,7 @@
 
 Capture layout (see user/vmdrain.c):
 
-    [ struct vmtrace_header : 64 bytes ][ struct vmtrace_event : 64 bytes ] * n
+    [ struct vmtrace_header : 128 bytes ][ struct vmtrace_event : 64 bytes ] * n
 
 The header describes the schema. Completeness is proved from the records: the
 kernel stamps every emitted event with a monotonic sequence number and resets
@@ -34,8 +34,8 @@ import struct
 import sys
 from pathlib import Path
 
-VMTRACE_VERSION = 2
-HEADER_SIZE = 64
+VMTRACE_VERSION = 3
+HEADER_SIZE = 128
 RECORD_SIZE = 64
 
 # Must match enum vmtrace_type in kernel/vmtrace.h.
@@ -83,8 +83,16 @@ HEADER_FIELDS = (
     "dropped",
     "buffered",
     "enabled",
+    "event_mask",
+    "reserved0",
+    "reserved1",
+    "reserved2",
+    "reserved3",
+    "reserved4",
+    "reserved5",
+    "reserved6",
 )
-HEADER_STRUCT = struct.Struct("<8Q")
+HEADER_STRUCT = struct.Struct("<16Q")
 
 # uint64 sequence, uint64 cycle, uint32 ticks, generation, pid, vpn,
 # victim_vpn, frame_index, swap_slot, resident_count, queue_id,
@@ -275,7 +283,8 @@ def summarise(cap: Capture) -> None:
     print(f"file:      {cap.path} ({cap.size} bytes)")
     print(
         f"header:    version={header['version']} record_size={header['record_size']} "
-        f"capacity={header['capacity']} read_max={header['read_max']}"
+        f"capacity={header['capacity']} read_max={header['read_max']} "
+        f"event_mask={header['event_mask']:#x}"
     )
     print(f"records:   {cap.count}")
     stats = cap.stats
@@ -347,7 +356,8 @@ def selftest(count: int, tmp: Path) -> int:
     checks that deliberate corruption is reported rather than tolerated."""
     print(f"selftest: writing {count} synthetic records to {tmp}")
     header = HEADER_STRUCT.pack(
-        VMTRACE_VERSION, RECORD_SIZE, 65536, 256, count, 0, 0, 1
+        VMTRACE_VERSION, RECORD_SIZE, 262144, 256, count, 0, 0, 1,
+        (1 << 64) - 1, 0, 0, 0, 0, 0, 0, 0,
     )
     with tmp.open("wb") as fh:
         fh.write(header)

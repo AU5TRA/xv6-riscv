@@ -19,6 +19,7 @@ static int
 trace_restore(int result)
 {
   if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_MASK, VMTRACE_MASK_ALL) < 0 ||
      vmctl(VM_TRACE_SET_CAPACITY, VMTRACE_CAPACITY) < 0)
     return -1;
   return result;
@@ -66,6 +67,7 @@ trace_schema(void)
      header.record_size != 64 ||
      header.capacity != VMTRACE_CAPACITY ||
      header.read_max != VMTRACE_READ_MAX ||
+     header.event_mask != VMTRACE_MASK_ALL ||
      header.enabled != 0 || header.buffered != 0 ||
      header.sequence != 0 || header.dropped != 0)
     return -1;
@@ -195,6 +197,101 @@ trace_wrap(void)
 
 // Overrunning the ring must be loud: the drop counter climbs, an in-band DROP
 // marker appears, and the surviving records show a sequence gap.
+// Masking has to remove event types WITHOUT punching holes in the sequence
+// numbering, or a compact capture would be indistinguishable from a lossy
+// one and the whole drop discipline collapses. vmtrace_emit() therefore
+// rejects a masked event before numbering it, and this is the test of that
+// ordering.
+//
+// It also checks the other half of the change: VICTIM_SELECTED now carries
+// the victim's PTE flags, so the accessed and dirty bits the policy actually
+// saw are recoverable from a capture. They used to be recorded nowhere.
+static int
+trace_mask(void)
+{
+  // PTE_A and PTE_D, spelled out because user programs do not include
+  // riscv.h.
+  enum { TRACE_PTE_A = 1 << 6, TRACE_PTE_D = 1 << 7 };
+  const int pages = 48;
+  struct vmtrace_header header;
+  struct vmstats stats;
+
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, VMTRACE_CAPACITY) < 0 ||
+     vmctl(VM_TRACE_SET_MASK, VMTRACE_MASK_DATASET) < 0)
+    return -1;
+  // The mask is reported, DROP is forced on whatever the caller asked for,
+  // and setting it restarts the stream.
+  if(vmtrace_info(&header) < 0 ||
+     header.event_mask != (VMTRACE_MASK_DATASET | VMTRACE_BIT(VMTRACE_DROP)) ||
+     header.sequence != 0 || header.buffered != 0)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_SET_MASK, 0) == 0)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_SET_MASK, VMTRACE_BIT(VMTRACE_MAP)) < 0 ||
+     vmtrace_info(&header) < 0 ||
+     (header.event_mask & VMTRACE_BIT(VMTRACE_DROP)) == 0)
+    return trace_restore(-1);
+
+  // FIFO, because Clock and Aging clear the accessed bit as they scan and
+  // this test wants to observe it surviving into the trace.
+  if(vmstats(&stats) < 0 || vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0 ||
+     stats.resident_count + 8 > VM_MAX_RESIDENT_LIMIT ||
+     vmctl(VM_SET_LIMIT, stats.resident_count + 8) < 0 ||
+     vmctl(VM_TRACE_SET_MASK, VMTRACE_MASK_DATASET) < 0)
+    return trace_restore(-1);
+
+  uchar *memory = (uchar *)sbrklazy(pages * 4096);
+  if((char *)memory == SBRK_ERROR)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return trace_restore(-1);
+  for(int pass = 0; pass < 3; pass++)
+    for(int i = 0; i < pages; i++)
+      memory[i * 4096] = (uchar)(i + pass);
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return trace_restore(-1);
+
+  uint64 expected = 0;
+  int total = 0;
+  int victims = 0;
+  int saw_accessed = 0;
+  for(;;){
+    int count = vmtrace_read(trace_batch, VMTRACE_READ_MAX);
+    if(count < 0)
+      return trace_restore(-1);
+    if(count == 0)
+      break;
+    for(int i = 0; i < count; i++){
+      // Contiguous from 1: masking cost no sequence numbers.
+      if(trace_batch[i].sequence != expected + 1)
+        return trace_restore(-1);
+      expected = trace_batch[i].sequence;
+      // Nothing outside the mask got through.
+      if((VMTRACE_MASK_DATASET & VMTRACE_BIT(trace_batch[i].type)) == 0)
+        return trace_restore(-1);
+      if(trace_batch[i].type == VMTRACE_VICTIM_SELECTED){
+        victims++;
+        if(trace_batch[i].pte_flags == VMTRACE_NONE16 ||
+           trace_batch[i].pte_flags == 0)
+          return trace_restore(-1);
+        if(trace_batch[i].pte_flags & TRACE_PTE_A)
+          saw_accessed = 1;
+      }
+    }
+    total += count;
+  }
+  // Guards: the run has to have paged, and the flags have to be real.
+  if(total == 0 || victims == 0 || !saw_accessed)
+    return trace_restore(-1);
+  printf("vmtest trace-mask: records=%d victims=%d accessed=%d\n",
+         total, victims, saw_accessed);
+
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return trace_restore(-1);
+  return trace_restore(vmcheck());
+}
+
 static int
 trace_drop(void)
 {
@@ -1305,7 +1402,7 @@ run_all(void)
     "fork-resident", "copyin-swapped", "exec-pressure", "exec-loop",
     "dirty-writeback", "data-invariance", "baseline",
     "trace-schema", "trace-capacity", "trace-wrap",
-    "trace-disabled", "trace-drop", "trace-lossless",
+    "trace-disabled", "trace-drop", "trace-mask", "trace-lossless",
   };
   for(uint i = 0; i < sizeof(common) / sizeof(common[0]); i++){
     printf("vmtest all: %s\n", common[i]);
@@ -1406,6 +1503,8 @@ run(char *name)
     return trace_wrap();
   if(strcmp(name, "trace-disabled") == 0)
     return trace_disabled();
+  if(strcmp(name, "trace-mask") == 0)
+    return trace_mask();
   if(strcmp(name, "trace-drop") == 0)
     return trace_drop();
   if(strcmp(name, "trace-lossless") == 0)

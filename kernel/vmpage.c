@@ -245,6 +245,15 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     return VM_FRAME_ERROR;
   }
   sample_page(victim, 0);
+  // The A and D bits the policy actually saw, captured before anything
+  // clears them. Without this the trace recorded which page was evicted but
+  // nothing about why: VICTIM_SELECTED and EVICT_BEGIN passed VMTRACE_NONE
+  // for pte_flags and EVICT_END masked PTE_A and PTE_D out, so "was the
+  // victim referenced" -- the single most informative feature a replacement
+  // policy has -- was unrecoverable from a capture.
+  pte_t *victim_pte = walk(victim->pagetable, victim->va, 0);
+  uint64 victim_flags =
+    victim_pte ? PTE_FLAGS(*victim_pte) : (uint64)VMTRACE_NONE;
   int wasted_prefetch = victim->state == VM_PAGE_RESIDENT_PREFETCH;
   enum vm_page_state victim_state = victim->state;
   victim->busy = 1;
@@ -257,10 +266,10 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   release(&frame_table.lock);
 
   vmtrace_emit(p, VMTRACE_VICTIM_SELECTED, newva, -1, victim_state,
-               VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+               victim_flags, (pa - KERNBASE) / PGSIZE, victim_backing,
                victimva, VMTRACE_NONE, 0);
   vmtrace_emit(p, VMTRACE_EVICT_BEGIN, victimva, -1, victim_state,
-               VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+               victim_flags, (pa - KERNBASE) / PGSIZE, victim_backing,
                victimva, VMTRACE_NONE, 0);
 
   if(fallback){
@@ -268,7 +277,7 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     p->vm.stats.policy_fallbacks++;
     release(&p->vm.lock);
     vmtrace_emit(p, VMTRACE_POLICY_FALLBACK, newva, -1, victim_state,
-                 VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+                 victim_flags, (pa - KERNBASE) / PGSIZE, victim_backing,
                  victimva, VMTRACE_NONE, 0);
   }
   if(wasted_prefetch){
@@ -276,7 +285,7 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     p->vm.stats.prefetch_wasted++;
     release(&p->vm.lock);
     vmtrace_emit(p, VMTRACE_PREFETCH_WASTE, victimva, -1, victim_state,
-                 VMTRACE_NONE, (pa - KERNBASE) / PGSIZE, victim_backing,
+                 victim_flags, (pa - KERNBASE) / PGSIZE, victim_backing,
                  VMTRACE_NONE, VMTRACE_NONE, 0);
   }
 
@@ -296,15 +305,16 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
-  uint flags = PTE_FLAGS(*pte) &
+  uint report_flags = PTE_FLAGS(*pte);
+  uint flags = report_flags &
     ~(PTE_V | PTE_SWAPPED | PTE_BUSY | PTE_A | PTE_D);
   if(new_slot)
     vmtrace_emit(p, VMTRACE_SWAP_WRITE_BEGIN, victimva, -1, victim_state,
-                 flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 report_flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
                  VMTRACE_NONE, 0);
   if(new_slot && swap_page_write(slot, pa) < 0){
     vmtrace_emit(p, VMTRACE_SWAP_WRITE_END, victimva, -1, victim_state,
-                 flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 report_flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
                  VMTRACE_NONE, -1);
     swap_slot_put(slot);
     acquire(&frame_table.lock);
@@ -317,7 +327,7 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   }
   if(new_slot)
     vmtrace_emit(p, VMTRACE_SWAP_WRITE_END, victimva, -1, victim_state,
-                 flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
+                 report_flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
                  VMTRACE_NONE, 0);
 
   acquire(&frame_table.lock);
@@ -337,8 +347,9 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   setup_page(victim, p, newpt, newva, purpose);
   release(&frame_table.lock);
   sfence_vma();
-  vmtrace_emit(p, VMTRACE_EVICT_END, victimva, -1, victim_state, flags,
-               (pa - KERNBASE) / PGSIZE, slot, newva, VMTRACE_NONE, 0);
+  vmtrace_emit(p, VMTRACE_EVICT_END, victimva, -1, victim_state,
+               report_flags, (pa - KERNBASE) / PGSIZE, slot, newva,
+               VMTRACE_NONE, 0);
 
   // A clean page transfers its retained backing reference to the swapped
   // PTE.  A dirty page receives a private slot, so release its old immutable

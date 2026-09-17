@@ -20,8 +20,22 @@
 //
 // Usage:
 //   vmdrain <file> collect <command> [args...]   run a command, drain while it runs
+//   vmdrain <file> compact <command> [args...]   as collect, dataset event set only
+//   vmdrain <file> smallring <cap> <command>     as collect, on a shrunken ring
 //   vmdrain <file> follow <ticks>                drain for a fixed number of ticks
 //   vmdrain <file> once                          drain whatever is buffered now
+//
+// "smallring" exists so that the overrun path can be tested deliberately.
+// Relying on a workload simply outrunning the ring stopped working the
+// moment the ring was enlarged: the capture became lossless and the test
+// that asserted loss reported that its own premise had evaporated. Forcing
+// a small capacity makes the test independent of VMTRACE_CAPACITY.
+//
+// "compact" records VMTRACE_MASK_DATASET instead of every event type: it
+// drops the *_BEGIN/*_END span markers, which carry only a timestamp and
+// fields their partner already has. That roughly halves the event rate, and
+// the capture header records which mask was in force so a decoded trace is
+// never ambiguous about what it contains.
 //
 // "collect" and "follow" both reset the ring and turn emission on for the
 // measured window, then turn it off again, so their captures start at
@@ -133,6 +147,10 @@ report(const char *path)
          total_records, total_writes, last_sequence);
   printf("vmdrain: kernel: emitted=%ld dropped=%ld buffered=%ld capacity=%ld\n",
          header.sequence, header.dropped, header.buffered, header.capacity);
+  printf("vmdrain: mask=0x%lx (%s)\n", header.event_mask,
+         header.event_mask == VMTRACE_MASK_ALL ? "all events" :
+         header.event_mask == (VMTRACE_MASK_DATASET | VMTRACE_BIT(VMTRACE_DROP))
+           ? "dataset subset" : "custom");
 
   if (header.dropped != 0 || drop_records != 0 || sequence_gaps != 0) {
     printf("vmdrain: INVALID: dropped=%ld drop_records=%ld sequence_gaps=%ld\n",
@@ -161,13 +179,17 @@ open_capture(const char *path)
 
 // Runs `argv` in a child and drains continuously until it exits.
 static int
-collect(const char *path, char **argv)
+collect(const char *path, char **argv, uint64 mask)
 {
   int fd = open_capture(path);
   if (fd < 0)
     return 1;
 
-  if (vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0) {
+  // Set the mask first: it restarts sequencing, so doing it after the reset
+  // would throw away the reset.
+  if (vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+      vmctl(VM_TRACE_SET_MASK, mask) < 0 ||
+      vmctl(VM_TRACE_RESET, 0) < 0) {
     printf("vmdrain: cannot reset the trace ring\n");
     close(fd);
     return 1;
@@ -302,6 +324,8 @@ main(int argc, char **argv)
 {
   if (argc < 3) {
     printf("usage: vmdrain <file> collect <command> [args...]\n");
+    printf("       vmdrain <file> compact <command> [args...]\n");
+    printf("       vmdrain <file> smallring <cap> <command> [args...]\n");
     printf("       vmdrain <file> follow <ticks>\n");
     printf("       vmdrain <file> once\n");
     exit(1);
@@ -315,7 +339,26 @@ main(int argc, char **argv)
       printf("vmdrain: collect needs a command\n");
       exit(1);
     }
-    exit(collect(path, argv + 3));
+    exit(collect(path, argv + 3, VMTRACE_MASK_ALL));
+  }
+  if (strcmp(mode, "compact") == 0) {
+    if (argc < 4) {
+      printf("vmdrain: compact needs a command\n");
+      exit(1);
+    }
+    exit(collect(path, argv + 3, VMTRACE_MASK_DATASET));
+  }
+  if (strcmp(mode, "smallring") == 0) {
+    if (argc < 5) {
+      printf("vmdrain: smallring needs a capacity and a command\n");
+      exit(1);
+    }
+    int cap = atoi(argv[3]);
+    if (cap <= 0 || vmctl(VM_TRACE_SET_CAPACITY, cap) < 0) {
+      printf("vmdrain: cannot set ring capacity to %s\n", argv[3]);
+      exit(1);
+    }
+    exit(collect(path, argv + 4, VMTRACE_MASK_ALL));
   }
   if (strcmp(mode, "follow") == 0) {
     int ticks = argc > 3 ? atoi(argv[3]) : 10;

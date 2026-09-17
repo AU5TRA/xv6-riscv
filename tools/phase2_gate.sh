@@ -118,9 +118,15 @@ run_releasetests() {
 # survived. This step therefore passes when the run fails: it is positive
 # evidence that the drop discipline fires, which is the whole basis for
 # trusting any capture that does not trip it.
+#
+# The overrun is FORCED with a deliberately tiny ring rather than produced by
+# outrunning the real one. The first version relied on the workload emitting
+# faster than the drainer, and enlarging VMTRACE_CAPACITY to 262144 made the
+# capture lossless -- at which point the test correctly reported that its own
+# premise had gone. Forcing it keeps this independent of the ring size.
 overrun_capture() {
   local log
-  if $RUN --timeout 3600 "vmdrain over.bin collect vmtest random 1 100000"
+  if $RUN --timeout 3600 "vmdrain over.bin smallring 4096 vmtest random 1 30000"
   then
     echo "UNEXPECTED: an overrunning capture was reported lossless"
     return 1

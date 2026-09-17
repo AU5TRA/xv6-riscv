@@ -12,8 +12,9 @@
 // deliberate schema bump rather than a silent break.
 typedef char vmtrace_event_is_64_bytes[sizeof(struct vmtrace_event) == 64 ? 1
                                                                           : -1];
-typedef char vmtrace_header_is_64_bytes[sizeof(struct vmtrace_header) == 64 ? 1
-                                                                            : -1];
+typedef char vmtrace_header_is_128_bytes[sizeof(struct vmtrace_header) == 128
+                                           ? 1
+                                           : -1];
 
 static struct {
   struct spinlock lock;
@@ -23,6 +24,7 @@ static struct {
   uint tail;
   uint count;
   uint enabled;
+  uint64 event_mask;
   uint64 sequence;
   uint64 drops;
 } trace_ring;
@@ -63,6 +65,7 @@ vmtrace_init(void)
 {
   initlock(&trace_ring.lock, "vmtrace");
   trace_ring.capacity = VMTRACE_CAPACITY;
+  trace_ring.event_mask = VMTRACE_MASK_ALL;
 }
 
 // Drops every buffered record and restarts sequence numbering. Callers hold
@@ -92,6 +95,17 @@ vmtrace_control(int command, uint64 value)
       result = -1;
     else
       trace_clear();
+  } else if(command == VM_TRACE_SET_MASK){
+    // Changing the mask changes what a capture means, so restart the stream
+    // rather than splicing two schemas together. VMTRACE_DROP is forced on:
+    // masking away the loss markers would leave an overrun capture looking
+    // clean, which is the one failure this subsystem exists to prevent.
+    if(value == 0)
+      result = -1;
+    else {
+      trace_ring.event_mask = value | VMTRACE_BIT(VMTRACE_DROP);
+      trace_clear();
+    }
   } else if(command == VM_TRACE_SET_CAPACITY){
     // Shrinking the ring is how the overflow tests stay cheap: filling
     // 65536 records for real would cost tens of thousands of swap I/Os.
@@ -117,7 +131,11 @@ vmtrace_emit(struct proc *p, int type, uint64 va, int access, int page_state,
   if(type <= 0 || type >= VMTRACE_TYPE_COUNT)
     return;
   acquire(&trace_ring.lock);
-  if(!trace_ring.enabled){
+  // Order matters: a masked-out event is rejected here, BEFORE it is given a
+  // sequence number below. Numbering it first and discarding it after would
+  // punch a hole in the sequence that is indistinguishable from real loss.
+  if(!trace_ring.enabled ||
+     (trace_ring.event_mask & VMTRACE_BIT(type)) == 0){
     release(&trace_ring.lock);
     return;
   }
@@ -202,6 +220,7 @@ vmtrace_info(struct proc *p, uint64 destination)
   header.read_max = VMTRACE_READ_MAX;
   acquire(&trace_ring.lock);
   header.capacity = trace_ring.capacity;
+  header.event_mask = trace_ring.event_mask;
   header.sequence = trace_ring.sequence;
   header.dropped = trace_ring.drops;
   header.buffered = trace_ring.count;

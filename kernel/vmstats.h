@@ -12,6 +12,7 @@
 #define VM_TRACE_ENABLE 7
 #define VM_TRACE_RESET 8
 #define VM_TRACE_SET_CAPACITY 9
+#define VM_TRACE_SET_MASK 10
 #define VM_PREFETCH_NO_HINT ((uint64)-1)
 
 #define VM_LIMIT_UNLIMITED 0

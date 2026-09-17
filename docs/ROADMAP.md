@@ -209,12 +209,16 @@ wins throughout**.
 > Phase 2 found three defects — a kernel I/O-accounting bug that undercounted
 > asynchronous prefetch reads by 41%, a randomised soak that had silently
 > stopped paging, and a measurement artefact in Phase 2's own baseline that
-> ran each policy at a different resident limit — and one measured negative
-> result: lossless tracing does not currently reach dataset scale. Under a
-> real paging workload the drainer keeps 53% of the stream, and only 32% of
-> emitted events arrive with an intact event type; tracing also costs 2.1x
-> wall clock. That last one is a blocker for Phase 5 and is carried into
-> Phase 4.
+> ran each policy at a different resident limit.
+>
+> It also measured a negative result: at `platform-v1.0` lossless tracing
+> did not reach dataset scale — the drainer kept 53% of the stream and only
+> 32% of events arrived intact. **`platform-v1.1` resolves it.** The ring is
+> 262,144 records, a per-event-type mask halves the stream on demand, and
+> the reference paging workload now captures with **zero loss** in both
+> modes. The remaining Phase 4 work on tracing is the two *content* gaps,
+> not volume: there is no reference string for a true Belady label, and
+> eviction records carry the chosen victim's state but not the candidates'.
 >
 > **Next: Phase 3 (SQLite spike), or Phase 4 if the reduced-scope fallback
 > in Part 7 applies.**
@@ -847,7 +851,7 @@ If time compresses, cut in this order:
 
 | Constant | File | Now | Target |
 |---|---|---|---|
-| `VMTRACE_CAPACITY` | `kernel/vmtrace.h` | 128 | 65536 |
+| `VMTRACE_CAPACITY` | `kernel/vmtrace.h` | 128 | 65536, then 262144 at v1.1 |
 | `VMTRACE_READ_MAX` | `kernel/vmtrace.h` | 8 | 256 |
 | `sizeof(struct vmtrace_event)` | `kernel/vmtrace.h` | 152 B | ≤ 48 B |
 | `NSWAPSLOTS` | `kernel/swap.h` | 1024 | 8192 |

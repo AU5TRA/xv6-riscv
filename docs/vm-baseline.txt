@@ -4,7 +4,7 @@ XV6 paging research baseline -- platform-v1.0
 This is the fixed point. When a later experiment produces an implausible
 number, this is the tree to bisect back to.
 
-Tag:        platform-v1.0
+Tag:        platform-v1.1  (supersedes platform-v1.0)
 Commit:     see `git rev-list -n1 platform-v1.0`
 Branch:     riscv
 Evidence:   docs/phase2/gate-results.txt (74 steps, 0 failures)
@@ -59,9 +59,11 @@ a different kernel than the numbers are attributed to.
   fssize                100000       100 MiB
   nbuf                  30           deliberately unchanged
   userstack             16           64 KiB
-  trace_version         2
-  trace_capacity        65536        records
+  trace_version         3
+  trace_capacity        262144       records (16 MiB of kernel BSS)
   trace_record          64           bytes
+  trace header          128          bytes (two record slots, keeping every
+                                     record 64-byte aligned in a capture)
 
 
 Recorded baselines
@@ -139,38 +141,44 @@ Timings on the reference host:
 Measured trace-capture envelope
 -------------------------------
 
-A capture is lossless only while the drainer keeps up with the emitter. On
-one CPU the two share the processor, so the meaningful measurement is the
-fraction of the stream that survives, not either rate in isolation.
+The ring buys a fixed BACKLOG, not a rate. A capture is lossless as long as
+the drainer never falls more than `trace_capacity` records behind, and
+vmdrain keeps draining after the workload exits, so a bounded experiment
+only has to fit its peak backlog.
 
-  vmtest swap-repeat   28,274 records, 0 drops          -- lossless
-  vmtest random 1e5   302,243 emitted, 142,629 dropped  -- REJECTED
+At v1.0 the ring held 65,536 records and the reference paging workload
+(`vmtest random 1 100000`) had a peak backlog of about 143,000 -- more than
+twice the capacity. 47% of the capture was lost and only 31.7% of emitted
+events arrived with an intact event type. Raising the ring to 262,144 and
+adding a per-event-type mask fixed both. Measured on the same workload:
 
-Composition of the rejected capture, from tools/decode_trace.py:
+  configuration                          records   lost   wall clock
+  ---------------------------------------------------------------------
+  v1.0: 65536 ring, all events           161,285   47.2%      156 s
+  v1.1: 262144 ring, all events          302,243    0.0%      252 s
+  v1.1: 262144 ring, dataset mask        150,223    0.0%      158 s
 
-  emitted                        302,243   (deterministic across runs)
-  reached the file               161,285   53.4%
-    of which DROP markers         65,588
-  arrived with an intact type     95,697   31.7%
-  never arrived at all           140,958   46.6%
+Both v1.1 rows decode --strict clean: sequence 1..N, no gaps, no DROP
+records. The dataset mask halves the stream (2.01x) by dropping the
+*_BEGIN/*_END span markers, whose only unique contribution is a timestamp,
+and costs 37% less wall clock.
 
-Rates during that run (workload 152.4 s, excluding boot and build):
+Emitted counts are deterministic across runs (302,243 every time). The lost
+count under overrun is not, because it depends on how the drainer and the
+workload interleave on the single CPU.
 
-  emission                 ~1,980 records/s
-  drain                    ~1,050 records/s  (~66 KB/s of 64-byte records)
-  cost of tracing          72.5 s -> 152.4 s, i.e. 2.1x wall clock
+Events per swap fault, which is the number to plan a capture with:
 
-The emitted count is deterministic (302,243 in all three runs). The dropped
-count is not (142,629, 140,958), because it depends on how the drainer and
-the workload interleave.
+  all events        ~8    (7 clean, 9 when the victim is dirty)
+  dataset mask      ~4
 
-The ring buys a fixed backlog rather than a rate: the capture above stayed
-perfectly lossless for its first 30,725 records, then lost roughly 550
-events before every subsequent 256-record drain batch.
+A capture file is capped by MAXFILE at 67.4 MB, i.e. about 1.05 million
+records; past that, split the run across captures.
 
-Both outcomes are in the matrix on purpose. The second is the evidence
-that the drop discipline fires; a capture that overruns is discarded
-whole, never truncated to the part that survived.
+The matrix still contains a deliberately overrunning capture that must be
+REJECTED -- `vmdrain ... smallring 4096 ...` forces the overrun with a tiny
+ring rather than relying on the workload outrunning the real one, which
+stopped working the moment the ring was enlarged.
 
 
 Test-plan deviations carried forward
