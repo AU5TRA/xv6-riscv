@@ -2302,20 +2302,28 @@ bsstest(char *s)
   }
 }
 
-// does exec return an error if the arguments
-// are larger than a page? or does it write
-// below the stack and wreck the instructions/data?
+// does exec return an error if the arguments do not fit on the user
+// stack? or does it write below the stack and wreck the
+// instructions/data?
 void
 bigargtest(char *s)
 {
   int pid, fd, xstatus;
 
+  // MAXARG-1 arguments of this size cannot fit in USERSTACK pages,
+  // whatever USERSTACK is. Deriving it matters: a fixed 400 bytes only
+  // overflowed a one-page stack, so this quietly stopped testing
+  // anything once the stack grew. Each argument still stays under
+  // PGSIZE so exec's per-argument fetchstr limit is not what rejects
+  // it -- the stack bound is.
+  enum { BIGSZ = (USERSTACK * PGSIZE) / (MAXARG - 1) + 64 };
+
   unlink("bigarg-ok");
   pid = fork();
   if (pid == 0) {
     static char *args[MAXARG];
+    static char big[BIGSZ];
     int i;
-    char big[400];
     memset(big, ' ', sizeof(big));
     big[sizeof(big) - 1] = '\0';
     for (i = 0; i < MAXARG - 1; i++)

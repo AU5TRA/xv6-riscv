@@ -398,7 +398,10 @@ ireclaim(int dev)
 // The content (data) associated with each inode is stored
 // in blocks on the disk. The first NDIRECT block numbers
 // are listed in ip->addrs[].  The next NINDIRECT blocks are
-// listed in block ip->addrs[NDIRECT].
+// listed in the singly-indirect block ip->addrs[NDIRECT].
+// The remaining NDINDIRECT blocks are reached through the
+// doubly-indirect block ip->addrs[NDIRECT+1], whose entries
+// each point at a further block of NINDIRECT block numbers.
 
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
@@ -440,8 +443,62 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+  bn -= NINDIRECT;
+
+  if (bn < NDINDIRECT) {
+    // Load the doubly-indirect block, allocating if necessary.
+    if ((addr = ip->addrs[NDIRECT + 1]) == 0) {
+      addr = balloc(ip->dev);
+      if (addr == 0)
+        return 0;
+      ip->addrs[NDIRECT + 1] = addr;
+    }
+    bp = bread(ip->dev, addr);
+    a = (uint *)bp->data;
+    if ((addr = a[bn / NINDIRECT]) == 0) {
+      addr = balloc(ip->dev);
+      if (addr == 0) {
+        brelse(bp);
+        return 0;
+      }
+      a[bn / NINDIRECT] = addr;
+      log_write(bp);
+    }
+    brelse(bp);
+
+    // Load the second-level indirect block, allocating if necessary.
+    bp = bread(ip->dev, addr);
+    a = (uint *)bp->data;
+    if ((addr = a[bn % NINDIRECT]) == 0) {
+      addr = balloc(ip->dev);
+      if (addr) {
+        a[bn % NINDIRECT] = addr;
+        log_write(bp);
+      }
+    }
+    brelse(bp);
+    return addr;
+  }
 
   panic("bmap: out of range");
+}
+
+// Free a singly-indirect block and every data block it references.
+static void
+free_indirect(struct inode *ip, uint addr)
+{
+  struct buf *bp;
+  uint *a;
+  int j;
+
+  bp = bread(ip->dev, addr);
+  a = (uint *)bp->data;
+  for (j = 0; j < NINDIRECT; j++) {
+    if (a[j])
+      bfree(ip->dev, a[j]);
+  }
+  brelse(bp);
+  bfree(ip->dev, addr);
 }
 
 // Truncate inode (discard contents).
@@ -461,15 +518,20 @@ itrunc(struct inode *ip)
   }
 
   if (ip->addrs[NDIRECT]) {
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    free_indirect(ip, ip->addrs[NDIRECT]);
+    ip->addrs[NDIRECT] = 0;
+  }
+
+  if (ip->addrs[NDIRECT + 1]) {
+    bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
     a = (uint *)bp->data;
     for (j = 0; j < NINDIRECT; j++) {
       if (a[j])
-        bfree(ip->dev, a[j]);
+        free_indirect(ip, a[j]);
     }
     brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
-    ip->addrs[NDIRECT] = 0;
+    bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+    ip->addrs[NDIRECT + 1] = 0;
   }
 
   ip->size = 0;

@@ -1,18 +1,199 @@
-XV6 paging research baseline
-============================
+XV6 paging research baseline -- platform-v1.0
+=============================================
 
-Repository commit: 7d01506ee03394b6b1a161ccee69cd150ab471fc
-Reference configuration: CPUS=1, QEMU memory=128 MiB
-Host: WSL2 Ubuntu 24.04 on Windows
-RISC-V compiler: riscv64-unknown-elf-gcc 13.2.0-11ubuntu1+12
-QEMU: 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
-Python: 3.12.3
-pexpect: 4.9
+This is the fixed point. When a later experiment produces an implausible
+number, this is the tree to bisect back to.
 
-The compiler, QEMU, and Python packages are unpacked under
-/home/ashfaq/.local/xv6-tools because this machine does not grant passwordless
-sudo. They are not part of the repository or the experiment output.
+Tag:        platform-v1.1  (supersedes platform-v1.0)
+Commit:     see `git rev-list -n1 platform-v1.0`
+Branch:     riscv
+Evidence:   docs/phase2/gate-results.txt (74 steps, 0 failures)
+            docs/phase2/report.md        (analysis and conclusions)
+            docs/phase2/static-checks.md (Step 1 PTE audit)
+            test-logs/                   (full QEMU transcripts, gitignored)
 
-The checkout is owned by Windows Git with CRLF worktree conversion. Build and
-QEMU commands run in WSL; git status and git diff --check run through Windows
-Git so unchanged CRLF files are not misclassified as whole-file edits.
+
+Reference configuration
+-----------------------
+
+CPUS=1 is the correctness claim. CPUS=3 is stress only: no cross-hart TLB
+shootdown is implemented, so multicore paging correctness is NOT claimed.
+
+  QEMU memory      128 MiB      (never reduce it to create pressure; the
+                                 resident-frame limit inside xv6 is the
+                                 knob, and PHYSTOP is assumed reachable)
+  Host             WSL2 Ubuntu 24.04.4 LTS on Windows 11
+  Kernel           Linux 6.18.33.2-microsoft-standard-WSL2 x86_64
+  Compiler         riscv64-unknown-elf-gcc 13.2.0 (13.2.0-11ubuntu1+12)
+  Linker           GNU ld 2.42 (2.42-1ubuntu1+6)
+  QEMU             8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+  Python           3.12.3
+  pexpect          4.9.0
+
+The compiler, QEMU and Python packages are unpacked under
+/home/ashfaq/.local/xv6-tools and put on PATH by /home/ashfaq/xv6env.sh,
+because this machine does not grant passwordless sudo. They are not part
+of the repository or the experiment output.
+
+fs.img lives on a 9p-mounted Windows drive under WSL2. That detail affects
+the timings below and nothing else.
+
+The checkout is owned by Windows Git with core.autocrlf=true. `git status`
+and `git diff --check` are run through Windows Git so unchanged CRLF files
+are not misclassified as whole-file edits; tools/run_xv6_tests.py passes
+`-c core.autocrlf=true` for the same reason. .gitattributes pins *.sh and
+*.py to LF so a script checked out on Windows still runs under WSL.
+
+
+Compile-time paging configuration
+---------------------------------
+
+Every transcript carries this as two lines printed at boot by
+kernel/main.c:vm_print_config(). A transcript without them was produced by
+a different kernel than the numbers are attributed to.
+
+  frames                32768        (PHYSTOP - KERNBASE) / PGSIZE
+  resident_limit_max    16384
+  policies              3            FIFO, Clock, Aging
+  swapslots             8192         32 MiB of raw swap past the filesystem
+  fssize                100000       100 MiB
+  nbuf                  30           deliberately unchanged
+  userstack             16           64 KiB
+  trace_version         3
+  trace_capacity        262144       records (16 MiB of kernel BSS)
+  trace_record          64           bytes
+  trace header          128          bytes (two record slots, keeping every
+                                     record 64-byte aligned in a capture)
+
+
+Recorded baselines
+------------------
+
+Source: `vmtest baseline` and `vmtest data-invariance`. Both run one
+deterministic 64-page workload -- write the pattern, read it back four
+times alternating direction, then 1024 pseudorandom probes -- in a forked
+child so every configuration starts from an identical state, under a
+resident limit of 35 frames against a start_resident of 27.
+
+Determinism, measured rather than assumed:
+
+  * Every SYNCHRONOUS row below is bit-identical between the release and
+    the VM_DEBUG build and across repeated runs of the same tree. The
+    prefetch-disabled table is likewise identical in both builds.
+  * ASYNCHRONOUS rows reproduce in DATA only. The worker is scheduled
+    concurrently with the workload, so eviction and prefetch counts move
+    by up to about 2% between runs (Clock async: 1714 debug, 1721
+    release). Dataset collection that needs counter-level reproducibility
+    must use synchronous prefetch or none.
+  * The counts are a property of THIS BUILD of the test program, not of
+    the policy alone. Changing user/vmtest.c changes the binary's page
+    layout, which changes which of the process's own pages are cold, which
+    moves the counts: Clock read 1327 baseline faults before the
+    random_workload fix and 1325 after, with no change to either the
+    policy or the measured workload. Re-record this table whenever the
+    workload binary changes, even if its logic did not.
+
+1. Policy baseline, prefetch disabled (limit=35, start_resident=27, 64 pages)
+
+  policy   swap_faults  evictions  page_reads  page_writes  fallbacks
+  FIFO           1440       1496        1440           95          0
+  Clock          1325       1381        1325           94          0
+  Aging          1405       1461        1405           95          0
+
+  Clock is 8.0% better than FIFO on this workload and Aging sits between
+  them. The spread is small, which is itself worth remembering when
+  Phase 5 measures the Clock-to-Belady gap.
+
+2. Policy x prefetch matrix (limit=35, prefetch enabled and automatic)
+
+  policy  mode   checksum   evict  faults  reads  writes  pf_acc  pf_use  pf_waste
+  FIFO    sync   AB0C8578    1567    1039   1511      95     472     414        48
+  FIFO    async  AB0C8578    1567    1039   1509      95     472     414        48
+  Clock   sync   AB0C8578    1746    1127   1690      94     563     215       347
+  Clock   async  AB0C8578    1721    1102   1664      94     563     235       325
+  Aging   sync   AB0C8578    1489    1000   1433      95     433     413        14
+  Aging   async  AB0C8578    1487     998   1429      95     433     415        12
+
+  Async rows are the release build; the debug build gave 1567 / 1714 /
+  1487 evictions for the same three.
+
+  All six checksums equal AB0C8578, which is also the value computed from
+  the pattern definition alone without touching memory. Identical data,
+  materially different mechanics: 17% spread in evictions, 13% in swap
+  faults, and a factor of 29 in wasted prefetches.
+
+3. Randomised soak (`vmtest random <seed> 100000`, 51 pages, limit 35)
+
+  seed 1: 37,495 swap faults, 37,538 evictions, 19,744 page writes.
+  Ten seeds pass in each configuration: 1 2 3 4 5 17 31 127 1024 65535.
+
+Timings on the reference host:
+
+  usertests -q       1582 s debug / 1568 s release
+  grind 200            12 s debug /   13 s release
+  bigfiletest all      96 s debug /  109 s release
+  vmtest all           74 s debug /   71 s release
+  prefetchtest all     12 s debug /    4 s release
+  soak, one seed       70 s debug /   82 s release
+  whole matrix         about 80 minutes
+
+
+Measured trace-capture envelope
+-------------------------------
+
+The ring buys a fixed BACKLOG, not a rate. A capture is lossless as long as
+the drainer never falls more than `trace_capacity` records behind, and
+vmdrain keeps draining after the workload exits, so a bounded experiment
+only has to fit its peak backlog.
+
+At v1.0 the ring held 65,536 records and the reference paging workload
+(`vmtest random 1 100000`) had a peak backlog of about 143,000 -- more than
+twice the capacity. 47% of the capture was lost and only 31.7% of emitted
+events arrived with an intact event type. Raising the ring to 262,144 and
+adding a per-event-type mask fixed both. Measured on the same workload:
+
+  configuration                          records   lost   wall clock
+  ---------------------------------------------------------------------
+  v1.0: 65536 ring, all events           161,285   47.2%      156 s
+  v1.1: 262144 ring, all events          302,243    0.0%      252 s
+  v1.1: 262144 ring, dataset mask        150,223    0.0%      158 s
+
+Both v1.1 rows decode --strict clean: sequence 1..N, no gaps, no DROP
+records. The dataset mask halves the stream (2.01x) by dropping the
+*_BEGIN/*_END span markers, whose only unique contribution is a timestamp,
+and costs 37% less wall clock.
+
+Emitted counts are deterministic across runs (302,243 every time). The lost
+count under overrun is not, because it depends on how the drainer and the
+workload interleave on the single CPU.
+
+Events per swap fault, which is the number to plan a capture with:
+
+  all events        ~8    (7 clean, 9 when the victim is dirty)
+  dataset mask      ~4
+
+A capture file is capped by MAXFILE at 67.4 MB, i.e. about 1.05 million
+records; past that, split the run across captures.
+
+The matrix still contains a deliberately overrunning capture that must be
+REJECTED -- `vmdrain ... smallring 4096 ...` forces the overrun with a tiny
+ring rather than relying on the workload outrunning the real one, which
+stopped working the moment the ring was enlarged.
+
+
+Test-plan deviations carried forward
+------------------------------------
+
+Upstream xv6 `grind` runs forever by design. Its default behaviour is
+kept; an optional per-worker operation count was added for automation, so
+`grind 200` terminates with a PASS marker.
+
+Synchronous versus asynchronous prefetch is selected with VM_PREFETCH_MODE.
+Automatic next-page prediction has its own VM_PREFETCH_AUTOMATIC switch so
+explicit duplicate and race experiments stay deterministic.
+
+VM_PREFETCH_MODE is refused while anything is queued or in flight, so a
+test that switches modes has to drain first (vmtest quiesce_prefetch()).
+vmcheck() has the same precondition: an async prefetch in flight owns a
+frame in VM_PAGE_RESIDENT_PREFETCH whose PTE is not installed yet, and
+vmcheck correctly reports that as a pte mismatch.

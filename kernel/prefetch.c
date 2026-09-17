@@ -403,7 +403,7 @@ vm_prefetch_worker(void)
                  VMTRACE_NONE, request.request_id, 0);
 
     int io_result = request.canceled ? -1 :
-      swap_page_read(request.slot, request.pa);
+      swap_page_read_owner(request.owner, request.slot, request.pa);
 
     acquire(&async_queue.lock);
     int canceled = async_queue.requests[index].canceled;

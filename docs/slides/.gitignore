@@ -1,0 +1,8 @@
+# LaTeX build artefacts. The PDF is excluded by the repository-root rule.
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb

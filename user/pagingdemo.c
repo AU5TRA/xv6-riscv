@@ -52,6 +52,20 @@ fld(uint64 v)
   return (long)v;
 }
 
+static long
+fld32(uint32 v)
+{
+  // Schema v2 narrowed most record fields to 32 bits, so a field that
+  // does not apply carries VMTRACE_NONE32, not VMTRACE_NONE. Every
+  // vpn/slot/frame/victim field below must go through this, not the
+  // plain fld() above -- fld() widens a uint32 by zero-extension, so
+  // VMTRACE_NONE32 (0xFFFFFFFF) would print as 4294967295 instead of
+  // -1 without this check (a real bug caught while merging Austra-dev's
+  // schema v2/v3 rework in -- see policydemo.c's identical fld(), which
+  // has the same latent issue and needs the same fix).
+  return v == VMTRACE_NONE32 ? -1 : (long)v;
+}
+
 // Prints one plain-language sentence explaining a single trace event.
 // Field meaning is event-type-dependent (taken directly from the
 // vmtrace_emit(...) call sites in kernel/vm.c and kernel/vmpage.c, not
@@ -130,13 +144,14 @@ dump_trace(const char *label)
   printf("\n-- trace events: %s --\n", label);
   while((n = vmtrace_read(ev, 8)) > 0){
     for(int i = 0; i < n; i++){
-      printf("  #%ld %s vpn=%ld slot=%ld frame=%ld victim_vpn=%ld status=%ld\n",
-             fld(ev[i].sequence), trace_name(ev[i].type), fld(ev[i].vpn),
-             fld(ev[i].swap_slot), fld(ev[i].frame_index),
-             fld(ev[i].victim_vpn), fld(ev[i].status));
-      explain_event((int)ev[i].type, fld(ev[i].vpn), fld(ev[i].swap_slot),
-                    fld(ev[i].frame_index), fld(ev[i].victim_vpn),
-                    fld(ev[i].status));
+      printf("  #%ld %s vpn=%ld slot=%ld frame=%ld victim_vpn=%ld status=%d\n",
+             fld(ev[i].sequence), trace_name(ev[i].type),
+             fld32(ev[i].vpn), fld32(ev[i].swap_slot),
+             fld32(ev[i].frame_index), fld32(ev[i].victim_vpn),
+             (int)ev[i].status);
+      explain_event((int)ev[i].type, fld32(ev[i].vpn), fld32(ev[i].swap_slot),
+                    fld32(ev[i].frame_index), fld32(ev[i].victim_vpn),
+                    (long)(int)ev[i].status);
     }
   }
   printf("-- end trace --\n");

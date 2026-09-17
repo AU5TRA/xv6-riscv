@@ -33,7 +33,9 @@ int vmfailinject(int, int);
 int vmtestop(int, int);
 int vmprefetch(uint64, int);
 struct vmtrace_event;
+struct vmtrace_header;
 int vmtrace_read(struct vmtrace_event *, int);
+int vmtrace_info(struct vmtrace_header *);
 
 // ulib.c
 int stat(const char *, struct stat *);

@@ -126,6 +126,8 @@ vmstate_ctl(struct proc *p, int command, uint64 value)
     break;
   case VM_TRACE_ENABLE:
   case VM_TRACE_RESET:
+  case VM_TRACE_SET_CAPACITY:
+  case VM_TRACE_SET_MASK:
     result = vmtrace_control(command, value);
     break;
   default:

@@ -209,3 +209,11 @@ sys_vmtrace_read(void)
   argint(1, &maximum);
   return vmtrace_read(myproc(), destination, maximum);
 }
+
+uint64
+sys_vmtrace_info(void)
+{
+  uint64 destination;
+  argaddr(0, &destination);
+  return vmtrace_info(myproc(), destination);
+}

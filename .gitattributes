@@ -1,0 +1,14 @@
+# This worktree is checked out on Windows with core.autocrlf=true, but the
+# build and every experiment run under WSL. A shell script checked out with
+# CRLF is not merely ugly: bash fails on the trailing $'\r' of every line,
+# and a gate driver that had been rewritten with CRLF once already turned a
+# whole matrix run into a no-op that reported success per step
+# (docs/phase0-phase1-report.md, section 2.10). Pin the line endings of
+# everything an interpreter reads directly.
+*.sh    text eol=lf
+*.py    text eol=lf
+
+# Captured tool output, committed verbatim as evidence. Whitespace
+# checking it is meaningless: the trailing spaces are make's, not ours,
+# and normalising them would make the record no longer a record.
+docs/phase2/gate-results*.txt  -whitespace text eol=lf

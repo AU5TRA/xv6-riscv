@@ -70,6 +70,18 @@ fld(uint64 v)
   return (long)v;
 }
 
+static long
+fld32(uint32 v)
+{
+  // Schema v2/v3 (kernel/vmtrace.h, merged from Austra-dev) narrowed most
+  // record fields to 32 bits, so a field that does not apply carries
+  // VMTRACE_NONE32, not the 64-bit VMTRACE_NONE. fld() above widens a
+  // uint32 by zero-extension, so VMTRACE_NONE32 (0xFFFFFFFF) would print
+  // as 4294967295 instead of -1 without this -- the same latent bug
+  // pagingdemo.c had, fixed there when this schema was merged in.
+  return v == VMTRACE_NONE32 ? -1 : (long)v;
+}
+
 static void
 explain_event(int type, long vpn, long slot, long frame, long victim,
               long status)
@@ -130,13 +142,14 @@ dump_trace(const char *label)
   printf("\n-- trace events: %s --\n", label);
   while((n = vmtrace_read(ev, 8)) > 0){
     for(int i = 0; i < n; i++){
-      printf("  #%ld %s vpn=%ld slot=%ld frame=%ld victim_vpn=%ld status=%ld\n",
-             fld(ev[i].sequence), trace_name(ev[i].type), fld(ev[i].vpn),
-             fld(ev[i].swap_slot), fld(ev[i].frame_index),
-             fld(ev[i].victim_vpn), fld(ev[i].status));
-      explain_event((int)ev[i].type, fld(ev[i].vpn), fld(ev[i].swap_slot),
-                    fld(ev[i].frame_index), fld(ev[i].victim_vpn),
-                    fld(ev[i].status));
+      printf("  #%ld %s vpn=%ld slot=%ld frame=%ld victim_vpn=%ld status=%d\n",
+             fld(ev[i].sequence), trace_name(ev[i].type),
+             fld32(ev[i].vpn), fld32(ev[i].swap_slot),
+             fld32(ev[i].frame_index), fld32(ev[i].victim_vpn),
+             (int)ev[i].status);
+      explain_event((int)ev[i].type, fld32(ev[i].vpn), fld32(ev[i].swap_slot),
+                    fld32(ev[i].frame_index), fld32(ev[i].victim_vpn),
+                    (long)(int)ev[i].status);
     }
   }
   printf("-- end trace --\n");

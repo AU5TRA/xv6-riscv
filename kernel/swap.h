@@ -2,7 +2,7 @@
 #define XV6_SWAP_H
 
 #ifndef NSWAPSLOTS
-#define NSWAPSLOTS 1024
+#define NSWAPSLOTS 8192
 #endif
 
 #define SWAP_START_BLOCK FSSIZE

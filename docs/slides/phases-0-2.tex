@@ -1,0 +1,644 @@
+% Phases 0-2 of the xv6-riscv paging research platform.
+%
+% Build:  pdflatex phases-0-2.tex   (run twice, for the progress bars)
+%
+% Every number in this deck comes from docs/phase0-phase1-report.md,
+% docs/phase2/report.md, docs/phase2/gate-results.txt and
+% docs/vm-baseline.txt at tag platform-v1.0.
+
+\documentclass[10pt,aspectratio=169]{beamer}
+
+\usetheme{metropolis}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}   % scalable outline fonts; without this, pdflatex
+                       % falls back to bitmap EC fonts and every glyph
+                       % in the PDF renders blurry
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\metroset{sectionpage=progressbar, numbering=fraction, progressbar=frametitle}
+
+% A calmer palette than the default metropolis orange.
+\definecolor{accent}{HTML}{2C6E8F}
+\definecolor{warn}{HTML}{B5540A}
+\definecolor{good}{HTML}{2E7D4F}
+\setbeamercolor{alerted text}{fg=warn}
+\setbeamercolor{frametitle}{bg=accent}
+\setbeamercolor{progress bar}{fg=accent}
+
+\newcommand{\good}[1]{\textcolor{good}{#1}}
+\newcommand{\warn}[1]{\textcolor{warn}{#1}}
+\newcommand{\ca}{\raisebox{0pt}{$\sim$}}   % "circa", without math spacing
+
+% Every phase frame uses the same four headings, so make them one command.
+\newcommand{\phasehead}[2]{%
+  \frametitle{#1 \quad\small\normalfont\textcolor{white!75!accent}{#2}}}
+
+\title{Building a Trustworthy Paging Platform in xv6-riscv}
+\subtitle{Phases 0--2: tracing, ceilings, and a frozen baseline}
+\date{Tag \texttt{platform-v1.0}}
+
+\begin{document}
+
+\maketitle
+
+% ---------------------------------------------------------------- context
+
+\begin{frame}{Where this starts}
+  \small
+  \textbf{Stock xv6 has no virtual memory management at all.} Pages are
+  allocated eagerly, live in RAM until the process exits, and are never
+  evicted. No page-fault path for memory, no backing store, no replacement
+  policy, no frame metadata.
+
+  \medskip
+  \textbf{Before Phase 0, six subsystems had already been built:}
+  \begin{itemize}
+    \item Lazy allocation (\texttt{sbrklazy}) --- the thing that generates faults
+    \item Disk-backed swap outside the filesystem --- raw VirtIO, no journal
+    \item A per-frame table --- owner, state, pin count, reference and dirty samples
+    \item Three replacement policies --- FIFO, Clock, Aging, switchable at runtime
+    \item Prefetch --- synchronous and asynchronous, with the full race matrix
+    \item Tracing, and about 35 counters
+  \end{itemize}
+
+  \medskip
+  \alert{What was missing was not code. It was evidence.} Nothing proved the
+  system was correct, and nothing could collect data at the scale a
+  machine-learning model needs.
+\end{frame}
+
+\begin{frame}{The three phases in one sentence each}
+  \small
+  \begin{table}
+    \begin{tabular}{@{}llp{7.4cm}@{}}
+      \toprule
+      \textbf{Phase} & \textbf{Name} & \textbf{Purpose} \\
+      \midrule
+      0 & Trace infrastructure & Make data collection \emph{lossless}, so a model
+                                 can never learn from a silently biased sample \\
+      \addlinespace
+      1 & Raise the ceilings   & Remove the size limits that cap working sets
+                                 and block real programs \\
+      \addlinespace
+      2 & Freeze the platform  & Prove correctness is independent of policy, and
+                                 create a fixed point to bisect back to \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \medskip
+  The order is by dependency, not by calendar. Each phase is useless without
+  the one before it: there is no point raising ceilings if the trace is lossy,
+  and no point freezing a platform that cannot host a real workload.
+\end{frame}
+
+% ================================================================ PHASE 0
+
+\section{Phase 0 --- Trace infrastructure}
+
+\begin{frame}
+  \phasehead{Phase 0}{Work done}
+  \small
+  \begin{itemize}
+    \item \textbf{Ring buffer 128 $\to$ 65{,}536 records}; read batch 8 $\to$ 256
+    \item \textbf{Record 152\,B $\to$ 64\,B.} Narrowed field widths, and lifted
+          the per-record \texttt{version} and \texttt{size} out into a one-time
+          header behind a new \texttt{vmtrace\_info()} syscall
+    \item \textbf{New \texttt{user/vmdrain.c}} --- a guest-side process that loops
+          on \texttt{vmtrace\_read()} and writes raw records to a file
+    \item \textbf{New \texttt{tools/decode\_trace.py}} --- host-side decoder and
+          validator
+    \item \textbf{New \texttt{tools/extract\_file.py}} --- pulls a capture out of
+          \texttt{fs.img}, because xv6 cannot hand a file to the host
+    \item \textbf{New \texttt{vmctl(VM\_TRACE\_SET\_CAPACITY, n)}} --- shrink the
+          ring so overflow tests finish in under a second
+    \item \textbf{A drop is fatal, not a warning.} Any capture with
+          \texttt{drops != 0} is declared invalid and discarded whole
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 0}{Why}
+  \small
+  \textbf{The ring held 128 events. Training needs $10^5$ to $10^7$.} Under any
+  real workload it wrapped constantly and the drop count climbed without
+  bound. Nothing downstream of this works until it is fixed.
+
+  \medskip
+  \textbf{Why lossy data is worse than no data:}
+  \begin{quote}
+    A trace with silent holes lets a model learn from a biased sample with
+    nothing flagging it. You then cannot tell ``the model learned something
+    real'' from ``the model learned the shape of the ring buffer's overflow
+    pattern.''
+  \end{quote}
+
+  \medskip
+  \textbf{Why shrink the record?} Smaller records mean more events per byte:
+  more headroom before the ring overflows, and more events per megabyte of
+  capture file.
+
+  \medskip
+  \textbf{Why a host-side extractor?} The capture lands inside the guest
+  filesystem. Without a way to get it out, the pipeline has no end.
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 0}{Results}
+  \small
+  \begin{table}
+    \begin{tabular}{@{}p{5.4cm}l@{}}
+      \toprule
+      \textbf{Gate item} & \textbf{Result} \\
+      \midrule
+      \texttt{vmtest swap-repeat} under tracing
+        & \good{27{,}445 records, sequence 1..27445, 0 gaps, 0 drops} \\
+      \addlinespace
+      Decoder round-trips a 1M-event capture
+        & \good{1{,}000{,}000 synthetic records, field-for-field} \\
+      \addlinespace
+      \dots\ and rejects a broken one
+        & \good{catches a removed record \emph{and} a mid-record truncation} \\
+      \addlinespace
+      Trace buffers are non-pageable
+        & \good{4\,MiB in \texttt{.bss}, confirmed with \texttt{nm}} \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \medskip
+  \textbf{One target was missed, deliberately.} The roadmap asked for
+  $\leq 48$\,B per record. Its own list of required fields sums to 73\,B, so 48
+  was unreachable without dropping fields it called the minimum set.
+  \textbf{64\,B} keeps every field, wastes no padding, and divides the block
+  size so a record never straddles a block boundary. Down from 152\,B.
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 0}{Conclusion}
+  \small
+  \textbf{\good{Claim now licensed:}} \emph{``Every paging event in our
+  experiments is recorded --- no sampling, no loss''} --- for any capture that
+  passes the check. That one sentence is what makes every later number
+  defensible.
+
+  \medskip
+  \textbf{Ruled out:} that a model was trained on a silently biased subset of
+  events.
+
+  \medskip
+  \textbf{What the drop mechanism actually does} (learned by getting a test
+  wrong): on overrun the kernel evicts the oldest record \emph{and} rewrites
+  the incoming one as a \texttt{DROP} marker. Sustained overrun therefore
+  turns the entire surviving window into markers.
+  \begin{itemize}
+    \item \good{Good:} an overrun window can never be mistaken for data,
+          whichever end you read it from.
+    \item \warn{Cost:} an overrun capture is not partially salvageable --- you
+          lose the window, not just the oldest record.
+  \end{itemize}
+  The right trade for training data, but a conscious one.
+
+  \medskip
+  \textbf{Still cannot say:} anything about replacement quality. This phase
+  concerns instrument integrity only.
+\end{frame}
+
+% ================================================================ PHASE 1
+
+\section{Phase 1 --- Raise the ceilings}
+
+\begin{frame}
+  \phasehead{Phase 1}{Work done}
+  \small
+  \begin{table}
+    \begin{tabular}{@{}llll@{}}
+      \toprule
+      \textbf{Constant} & \textbf{Was} & \textbf{Now} & \textbf{Effect} \\
+      \midrule
+      \texttt{NSWAPSLOTS} & 1024    & 8192      & swap 4\,MB $\to$ \good{32\,MiB} \\
+      \texttt{USERSTACK}  & 1       & 16        & user stack 4\,KB $\to$ \good{64\,KiB} \\
+      \texttt{FSSIZE}     & 2000    & 100000    & filesystem 2\,MB $\to$ \good{100\,MB} \\
+      \texttt{MAXFILE}    & 268 blk & 65803 blk & max file 274\,KB $\to$ \good{64.26\,MiB} \\
+      \texttt{NBUF}       & 30      & 30        & \warn{deliberately unchanged} \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{-2mm}
+  \begin{itemize}
+    \item \texttt{MAXFILE} grew by adding a \textbf{doubly-indirect block level}
+          (\texttt{NDIRECT} 12 $\to$ 11 plus one doubly-indirect entry), and
+          extending \texttt{bmap()} and \texttt{itrunc()} to match
+    \item \textbf{The same change had to be made again in \texttt{mkfs/mkfs.c}},
+          which keeps its own independent copy of the block-mapping logic
+    \item New \texttt{user/bigfiletest.c} and \texttt{tools/fsck\_xv6.py},
+          a host-side leak and consistency checker
+    \item \texttt{mkfs} now truncates the image instead of writing 100{,}000
+          zero blocks --- rebuild dropped from \ca 90\,s to seconds
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 1}{Why}
+  \small
+  \textbf{Every limit here blocks something specific downstream.}
+
+  \medskip
+  \begin{itemize}
+    \item \textbf{4\,MB swap} caps working sets at 4\,MB. A reviewer can
+          reasonably ask whether anything observed at that size generalises
+          past cache size.
+    \item \textbf{274\,KB maximum file} is smaller than any real program binary
+          or input dataset. It rules out hosting third-party software
+          (Phase 3) and workloads driven by real input data (Phase 4)
+          outright.
+    \item \textbf{4\,KB user stack} means ordinary recursion faults.
+    \item \textbf{\texttt{NBUF} left alone on purpose.} Growing the block cache
+          would move the interesting behaviour out of the paging layer ---
+          which is exactly where the research needs it to stay.
+  \end{itemize}
+
+  \medskip
+  \textbf{The risk that was named in advance:} the \texttt{mkfs} half is the
+  one that gets forgotten. The symptom would be a kernel that can \emph{read}
+  large files and a build that cannot \emph{create} them.
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 1}{Results}
+  \small
+  \begin{itemize}
+    \item \good{\texttt{usertests -q} passes. \texttt{grind} passes.}
+    \item \good{A 5\,MiB file} writes, reads back byte-exact, and deletes with
+          no block leak --- confirmed by an independent host-side fsck
+          (blocks used $=$ blocks reachable, 0 leaked)
+    \item \good{\texttt{vmtest all} and \texttt{prefetchtest all} pass under
+          FIFO, Clock and Aging}, in both the release and the \texttt{VM\_DEBUG}
+          build
+    \item \good{\texttt{vmcheck} clean after every one}
+  \end{itemize}
+
+  \medskip
+  \alert{Ten distinct failures on the way --- and five of them shared a single
+  root cause.}
+
+  \medskip
+  \texttt{USERSTACK} 1 $\to$ 16 added fifteen pages to \emph{every} process's
+  baseline resident set: from about 11 frames to 27. Five separate tests had
+  encoded ``the thing I am testing is much larger than everything else this
+  process holds'' as a \textbf{fixed page count}. One constant in
+  \texttt{param.h} inverted that relationship across two test programs and
+  five tests --- \textbf{none of which mentioned \texttt{USERSTACK}}.
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 1}{Conclusion}
+  \small
+  \textbf{\good{Claim now licensed:}} \emph{``Working-set sizes in this study
+  are bounded by experimental design, not by an artefact of the teaching
+  kernel.''}
+
+  \medskip
+  \textbf{Ruled out:} \emph{``your policy differences are just noise, because
+  nothing ever exceeded a few megabytes.''}
+  \quad\textbf{Unlocked:} the ability to host a real third-party binary at all
+  (Phase 3), and workloads whose data does not fit in the block cache
+  (Phase 4).
+
+  \medskip
+  \textbf{The transferable lesson, from the five-in-one failure:}
+  \begin{quote}
+    Derive test magnitudes from \emph{observed state}, never from literals.
+    And where a test's meaning depends on a state it establishes indirectly
+    --- through a limit, a policy, a fault --- \textbf{assert that the state was
+    actually established.}
+  \end{quote}
+
+  \medskip
+  \warn{A caution that outlives this phase:} every process now carries about
+  27 cold resident pages before it allocates anything. A naive
+  ``limit $=$ N'' experiment is therefore not measuring ``a working set of N
+  pages'' --- it measures N minus a policy-dependent slice of process overhead.
+\end{frame}
+
+% ================================================================ PHASE 2
+
+\section{Phase 2 --- Freeze the platform}
+
+\begin{frame}
+  \phasehead{Phase 2}{Work done}
+  \small
+  \begin{itemize}
+    \item \textbf{Audited every PTE mutation in the kernel} --- 24 sites, each
+          classified as page-table construction, mapping installation, A/D
+          sampling, swap transition, permission change, or cleanup
+    \item \textbf{New \texttt{vmtest data-invariance}} --- one deterministic
+          workload run under all 3 policies $\times$ 2 prefetch modes,
+          requiring byte-exact agreement between them
+    \item \textbf{New \texttt{vmtest baseline}} --- the same workload with
+          prefetch off, printing the reference numbers to bisect against
+    \item \textbf{Provenance on every transcript} --- a boot banner printing the
+          compile-time paging configuration, plus a harness header carrying the
+          commit, the toolchain versions and the build configuration
+    \item \textbf{New \texttt{tools/phase2\_gate.sh}} --- the matrix driver
+    \item \textbf{Ran the whole matrix:} debug and release builds, all three
+          policies, ten randomised seeds each, \texttt{CPUS=3} stress, and the
+          trace-integrity checks
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 2}{Why}
+  \small
+  \textbf{Everything after this point is research.} When a later experiment
+  produces an implausible number, this tag is the point you bisect back to.
+  Skipping it means later debugging has no fixed point.
+
+  \medskip
+  \textbf{The specific disaster being insured against:}
+  \begin{quote}
+    Discovering at the end of the thesis that a reported improvement came from
+    a lifecycle bug --- a leaked swap slot, a lost dirty bit, an eviction that
+    quietly dropped data --- rather than from better victim selection.
+  \end{quote}
+
+  \medskip
+  \textbf{Why a new test was needed.} The requirement ``all policies produce
+  identical application data'' had \emph{no direct test}. Every existing policy
+  test fixes one policy and checks that process alone --- which establishes
+  that each policy is individually correct, but never that they \emph{agree
+  with each other}.
+
+  \medskip
+  \textbf{Why print the configuration.} A number is only evidence if you can
+  say which kernel, which commit and which settings produced it --- recorded at
+  the time, not reconstructed from memory afterwards.
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 2}{Results --- the matrix}
+  \begin{columns}[T]
+    \begin{column}{0.44\textwidth}
+      \small
+      \textbf{\good{74 steps. 0 failures.}}
+      \medskip
+      \begin{itemize}\small
+        \item \texttt{CPUS=1} release
+        \item \texttt{CPUS=1 VM\_DEBUG=1}
+        \item \texttt{CPUS=3}, stress only
+        \item FIFO, Clock, Aging --- each under both prefetch modes
+        \item 10 randomised seeds per configuration
+        \item \texttt{usertests -q}, \texttt{grind}, big-file and fsck checks
+        \item about 80 minutes end to end
+      \end{itemize}
+      \medskip
+      All 15 acceptance criteria ticked with named evidence.
+    \end{column}
+    \begin{column}{0.54\textwidth}
+      \small\textbf{The data-invariance result}\\[4pt]
+      \scriptsize
+      \begin{tabular}{@{}llrrrl@{}}
+        \toprule
+        Policy & Mode & Evict & Faults & Waste & Checksum \\
+        \midrule
+        FIFO  & sync  & 1567 & 1039 &  48 & \good{AB0C8578} \\
+        FIFO  & async & 1567 & 1039 &  48 & \good{AB0C8578} \\
+        Clock & sync  & 1746 & 1127 & 347 & \good{AB0C8578} \\
+        Clock & async & 1721 & 1102 & 325 & \good{AB0C8578} \\
+        Aging & sync  & 1489 & 1000 &  14 & \good{AB0C8578} \\
+        Aging & async & 1487 &  998 &  12 & \good{AB0C8578} \\
+        \bottomrule
+      \end{tabular}
+
+      \medskip
+      \small
+      17\% spread in evictions, 13\% in faults, a factor of \textbf{29} in
+      wasted prefetches --- and \textbf{identical data every time}.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 2}{Results --- three defects found}
+  \small
+  \textbf{1. A real kernel bug: async prefetch reads billed to the wrong
+  process.}\\
+  \texttt{account\_io()} took its process from \texttt{myproc()}, but the async
+  prefetch worker is a \emph{separate kernel process}. Its reads went to the
+  worker's own counters, which nothing reads. An owner's \texttt{page\_reads}
+  came out \emph{exactly} equal to its \texttt{swap\_faults} --- an
+  \alert{41\% undercount of device traffic}. Phase 5 compares I/O across
+  prefetch modes; it would have concluded async does far less I/O than sync.
+  The truth is the opposite.
+
+  \medskip
+  \textbf{2. A test that had silently stopped testing.}\\
+  \texttt{vmtest random} used a fixed 24-page region against a limit of 35. It
+  paged eighteen times during warm-up, then ran \textbf{400{,}000 operations
+  without a single fault} --- and passed, every time, for the life of the
+  project. Now 51 pages against 35: \good{37{,}495 swap faults per 100k
+  operations}.
+
+  \medskip
+  \textbf{3. An artefact in Phase 2's own new code.}\\
+  Reconfiguring one process in a loop meant FIFO ran at limit 34 and Clock at
+  12. It produced a \alert{publishable-looking ``FIFO evicts 34\% fewer
+  pages.''} Fixed with a forked child per configuration and the limit computed
+  once. Corrected: Clock is \good{8.0\%} better than FIFO.
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 2}{Results --- one measured negative result}
+  \small
+  \textbf{Lossless tracing does not yet reach dataset scale.} Fixing defect 2
+  raised the fault rate to a realistic level, and the ring could not keep up.
+
+  \smallskip
+  \begin{table}\small
+    \begin{tabular}{@{}lr@{}}
+      \toprule
+      Events emitted (deterministic across runs)   & 302{,}243 \\
+      Records that reached the file                & 161{,}285 \quad 53.4\% \\
+      \dots\ of which are \texttt{DROP} markers, not data & 65{,}588 \\
+      \midrule
+      \textbf{Arrived with an intact event type}   & \alert{95{,}697 \quad 31.7\%} \\
+      \midrule
+      Emission / drain rate during the run & \ca 1{,}980 / \ca 1{,}050 per s \\
+      Wall-clock cost of tracing           & 72.5\,s $\to$ 152.4\,s (2.1x) \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{-1mm}
+  \textbf{This is a finding, not a gap.} Phase 0's gate explicitly allowed
+  for it. The matrix now records \emph{both} outcomes on purpose --- one
+  lossless capture, and one that \good{must be rejected} --- which is
+  positive evidence that the drop discipline fires.
+
+  \smallskip
+  \textbf{Three remedies, costed:} pace the workload (changes nothing about
+  the system under test); enlarge the ring (bigger backlog, but shifts every
+  absolute page count); or emit fewer event types (loses I/O latency).
+\end{frame}
+
+\begin{frame}
+  \phasehead{Phase 2}{Conclusion}
+  \small
+  \textbf{\good{Claim now licensed --- and it is the load-bearing one:}}
+  \begin{quote}
+    \emph{The platform is correct, and correctness is independent of
+    replacement policy.}
+  \end{quote}
+  Six configurations differ by 17\% in evictions and by a factor of 29 in
+  wasted prefetches, yet all six produce the same byte-exact result --- equal to
+  a checksum computed from the pattern definition \emph{without touching memory
+  at all}. \textbf{So any later difference between policies is a performance
+  difference, not a bug.}
+
+  \medskip
+  \textbf{Reproducibility, measured rather than assumed:} synchronous runs are
+  bit-identical across builds and across runs; asynchronous runs reproduce in
+  \emph{data} only; and the counters belong to a \emph{build of the test
+  binary} --- editing the test file moved Clock's baseline by two faults with no
+  change to policy or workload.
+
+  \medskip
+  \warn{What this does \emph{not} license:} nothing about replacement quality
+  (one workload, one capacity), and nothing about multicore --- no cross-hart
+  TLB shootdown exists, so \texttt{CPUS=3} is stress only.
+\end{frame}
+
+% ================================================================ COMBINED
+
+\section{Taken together}
+
+\begin{frame}{What the three phases jointly establish}
+  \small
+  \begin{enumerate}
+    \item \textbf{The instrument is honest} \emph{(Phase 0)}.\\
+      Every recorded event is recorded, and a capture that lost events says so
+      loudly and is thrown away whole rather than quietly truncated.
+
+    \smallskip
+    \item \textbf{The instrument has range} \emph{(Phase 1)}.\\
+      32\,MiB of swap, 64\,MiB files, 64\,KiB stacks. Results cannot be
+      dismissed as artefacts of a 4\,MB ceiling, and real programs with real
+      input data now fit.
+
+    \smallskip
+    \item \textbf{The instrument is calibrated} \emph{(Phase 2)}.\\
+      Correctness is provably independent of policy, so later differences
+      between policies are performance --- and there is a tagged fixed point
+      with recorded baselines to bisect against.
+  \end{enumerate}
+
+  \medskip
+  \begin{quote}
+    The project moved from ``a paging system exists'' to ``a paging system
+    whose measurements can be trusted.''
+  \end{quote}
+
+  \textbf{None of that is a research result. All of it is the precondition for
+  one.}
+\end{frame}
+
+\begin{frame}{The one lesson that kept recurring}
+  \small
+  \begin{quote}
+    \large
+    \textbf{A fixed magnitude competing against a baseline that grew
+    underneath it.}
+  \end{quote}
+
+  \medskip
+  \texttt{USERSTACK} 1 $\to$ 16 raised every process's post-\texttt{exec}
+  resident set from about 11 frames to 27. That single change broke
+  \textbf{five tests in Phase 0/1} and \textbf{a sixth in Phase 2} --- and
+  \alert{every one of them kept passing} while testing less and less.
+
+  \medskip
+  \textbf{The rule that follows, and it applies to every workload built from
+  here on:}
+  \begin{itemize}
+    \item Derive region sizes and resident limits from \emph{observed} state,
+          never from literals.
+    \item Assert afterwards that the setup actually took effect --- that the
+          workload really did fault and evict.
+  \end{itemize}
+
+  \medskip
+  This matters most in Phase 4: a benchmark whose working set accidentally fits
+  the resident limit will produce a beautiful, meaningless reuse-distance
+  histogram.
+\end{frame}
+
+\begin{frame}{The honest ledger}
+  \small
+  \begin{table}\small
+    \begin{tabular}{@{}lp{8.4cm}@{}}
+      \toprule
+      \textbf{13} & defects found across the three phases
+                    (10 in Phase 0/1, 3 in Phase 2) \\
+      \addlinespace
+      \textbf{2}  & of the Phase 2 defects would have produced plausible,
+                    \emph{publishable-looking} numbers pointing the wrong way \\
+      \addlinespace
+      \textbf{0}  & of those two were visible from a test result --- both were
+                    found by looking at a column that was not the answer \\
+      \addlinespace
+      \textbf{1}  & blocker carried forward, with a measured number and three
+                    costed remedies \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \vspace{-1mm}
+  \begin{quote}
+    \textbf{The freeze did not confirm that the platform was correct. It found
+    the three places where it was not.}
+  \end{quote}
+
+  \medskip
+  That is the argument for these phases existing, and it is worth making in
+  those terms: their value is measured in what they caught, not in the green
+  checkmarks they produced.
+\end{frame}
+
+\begin{frame}{What comes next}
+  \small
+  \textbf{Immediately:}
+  \begin{itemize}
+    \item \textbf{Phase 3} --- a hard-timeboxed attempt to run SQLite. It buys a
+          \emph{methodological independence} argument (``software we did not
+          write''), not a capability. Abandonable by design; failing is itself
+          a reportable systems finding.
+    \item \textbf{Phase 4} --- six workloads with deliberately distinct
+          reuse-distance profiles. \alert{Must resolve the tracing rate limit
+          first.}
+  \end{itemize}
+
+  \medskip
+  \textbf{Then the first genuine research result:}
+  \begin{itemize}
+    \item \textbf{Phase 5} --- a Belady optimal oracle computed offline, and the
+          measured gap between Clock and optimal. \textbf{This result exists
+          whether or not the machine learning works.} If the gap is small
+          everywhere, the honest conclusion is ``learned replacement is not
+          worth its cost in this regime'' --- which is a real contribution, not
+          a failure.
+  \end{itemize}
+
+  \vspace{-1mm}
+  \centering
+  \textcolor{gray}{Every phase from 3 onward has a defensible negative outcome.
+  That property is deliberate, and it is the reason for this ordering.}
+\end{frame}
+
+\begin{frame}[standout]
+  Phases 0--2 complete\\[6pt]
+  {\large\normalfont Tag \texttt{platform-v1.0} --- 74 steps, 0 failures}
+\end{frame}
+
+\end{document}

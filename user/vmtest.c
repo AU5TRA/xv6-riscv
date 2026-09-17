@@ -8,97 +8,429 @@ static int requested_policy = VM_POLICY_FIFO;
 static uint requested_seed = 1;
 static int requested_iterations = 10000;
 
+// A full vmtrace_read() batch is 16 KiB, which does not belong on the
+// user stack even at USERSTACK=16.
+static struct vmtrace_event trace_batch[VMTRACE_READ_MAX];
+
+// The trace ring is global kernel state, so a test that shrinks it has to put
+// it back on every exit path -- run_isolated() children share the same ring as
+// everything that runs after them.
+static int
+trace_restore(int result)
+{
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_MASK, VMTRACE_MASK_ALL) < 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, VMTRACE_CAPACITY) < 0)
+    return -1;
+  return result;
+}
+
+// Reads until the ring is empty, checking that sequence numbers are
+// contiguous and that no in-band drop marker appears. Returns the number of
+// records read, or -1 on any loss.
+static int
+drain_contiguous(uint64 *expected)
+{
+  int total = 0;
+  for(;;){
+    int count = vmtrace_read(trace_batch, VMTRACE_READ_MAX);
+    if(count < 0)
+      return -1;
+    if(count == 0)
+      return total;
+    for(int i = 0; i < count; i++){
+      if(trace_batch[i].type == VMTRACE_DROP ||
+         trace_batch[i].type == 0 ||
+         trace_batch[i].type >= VMTRACE_TYPE_COUNT)
+        return -1;
+      if(trace_batch[i].sequence != ++(*expected))
+        return -1;
+      total++;
+    }
+  }
+}
+
+// The schema now lives in a one-time header rather than in every record, so
+// this checks the header and then checks that a record straddling two lazily
+// allocated user pages still copies out correctly (vmtrace_read must release
+// the ring lock before copyout can fault those pages in).
 static int
 trace_schema(void)
 {
+  struct vmtrace_header header;
+
   if(vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0)
     return -1;
-  char *output_memory = sbrklazy(3 * 4096);
+  if(vmtrace_info(&header) < 0 ||
+     header.version != VMTRACE_VERSION ||
+     header.record_size != sizeof(struct vmtrace_event) ||
+     header.record_size != 64 ||
+     header.capacity != VMTRACE_CAPACITY ||
+     header.read_max != VMTRACE_READ_MAX ||
+     header.event_mask != VMTRACE_MASK_ALL ||
+     header.enabled != 0 || header.buffered != 0 ||
+     header.sequence != 0 || header.dropped != 0)
+    return -1;
+
+  // Five pages so four page-aligned ones are available whatever offset sbrk
+  // happens to return.
+  char *output_memory = sbrklazy(5 * 4096);
   char *fault_memory = sbrklazy(4096);
-  if(output_memory == SBRK_ERROR || fault_memory == SBRK_ERROR ||
-     vmctl(VM_TRACE_ENABLE, 1) < 0)
+  if(output_memory == SBRK_ERROR || fault_memory == SBRK_ERROR)
+    return -1;
+  char *aligned = (char *)(((uint64)output_memory + 4095) & ~(uint64)4095);
+
+  if(vmctl(VM_TRACE_ENABLE, 1) < 0)
     return -1;
   fault_memory[0] = 7;
   if(vmctl(VM_TRACE_ENABLE, 0) < 0)
     return -1;
 
-  // One record straddles two initially-lazy output pages. vmtrace_read must
-  // release the trace lock before copyout faults those pages in.
-  struct vmtrace_event *events = (struct vmtrace_event *)
-    (output_memory + 4096 - 80);
+  // Start 32 bytes before a page boundary: record 0 straddles it.
+  struct vmtrace_event *events =
+    (struct vmtrace_event *)(aligned + 4096 - 32);
   int count = vmtrace_read(events, 2);
-  int saw_fault = 0;
   if(count != 2)
     return -1;
+  int saw_fault = 0;
+  int saw_self = 0;
   for(int i = 0; i < count; i++){
-    if(events[i].version != VMTRACE_VERSION ||
-       events[i].size != sizeof(struct vmtrace_event) ||
-       events[i].type == 0 || events[i].type >= VMTRACE_TYPE_COUNT ||
+    if(events[i].type == 0 || events[i].type >= VMTRACE_TYPE_COUNT ||
        (i && events[i].sequence <= events[i - 1].sequence))
       return -1;
+    // Emission is a global switch, so another process could in principle
+    // land a record here; at least one of these has to be ours.
+    if(events[i].pid == (uint32)getpid())
+      saw_self = 1;
     if(events[i].type == VMTRACE_ZERO_FAULT ||
        events[i].type == VMTRACE_MAP)
       saw_fault = 1;
   }
-  if(!saw_fault || sbrk(-4 * 4096) == SBRK_ERROR)
+  if(!saw_fault || !saw_self)
+    return -1;
+
+  // The header must have followed along.
+  if(vmtrace_info(&header) < 0 || header.sequence < 2 || header.dropped != 0)
+    return -1;
+  // And it must copy out into a lazily allocated page too.
+  struct vmtrace_header *lazy_header =
+    (struct vmtrace_header *)(aligned + 2 * 4096 + 4096 - 24);
+  if(vmtrace_info(lazy_header) < 0 ||
+     lazy_header->version != VMTRACE_VERSION ||
+     lazy_header->record_size != sizeof(struct vmtrace_event))
+    return -1;
+
+  if(sbrk(-6 * 4096) == SBRK_ERROR)
     return -1;
   return vmcheck();
 }
 
+// The capacity control is what keeps the overflow tests affordable, so its
+// bounds are worth checking directly.
 static int
-trace_overflow(int require_drop)
+trace_capacity(void)
 {
-  struct vmstats before;
-  if(vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0 ||
-     vmstats(&before) < 0 ||
-     vmctl(VM_SET_LIMIT, before.resident_count + 4) < 0)
-    return -1;
-  char *memory = sbrklazy(80 * 4096);
-  if(memory == SBRK_ERROR || vmctl(VM_TRACE_ENABLE, 1) < 0)
-    return -1;
-  for(int i = 0; i < 80; i++)
-    memory[i * 4096] = i;
+  struct vmtrace_header header;
+
   if(vmctl(VM_TRACE_ENABLE, 0) < 0)
     return -1;
+  if(vmctl(VM_TRACE_SET_CAPACITY, 0) == 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, VMTRACE_CAPACITY + 1) == 0)
+    return -1;
+  if(vmtrace_info(&header) < 0 || header.capacity != VMTRACE_CAPACITY)
+    return -1;
+  if(vmctl(VM_TRACE_SET_CAPACITY, 64) < 0)
+    return -1;
+  if(vmtrace_info(&header) < 0 || header.capacity != 64 ||
+     header.buffered != 0 || header.sequence != 0)
+    return trace_restore(-1);
+  return trace_restore(vmcheck());
+}
 
-  struct vmtrace_event batch[VMTRACE_READ_MAX];
+// Head and tail must wrap past the end of the array without losing anything.
+// With a 64-record ring, draining every few faults cycles the indices around
+// many times over a cheap workload; the real 65536-record ring would need tens
+// of thousands of faults to wrap even once.
+static int
+trace_wrap(void)
+{
+  const int pages = 96;
+
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, 64) < 0)
+    return -1;
+
+  char *memory = sbrklazy(pages * 4096);
+  if(memory == SBRK_ERROR)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return trace_restore(-1);
+
+  uint64 expected = 0;
+  int total = 0;
+  for(int i = 0; i < pages; i++){
+    memory[i * 4096] = (char)i;
+    // Two events per zero fault, so the 64-record ring wraps every 32 pages
+    // while staying well short of overflowing between drains.
+    int moved = drain_contiguous(&expected);
+    if(moved < 0)
+      return trace_restore(-1);
+    total += moved;
+  }
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return trace_restore(-1);
+
+  int moved = drain_contiguous(&expected);
+  if(moved < 0)
+    return trace_restore(-1);
+  total += moved;
+
+  struct vmtrace_header header;
+  if(vmtrace_info(&header) < 0 || header.dropped != 0 ||
+     header.buffered != 0 || (uint64)total != header.sequence ||
+     total < 2 * pages)
+    return trace_restore(-1);
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return trace_restore(-1);
+  return trace_restore(vmcheck());
+}
+
+// Overrunning the ring must be loud: the drop counter climbs, an in-band DROP
+// marker appears, and the surviving records show a sequence gap.
+// Masking has to remove event types WITHOUT punching holes in the sequence
+// numbering, or a compact capture would be indistinguishable from a lossy
+// one and the whole drop discipline collapses. vmtrace_emit() therefore
+// rejects a masked event before numbering it, and this is the test of that
+// ordering.
+//
+// It also checks the other half of the change: VICTIM_SELECTED now carries
+// the victim's PTE flags, so the accessed and dirty bits the policy actually
+// saw are recoverable from a capture. They used to be recorded nowhere.
+static int
+trace_mask(void)
+{
+  // PTE_A and PTE_D, spelled out because user programs do not include
+  // riscv.h.
+  enum { TRACE_PTE_A = 1 << 6, TRACE_PTE_D = 1 << 7 };
+  const int pages = 48;
+  struct vmtrace_header header;
+  struct vmstats stats;
+
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, VMTRACE_CAPACITY) < 0 ||
+     vmctl(VM_TRACE_SET_MASK, VMTRACE_MASK_DATASET) < 0)
+    return -1;
+  // The mask is reported, DROP is forced on whatever the caller asked for,
+  // and setting it restarts the stream.
+  if(vmtrace_info(&header) < 0 ||
+     header.event_mask != (VMTRACE_MASK_DATASET | VMTRACE_BIT(VMTRACE_DROP)) ||
+     header.sequence != 0 || header.buffered != 0)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_SET_MASK, 0) == 0)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_SET_MASK, VMTRACE_BIT(VMTRACE_MAP)) < 0 ||
+     vmtrace_info(&header) < 0 ||
+     (header.event_mask & VMTRACE_BIT(VMTRACE_DROP)) == 0)
+    return trace_restore(-1);
+
+  // FIFO, because Clock and Aging clear the accessed bit as they scan and
+  // this test wants to observe it surviving into the trace.
+  if(vmstats(&stats) < 0 || vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0 ||
+     stats.resident_count + 8 > VM_MAX_RESIDENT_LIMIT ||
+     vmctl(VM_SET_LIMIT, stats.resident_count + 8) < 0 ||
+     vmctl(VM_TRACE_SET_MASK, VMTRACE_MASK_DATASET) < 0)
+    return trace_restore(-1);
+
+  uchar *memory = (uchar *)sbrklazy(pages * 4096);
+  if((char *)memory == SBRK_ERROR)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return trace_restore(-1);
+  for(int pass = 0; pass < 3; pass++)
+    for(int i = 0; i < pages; i++)
+      memory[i * 4096] = (uchar)(i + pass);
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return trace_restore(-1);
+
+  uint64 expected = 0;
+  int total = 0;
+  int victims = 0;
+  int saw_accessed = 0;
+  for(;;){
+    int count = vmtrace_read(trace_batch, VMTRACE_READ_MAX);
+    if(count < 0)
+      return trace_restore(-1);
+    if(count == 0)
+      break;
+    for(int i = 0; i < count; i++){
+      // Contiguous from 1: masking cost no sequence numbers.
+      if(trace_batch[i].sequence != expected + 1)
+        return trace_restore(-1);
+      expected = trace_batch[i].sequence;
+      // Nothing outside the mask got through.
+      if((VMTRACE_MASK_DATASET & VMTRACE_BIT(trace_batch[i].type)) == 0)
+        return trace_restore(-1);
+      if(trace_batch[i].type == VMTRACE_VICTIM_SELECTED){
+        victims++;
+        if(trace_batch[i].pte_flags == VMTRACE_NONE16 ||
+           trace_batch[i].pte_flags == 0)
+          return trace_restore(-1);
+        if(trace_batch[i].pte_flags & TRACE_PTE_A)
+          saw_accessed = 1;
+      }
+    }
+    total += count;
+  }
+  // Guards: the run has to have paged, and the flags have to be real.
+  if(total == 0 || victims == 0 || !saw_accessed)
+    return trace_restore(-1);
+  printf("vmtest trace-mask: records=%d victims=%d accessed=%d\n",
+         total, victims, saw_accessed);
+
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return trace_restore(-1);
+  return trace_restore(vmcheck());
+}
+
+static int
+trace_drop(void)
+{
+  const int capacity = 64;
+  const int pages = 256;
+
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, capacity) < 0)
+    return -1;
+
+  char *memory = sbrklazy(pages * 4096);
+  if(memory == SBRK_ERROR)
+    return trace_restore(-1);
+  if(vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return trace_restore(-1);
+  // No draining at all, so the ring is guaranteed to overrun.
+  for(int i = 0; i < pages; i++)
+    memory[i * 4096] = (char)i;
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return trace_restore(-1);
+
+  struct vmtrace_header header;
+  if(vmtrace_info(&header) < 0 || header.buffered != (uint64)capacity ||
+     header.sequence <= (uint64)capacity ||
+     header.dropped != header.sequence - (uint64)capacity)
+    return trace_restore(-1);
+
   uint64 previous = 0;
+  uint64 first = 0;
   int total = 0;
   int saw_drop = 0;
   for(;;){
-    int count = vmtrace_read(batch, VMTRACE_READ_MAX);
+    int count = vmtrace_read(trace_batch, VMTRACE_READ_MAX);
     if(count < 0)
-      return -1;
+      return trace_restore(-1);
     if(count == 0)
       break;
-    total += count;
     for(int i = 0; i < count; i++){
-      if(batch[i].sequence <= previous)
-        return -1;
-      previous = batch[i].sequence;
-      if(batch[i].type == VMTRACE_DROP && batch[i].status > 0)
+      if(first == 0)
+        first = trace_batch[i].sequence;
+      // The survivors are the newest records, so they are contiguous
+      // among themselves; the loss shows up as the window starting late.
+      else if(trace_batch[i].sequence != previous + 1)
+        return trace_restore(-1);
+      previous = trace_batch[i].sequence;
+      if(trace_batch[i].type == VMTRACE_DROP && trace_batch[i].status > 0)
         saw_drop = 1;
+      total++;
     }
   }
-  if(total != VMTRACE_CAPACITY || (require_drop && !saw_drop) ||
-     sbrk(-80 * 4096) == SBRK_ERROR)
-    return -1;
-  return vmcheck();
+  // Exactly one ring's worth survives, the window does not start at
+  // sequence 1 (so a reader cannot mistake it for a complete capture),
+  // and an in-band drop marker is present.
+  if(total != capacity || !saw_drop || first != previous - capacity + 1 ||
+     first <= 1)
+    return trace_restore(-1);
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return trace_restore(-1);
+  return trace_restore(vmcheck());
 }
 
 static int
 trace_disabled(void)
 {
   struct vmtrace_event event;
+  struct vmtrace_header header;
   if(vmctl(VM_TRACE_ENABLE, 0) < 0 || vmctl(VM_TRACE_RESET, 0) < 0)
     return -1;
   char *memory = sbrklazy(4096);
   if(memory == SBRK_ERROR)
     return -1;
   memory[0] = 1;
-  if(vmtrace_read(&event, 1) != 0 || sbrk(-4096) == SBRK_ERROR)
+  if(vmtrace_read(&event, 1) != 0)
+    return -1;
+  if(vmtrace_info(&header) < 0 || header.enabled != 0 ||
+     header.sequence != 0 || header.buffered != 0 || header.dropped != 0)
+    return -1;
+  if(sbrk(-4096) == SBRK_ERROR)
     return -1;
   return vmcheck();
+}
+
+// The Phase 0 requirement in one test: a dataset-scale event stream captured
+// with zero drops and no sequence gaps, at the ring's real capacity.
+static int
+trace_lossless(void)
+{
+  const int pages = 64;
+  const int passes = 100;
+  struct vmstats stats;
+
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0 ||
+     vmctl(VM_TRACE_SET_CAPACITY, VMTRACE_CAPACITY) < 0 ||
+     vmstats(&stats) < 0 ||
+     vmctl(VM_SET_LIMIT, stats.resident_count + 8) < 0)
+    return -1;
+
+  uchar *memory = (uchar *)sbrklazy(pages * 4096);
+  if((char *)memory == SBRK_ERROR)
+    return trace_restore(-1);
+  for(int page = 0; page < pages; page++)
+    memory[page * 4096] = (uchar)page;
+
+  if(vmctl(VM_TRACE_ENABLE, 1) < 0)
+    return trace_restore(-1);
+
+  uint64 expected = 0;
+  int total = 0;
+  for(int pass = 0; pass < passes; pass++){
+    for(int n = 0; n < pages; n++){
+      // Alternate direction so the resident set never predicts the next miss.
+      int page = (pass & 1) ? pages - n - 1 : n;
+      if(memory[page * 4096] != (uchar)page)
+        return trace_restore(-1);
+    }
+    int moved = drain_contiguous(&expected);
+    if(moved < 0)
+      return trace_restore(-1);
+    total += moved;
+  }
+  if(vmctl(VM_TRACE_ENABLE, 0) < 0)
+    return trace_restore(-1);
+  int moved = drain_contiguous(&expected);
+  if(moved < 0)
+    return trace_restore(-1);
+  total += moved;
+
+  struct vmtrace_header header;
+  if(vmtrace_info(&header) < 0 || header.dropped != 0 ||
+     header.buffered != 0 || (uint64)total != header.sequence)
+    return trace_restore(-1);
+  // A stream this small would mean the workload never really paged, which
+  // would make the zero-drop result meaningless.
+  if(total < 20000)
+    return trace_restore(-1);
+  printf("vmtest trace-lossless: %d records, 0 drops, 0 gaps\n", total);
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return trace_restore(-1);
+  return trace_restore(vmcheck());
 }
 
 static int
@@ -122,7 +454,14 @@ controls(void)
      stats.resident_limit != VM_LIMIT_UNLIMITED ||
      stats.policy != (uint64)requested_policy || stats.prefetch_enabled != 0)
     return -1;
-  if(vmctl(VM_SET_LIMIT, 8) < 0 ||
+  // A limit below the current resident count is refused by design, and a
+  // process fresh out of exec holds USERSTACK stack pages plus its image,
+  // so target a count relative to what is resident rather than a fixed
+  // small number.
+  uint64 limit = stats.resident_count + 4;
+  if(limit > VM_MAX_RESIDENT_LIMIT)
+    return -1;
+  if(vmctl(VM_SET_LIMIT, limit) < 0 ||
      vmctl(VM_SET_POLICY, VM_POLICY_CLOCK) < 0 ||
      vmctl(VM_PREFETCH_ENABLE, 1) < 0)
     return -1;
@@ -130,7 +469,8 @@ controls(void)
      vmctl(VM_SET_POLICY, VM_POLICY_COUNT) == 0 ||
      vmctl(VM_PREFETCH_ENABLE, 2) == 0 || vmctl(999, 0) == 0)
     return -1;
-  if(vmstats(&stats) < 0 || stats.resident_limit != 8 ||
+  // A rejected request must leave the previous value in place.
+  if(vmstats(&stats) < 0 || stats.resident_limit != limit ||
      stats.policy != VM_POLICY_CLOCK || stats.prefetch_enabled != 1)
     return -1;
   return vmcheck();
@@ -140,7 +480,14 @@ static int
 inherit(void)
 {
   int status;
-  if(vmctl(VM_SET_LIMIT, 7) < 0 ||
+  struct vmstats before;
+  // Relative for the same reason as controls(). fork copies memory, so
+  // the child below sees this value.
+  if(vmstats(&before) < 0)
+    return -1;
+  uint64 limit = before.resident_count + 3;
+  if(limit > VM_MAX_RESIDENT_LIMIT ||
+     vmctl(VM_SET_LIMIT, limit) < 0 ||
      vmctl(VM_SET_POLICY, VM_POLICY_AGING) < 0 ||
      vmctl(VM_PREFETCH_ENABLE, 1) < 0)
     return -1;
@@ -149,7 +496,7 @@ inherit(void)
     return -1;
   if(pid == 0){
     struct vmstats stats;
-    int ok = vmstats(&stats) == 0 && stats.resident_limit == 7 &&
+    int ok = vmstats(&stats) == 0 && stats.resident_limit == limit &&
       stats.policy == VM_POLICY_AGING && stats.prefetch_enabled == 1 &&
       vmcheck() == 0;
     exit(ok ? 0 : 1);
@@ -414,10 +761,20 @@ fault_cleanup(int kill_during_io)
     if(vmstats(&child) < 0 ||
        vmctl(VM_SET_LIMIT, child.resident_count + 4) < 0)
       exit(2);
-    volatile char *memory = sbrklazy(40 * 4096);
+    // The region has to exceed the resident limit, so it is sized from
+    // the count rather than fixed: at USERSTACK=16 a fixed 40 pages no
+    // longer dominated the pages the process arrives from exec with.
+    int pages = (int)child.resident_count + 40;
+    volatile char *memory = sbrklazy(pages * 4096);
     if((char *)memory == SBRK_ERROR)
       exit(3);
-    for(int i = 0; i < 40; i++)
+    for(int i = 0; i < pages; i++)
+      memory[i * 4096] = i;
+    // Page 0 must be in swap when the delayed fault below runs, whatever
+    // the replacement policy is. A second pass over every *other* page
+    // guarantees it: page 0 goes unreferenced while more pages than the
+    // resident limit are touched, so FIFO, Clock and Aging all evict it.
+    for(int i = 1; i < pages; i++)
       memory[i * 4096] = i;
     if(write(ready[1], "R", 1) != 1)
       exit(4);
@@ -579,6 +936,287 @@ policy_correctness(int policy)
   return swap_pattern_passes(4);
 }
 
+// Phase 2 acceptance criterion: "All policy and prefetch modes produce
+// identical application data results."  Every other policy test fixes one
+// policy and checks that process in isolation; this one runs the *same*
+// deterministic workload under all VM_POLICY_COUNT policies crossed with
+// synchronous and asynchronous prefetch, and requires byte-exact agreement
+// across the whole matrix.
+//
+// The two guards matter as much as the comparison (see the dirty-writeback
+// lesson): a configuration that never evicted anything would agree
+// trivially, and a prefetch mode that never accepted a hint would not be
+// testing prefetch at all.  Both are asserted per configuration, so the
+// test cannot pass vacuously.
+// Stop taking new prefetch hints and wait for the queue and the in-flight
+// I/O count to reach zero.  Both the VM_PREFETCH_MODE switch and vmcheck()
+// require a quiescent process: an async prefetch still in flight owns a
+// frame in VM_PAGE_RESIDENT_PREFETCH whose PTE is not installed yet, which
+// vmcheck() reports -- correctly -- as a pte mismatch.
+static int
+quiesce_prefetch(struct vmstats *out)
+{
+  if(vmctl(VM_PREFETCH_ENABLE, 0) < 0 ||
+     vmctl(VM_PREFETCH_AUTOMATIC, 0) < 0)
+    return -1;
+  for(int i = 0; i < 200; i++){
+    if(vmstats(out) < 0)
+      return -1;
+    if(out->queued_prefetch == 0 && out->inflight_io == 0)
+      return 0;
+    pause(1);
+  }
+  return -1;
+}
+
+// The workload both data-invariance and baseline run: write the pattern
+// across a lazy region larger than the resident limit, then read it back
+// four times, alternating direction, then 1024 pseudorandom probes.
+#define INVARIANT_PAGES 64
+
+// The checksum the workload must produce, derived from the pattern
+// definition alone -- no memory is touched, nothing pages.  Comparing each
+// configuration against this rather than against another configuration's
+// result means a bug that corrupted *every* configuration identically
+// would still be caught.
+static uint
+expected_workload_checksum(void)
+{
+  uint sum = 0;
+  for(int pass = 0; pass < 4; pass++)
+    for(int page = 0; page < INVARIANT_PAGES; page++)
+      for(int offset = 0; offset < 4096; offset += 97)
+        sum = sum * 31 + page_byte(page, offset);
+  uint seed = 0x2105069;
+  for(int i = 0; i < 1024; i++){
+    seed = seed * 1664525 + 1013904223;
+    int page = seed % INVARIANT_PAGES;
+    int offset = ((seed >> 8) % 42) * 97;
+    sum = sum * 31 + page_byte(page, offset);
+  }
+  return sum;
+}
+
+// Runs the workload once and leaves the observed checksum in *checksum and
+// the end-of-run counters in *out.  Byte-exactness is checked against the
+// pattern on every read pass, so a mixed-up frame fails here rather than
+// hiding inside a summed checksum.
+static int
+run_invariant_workload(uint64 limit, uint *checksum, struct vmstats *out)
+{
+  const int pages = INVARIANT_PAGES;
+
+  if(vmctl(VM_SET_LIMIT, limit) < 0)
+    return -1;
+  uchar *memory = (uchar *)sbrklazy(pages * 4096);
+  if((char *)memory == SBRK_ERROR)
+    return -1;
+  for(int page = 0; page < pages; page++)
+    for(int offset = 0; offset < 4096; offset += 97)
+      memory[page * 4096 + offset] = page_byte(page, offset);
+
+  uint sum = 0;
+  for(int pass = 0; pass < 4; pass++){
+    if(check_pages(memory, pages, pass & 1) < 0)
+      return -1;
+    for(int page = 0; page < pages; page++)
+      for(int offset = 0; offset < 4096; offset += 97)
+        sum = sum * 31 + memory[page * 4096 + offset];
+  }
+  uint seed = 0x2105069;
+  for(int i = 0; i < 1024; i++){
+    seed = seed * 1664525 + 1013904223;
+    int page = seed % pages;
+    int offset = ((seed >> 8) % 42) * 97;
+    if(memory[page * 4096 + offset] != page_byte(page, offset))
+      return -1;
+    sum = sum * 31 + memory[page * 4096 + offset];
+  }
+
+  if(vmstats(out) < 0)
+    return -1;
+  // The region really did cycle through swap: a configuration that never
+  // evicted anything would agree with every other one trivially.
+  if(out->evictions == 0 || out->swap_faults == 0 ||
+     out->resident_count > out->resident_limit)
+    return -1;
+
+  struct vmstats idle;
+  if(quiesce_prefetch(&idle) < 0)
+    return -1;
+  if(sbrk(-pages * 4096) == SBRK_ERROR)
+    return -1;
+  if(vmctl(VM_SET_LIMIT, VM_LIMIT_UNLIMITED) < 0)
+    return -1;
+  *checksum = sum;
+  return vmcheck();
+}
+
+// Phase 2 acceptance criterion: "All policy and prefetch modes produce
+// identical application data results."  Every other policy test fixes one
+// policy and checks that process in isolation; this one runs the *same*
+// deterministic workload under all VM_POLICY_COUNT policies crossed with
+// synchronous and asynchronous prefetch, and requires byte-exact agreement
+// across the whole matrix.
+//
+// Each configuration runs in its own forked child, and the resident limit
+// is computed once in the parent and passed down.  Reconfiguring a single
+// process in a loop looked simpler and was wrong: the region is freed at
+// the end of each configuration, so the second and later iterations
+// observed a much smaller resident_count and derived a much smaller limit
+// from it.  FIFO then appeared to evict 1593 pages against Clock's 2404 --
+// entirely an artefact of FIFO having run first with a limit of 34 while
+// Clock ran with 12.  Same failure mode as sections 2.4 to 2.7 of the
+// Phase 0/1 report: a magnitude derived from observed state that had
+// already been perturbed by the measurement itself.
+static int
+data_invariance_child(int policy, int async, uint64 limit)
+{
+  struct vmstats before, stats;
+  uint checksum = 0;
+
+  // VM_PREFETCH_MODE is refused while anything is queued or in flight.
+  if(quiesce_prefetch(&before) < 0 ||
+     vmctl(VM_SET_LIMIT, VM_LIMIT_UNLIMITED) < 0 ||
+     vmctl(VM_SET_POLICY, policy) < 0 ||
+     vmctl(VM_PREFETCH_MODE, async) < 0 ||
+     vmctl(VM_PREFETCH_ENABLE, 1) < 0 ||
+     vmctl(VM_PREFETCH_AUTOMATIC, 1) < 0 ||
+     vmctl(VM_RESET_STATS, 0) < 0)
+    return -1;
+  if(vmstats(&before) < 0 || before.policy != (uint64)policy ||
+     before.prefetch_async != (uint64)async ||
+     before.resident_count > limit)
+    return -1;
+
+  if(run_invariant_workload(limit, &checksum, &stats) < 0)
+    return -1;
+
+  // Prefetch really was exercised in this mode.
+  if(stats.prefetch_accepted == 0)
+    return -1;
+  // Swap read I/O is attributed to this process whoever issued it. Every
+  // demand fault either performs a read or is satisfied by a prefetch
+  // already in flight (useful/late); every completed prefetch performs
+  // exactly one read.  So page_reads can never fall below
+  //   swap_faults - prefetch_useful - prefetch_late + prefetch_completed.
+  // Before the async worker was made to bill its reads to the requesting
+  // process, async runs reported page_reads == swap_faults exactly and
+  // this inequality failed by roughly the number of completed prefetches.
+  if(stats.page_reads + stats.prefetch_useful + stats.prefetch_late <
+     stats.swap_faults + stats.prefetch_completed)
+    return -1;
+
+  printf("vmtest data-invariance: policy=%d async=%d limit=%d checksum=%x "
+         "evict=%d faults=%d reads=%d writes=%d pf_accepted=%d "
+         "pf_completed=%d pf_useful=%d pf_late=%d pf_wasted=%d "
+         "fallbacks=%d\n",
+         policy, async, (int)limit, checksum, (int)stats.evictions,
+         (int)stats.swap_faults, (int)stats.page_reads,
+         (int)stats.page_writes, (int)stats.prefetch_accepted,
+         (int)stats.prefetch_completed, (int)stats.prefetch_useful,
+         (int)stats.prefetch_late, (int)stats.prefetch_wasted,
+         (int)stats.policy_fallbacks);
+
+  if(checksum != expected_workload_checksum()){
+    printf("vmtest data-invariance: checksum %x != expected %x\n",
+           checksum, expected_workload_checksum());
+    return -1;
+  }
+  return 0;
+}
+
+static int
+data_invariance(void)
+{
+  struct vmstats base;
+  if(vmstats(&base) < 0)
+    return -1;
+  uint64 limit = base.resident_count + 8;
+  if(limit > VM_MAX_RESIDENT_LIMIT)
+    return -1;
+
+  for(int policy = 0; policy < VM_POLICY_COUNT; policy++){
+    for(int async = 0; async < 2; async++){
+      int pid = fork();
+      if(pid < 0)
+        return -1;
+      if(pid == 0)
+        exit(data_invariance_child(policy, async, limit) == 0 ? 0 : 1);
+      int status;
+      if(wait(&status) != pid || status != 0){
+        printf("vmtest data-invariance: policy=%d async=%d FAILED\n",
+               policy, async);
+        return -1;
+      }
+    }
+  }
+  return vmcheck();
+}
+
+// Phase 2 Step 9: the recorded per-policy baseline.  Same deterministic
+// workload as data-invariance, prefetch disabled, so the numbers isolate
+// victim selection from prefetch behaviour.  These are the counts a later
+// change is bisected against; they are printed rather than asserted,
+// because their value is as a reference, not as a pass condition.  What is
+// asserted is that the workload really did page, and that every policy saw
+// the same limit -- a baseline table whose rows ran at different
+// capacities would be worse than no baseline.
+static int
+baseline_child(int policy, uint64 limit)
+{
+  struct vmstats before, stats;
+  uint checksum = 0;
+
+  if(quiesce_prefetch(&before) < 0 ||
+     vmctl(VM_SET_LIMIT, VM_LIMIT_UNLIMITED) < 0 ||
+     vmctl(VM_SET_POLICY, policy) < 0 ||
+     vmctl(VM_RESET_STATS, 0) < 0)
+    return -1;
+  if(vmstats(&before) < 0 || before.resident_count > limit)
+    return -1;
+
+  if(run_invariant_workload(limit, &checksum, &stats) < 0)
+    return -1;
+  if(checksum != expected_workload_checksum())
+    return -1;
+
+  printf("vmtest baseline: policy=%d limit=%d start_resident=%d pages=%d "
+         "zero_faults=%d swap_faults=%d evictions=%d page_reads=%d "
+         "page_writes=%d block_reads=%d block_writes=%d fallbacks=%d\n",
+         policy, (int)limit, (int)before.resident_count, INVARIANT_PAGES,
+         (int)stats.zero_faults, (int)stats.swap_faults,
+         (int)stats.evictions, (int)stats.page_reads,
+         (int)stats.page_writes, (int)stats.block_reads,
+         (int)stats.block_writes, (int)stats.policy_fallbacks);
+  return 0;
+}
+
+static int
+policy_baseline(void)
+{
+  struct vmstats base;
+  if(vmstats(&base) < 0)
+    return -1;
+  uint64 limit = base.resident_count + 8;
+  if(limit > VM_MAX_RESIDENT_LIMIT)
+    return -1;
+
+  for(int policy = 0; policy < VM_POLICY_COUNT; policy++){
+    int pid = fork();
+    if(pid < 0)
+      return -1;
+    if(pid == 0)
+      exit(baseline_child(policy, limit) == 0 ? 0 : 1);
+    int status;
+    if(wait(&status) != pid || status != 0){
+      printf("vmtest baseline: policy=%d FAILED\n", policy);
+      return -1;
+    }
+  }
+  return vmcheck();
+}
+
 static int
 invalid_policy_fallback(void)
 {
@@ -603,10 +1241,19 @@ invalid_policy_fallback(void)
 static int
 dirty_writeback(void)
 {
-  const int pages = 24;
   struct vmstats before, warm, clean, dirty;
-  if(vmstats(&before) < 0 || vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0 ||
-     vmctl(VM_SET_LIMIT, before.resident_count + 4) < 0)
+  if(vmstats(&before) < 0 || vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0)
+    return -1;
+  // The region has to be bigger than the frames the process may keep, or
+  // FIFO evicts the text, data and USERSTACK stack pages it arrived from
+  // exec with and the region under test never reaches swap -- which is
+  // what a fixed 24 pages did once USERSTACK grew to 16. Sizing both the
+  // limit and the region from resident_count keeps the cyclic scan longer
+  // than the resident capacity whatever the baseline happens to be.
+  const int headroom = 4;
+  const int pages = (int)before.resident_count + 24;
+  if(before.resident_count + headroom > VM_MAX_RESIDENT_LIMIT ||
+     vmctl(VM_SET_LIMIT, before.resident_count + headroom) < 0)
     return -1;
   volatile uchar *memory = (volatile uchar *)sbrklazy(pages * 4096);
   if((char *)memory == SBRK_ERROR)
@@ -625,8 +1272,11 @@ dirty_writeback(void)
     sum += memory[i * 4096];
   if(vmstats(&clean) < 0 || clean.page_writes > warm.page_writes + 2 ||
      clean.swap_faults < warm.swap_faults + pages - 2){
-    printf("dirty: clean writes %ld warm %ld\n", clean.page_writes,
-           warm.page_writes);
+    printf("dirty: writes warm=%ld clean=%ld  faults warm=%ld clean=%ld  "
+           "resident=%ld limit=%ld base=%ld\n",
+           warm.page_writes, clean.page_writes, warm.swap_faults,
+           clean.swap_faults, clean.resident_count, clean.resident_limit,
+           before.resident_count);
     return -1;
   }
 
@@ -647,24 +1297,38 @@ dirty_writeback(void)
 static int
 random_workload(uint seed, int iterations)
 {
-  enum { RANDOM_PAGES = 24 };
-  uchar expected[RANDOM_PAGES];
+  // The region must stay strictly larger than the resident capacity for
+  // the whole run, or the soak stops being a paging soak.  A fixed 24
+  // pages did that when a process arrived from exec holding about eleven
+  // frames; at USERSTACK=16 it holds 27, the limit derived from it is 35,
+  // and 24 random pages fit inside it with room to spare.  The workload
+  // then paged eighteen times during warm-up and never again: a capture of
+  // 400,000 operations emitted 174 events, and every "soak" in the matrix
+  // was really a 4-second test of a steady state.  Same failure as
+  // sections 2.5 to 2.7 of the Phase 0/1 report -- a fixed magnitude
+  // competing against a baseline that grew underneath it.
+  enum { RANDOM_MAX_PAGES = 160 };
+  uchar expected[RANDOM_MAX_PAGES];
   struct vmstats before, after;
-  if(iterations <= 0 || vmstats(&before) < 0 ||
+  if(iterations <= 0 || vmstats(&before) < 0)
+    return -1;
+  int pages = (int)before.resident_count + 24;
+  if(pages > RANDOM_MAX_PAGES ||
+     before.resident_count + 8 > VM_MAX_RESIDENT_LIMIT ||
      vmctl(VM_SET_LIMIT, before.resident_count + 8) < 0)
     return -1;
   volatile uchar *memory = (volatile uchar *)
-    sbrklazy(RANDOM_PAGES * 4096);
+    sbrklazy(pages * 4096);
   if((char *)memory == SBRK_ERROR)
     return -1;
-  for(int i = 0; i < RANDOM_PAGES; i++){
+  for(int i = 0; i < pages; i++){
     expected[i] = i ^ 0x5a;
     memory[i * 4096] = expected[i];
   }
   uint state = seed ? seed : 1;
   for(int operation = 0; operation < iterations; operation++){
     state = state * 1664525U + 1013904223U;
-    int page = state % RANDOM_PAGES;
+    int page = state % pages;
     if(state & 3){
       if(memory[page * 4096] != expected[page])
         return -1;
@@ -673,12 +1337,24 @@ random_workload(uint seed, int iterations)
       memory[page * 4096] = expected[page];
     }
   }
-  for(int i = 0; i < RANDOM_PAGES; i++)
+  for(int i = 0; i < pages; i++)
     if(memory[i * 4096] != expected[i])
       return -1;
+  // Precondition guard, not a property: if the run did not actually page
+  // it proved nothing, and a soak that silently stopped paging is exactly
+  // what this assertion exists to catch next time.
   if(vmstats(&after) < 0 || after.resident_count > after.resident_limit ||
-     sbrk(-RANDOM_PAGES * 4096) == SBRK_ERROR)
+     after.swap_faults <= before.swap_faults ||
+     after.evictions <= before.evictions ||
+     sbrk(-pages * 4096) == SBRK_ERROR)
     return -1;
+  printf("vmtest random: pages=%d limit=%d swap_faults=%d evictions=%d "
+         "page_reads=%d page_writes=%d\n",
+         pages, (int)after.resident_limit,
+         (int)(after.swap_faults - before.swap_faults),
+         (int)(after.evictions - before.evictions),
+         (int)(after.page_reads - before.page_reads),
+         (int)(after.page_writes - before.page_writes));
   return vmcheck();
 }
 
@@ -724,8 +1400,9 @@ run_all(void)
     "controls", "inherit", "limit-basic", "lazy-zero", "swap-pattern",
     "swap-repeat", "permissions", "shrink-swapped", "exit-leak",
     "fork-resident", "copyin-swapped", "exec-pressure", "exec-loop",
-    "dirty-writeback", "trace-schema", "trace-wrap", "trace-disabled",
-    "trace-drop",
+    "dirty-writeback", "data-invariance", "baseline",
+    "trace-schema", "trace-capacity", "trace-wrap",
+    "trace-disabled", "trace-drop", "trace-mask", "trace-lossless",
   };
   for(uint i = 0; i < sizeof(common) / sizeof(common[0]); i++){
     printf("vmtest all: %s\n", common[i]);
@@ -806,6 +1483,10 @@ run(char *name)
     return exec_loop();
   if(strcmp(name, "policies-correctness") == 0)
     return policy_correctness(requested_policy);
+  if(strcmp(name, "data-invariance") == 0)
+    return data_invariance();
+  if(strcmp(name, "baseline") == 0)
+    return policy_baseline();
   if(strcmp(name, "clock-reference") == 0)
     return policy_correctness(VM_POLICY_CLOCK);
   if(strcmp(name, "aging-order") == 0)
@@ -816,12 +1497,18 @@ run(char *name)
     return dirty_writeback();
   if(strcmp(name, "trace-schema") == 0)
     return trace_schema();
+  if(strcmp(name, "trace-capacity") == 0)
+    return trace_capacity();
   if(strcmp(name, "trace-wrap") == 0)
-    return trace_overflow(0);
+    return trace_wrap();
   if(strcmp(name, "trace-disabled") == 0)
     return trace_disabled();
+  if(strcmp(name, "trace-mask") == 0)
+    return trace_mask();
   if(strcmp(name, "trace-drop") == 0)
-    return trace_overflow(1);
+    return trace_drop();
+  if(strcmp(name, "trace-lossless") == 0)
+    return trace_lossless();
   if(strcmp(name, "all") == 0)
     return run_all();
   if(strcmp(name, "all-policy") == 0)

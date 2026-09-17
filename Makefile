@@ -190,6 +190,8 @@ UPROGS=\
 	$U/_lzwbench\
 	$U/_tracereplay\
 	$U/_sqlitereplay\
+	$U/_bigfiletest\
+	$U/_vmdrain\
 
 # Pre-split (on the host, see the header comments in user/tracereplay.c
 # and user/sqlitereplay.c) slices of the real Redis/SQLite traces, each
