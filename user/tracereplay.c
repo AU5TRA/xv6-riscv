@@ -7,14 +7,21 @@
 // SCOPE, stated plainly (HANDOFF_PROMPT.md's own "be honest here"
 // requirement): this is a feasibility investigation, not a general
 // -purpose trace replayer. The full real-Redis trace is 12.3M
-// references / 70MB; xv6's per-file cap is MAXFILE = NDIRECT(12) +
-// NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks = 268KB (kernel/fs.h)
-// -- far tighter than the ~6.3MB of aggregate free filesystem space
-// (FSSIZE=8000 blocks, kernel/param.h), and the actual binding
-// constraint. This program replays the first 825,000 references
-// (about 6.7% of the full trace) of traces/real/redis_real.trace,
-// pre-split on the host into 16 files (redisreplay0 .. redisreplay15,
-// see tools/gen_tracereplay_chunks.py) each safely under the 268KB cap.
+// references / 70MB. At the time this program was built, xv6's per-file
+// cap was MAXFILE = NDIRECT(12) + NINDIRECT(BSIZE/sizeof(uint)=256) =
+// 268 blocks = 268KB (kernel/fs.h) -- far tighter than the ~6.3MB of
+// aggregate free filesystem space then available (FSSIZE=8000 blocks,
+// kernel/param.h), and the actual binding constraint. A later merge
+// (Austra-dev's doubly-indirect block support) raised MAXFILE to 65,803
+// blocks (~64MB), which would comfortably fit the whole 825,000
+// -reference prefix in one file -- but the pre-split chunk files below
+// were already generated and verified under the old, tighter cap, so
+// they were kept as-is rather than regenerated for no functional
+// benefit. This program replays the first 825,000 references (about
+// 6.7% of the full trace) of traces/real/redis_real.trace, pre-split on
+// the host into 16 files (redisreplay0 .. redisreplay15, see
+// tools/gen_tracereplay_chunks.py), each safely under the original
+// 268KB cap (and so, trivially, under the current larger one too).
 // Every chunk line is a bare "T <vpn>" line, same convention as the
 // project's usual trace format, just without the TRACEHDR (metadata is
 // hardcoded below instead, since this is a fixed, purpose-built slice).

@@ -167,9 +167,20 @@ vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
       int n;
       while((n = vmtrace_read(ev, 8)) > 0){
         for(int j = 0; j < n; j++){
+          // victim_vpn is uint32 as of the vmtrace schema v3 merge (was
+          // uint64). A plain (long) cast would zero-extend a real
+          // VMTRACE_NONE32 sentinel into a huge positive number instead
+          // of -1 -- currently harmless here only because
+          // VICTIM_SELECTED's victim_vpn is never actually the sentinel
+          // (see kernel/vmpage.c's reclaim_frame()), not because this
+          // code accounts for it. Route through the same NONE32 check
+          // pagingdemo.c/policydemo.c use, for defense-in-depth.
+          long victim_vpn = ev[j].victim_vpn == VMTRACE_NONE32
+                               ? -1
+                               : (long)ev[j].victim_vpn;
           if(ev[j].type == VMTRACE_VICTIM_SELECTED &&
-             (long)ev[j].victim_vpn >= arena_start_vpn &&
-             (long)ev[j].victim_vpn < arena_start_vpn + arena_pages){
+             victim_vpn >= arena_start_vpn &&
+             victim_vpn < arena_start_vpn + arena_pages){
             reached = 1;
             break;
           }

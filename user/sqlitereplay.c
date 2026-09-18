@@ -18,16 +18,21 @@
 //
 // SCOPE, stated plainly, same as tracereplay.c's own requirement: this
 // is a feasibility investigation, not a general-purpose trace replayer.
-// The full real-SQLite trace is 8.56M references; xv6's per-file cap is
-// MAXFILE = NDIRECT(12) + NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks
-// = 268KB (kernel/fs.h). This program replays the first 300,000
-// references (about 3.51% of the full trace -- a SMALLER fraction than
-// tracereplay.c's 6.70% Redis slice, because committing the Redis
-// chunks already consumed most of the filesystem's free space; see the
-// margin sweep and headroom numbers in docs/workloads.md) of
-// traces/real/sqlite_real.trace, pre-split on the host into 7 files
-// (sqlitereplay0 .. sqlitereplay6, see tools/gen_tracereplay_chunks.py)
-// each safely under the 268KB cap.
+// The full real-SQLite trace is 8.56M references. At the time this
+// program was built, xv6's per-file cap was MAXFILE = NDIRECT(12) +
+// NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks = 268KB (kernel/fs.h);
+// a later merge (Austra-dev's doubly-indirect block support) raised
+// MAXFILE to 65,803 blocks (~64MB) -- see tracereplay.c's own header
+// comment for the same note. The pre-split chunks below predate that
+// change and were kept as-is rather than regenerated. This program
+// replays the first 300,000 references (about 3.51% of the full trace
+// -- a SMALLER fraction than tracereplay.c's 6.70% Redis slice, because
+// committing the Redis chunks already consumed most of the filesystem's
+// free space; see the margin sweep and headroom numbers in
+// docs/workloads.md) of traces/real/sqlite_real.trace, pre-split on the
+// host into 7 files (sqlitereplay0 .. sqlitereplay6, see
+// tools/gen_tracereplay_chunks.py), each safely under the original
+// 268KB cap (and so, trivially, under the current larger one too).
 //
 // KNOWN LIMITATION, also stated plainly, identical to tracereplay.c's:
 // tools/trace_reduce.py collapses Valgrind Lackey's L (load) and S

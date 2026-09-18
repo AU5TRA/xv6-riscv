@@ -4,9 +4,12 @@
 // kernel-visible page-reference behavior real SQLite would produce when
 // its pager reads/writes 4KB database pages, independent of SQLite's own
 // (unavailable) SQL layer. See HANDOFF_PROMPT.md SS0 for why we don't
-// port SQLite itself (no lseek, no floating point, and xv6's ~268KB max
-// file size means a real database would fit entirely inside SQLite's own
-// page cache anyway).
+// port SQLite itself (no lseek, no floating point, and, at the time this
+// decision was made, xv6's ~268KB max file size meant a real database
+// would fit entirely inside SQLite's own page cache anyway -- a later
+// merge raised that cap to ~64MB, see tracereplay.c's header comment,
+// but the native-workload approach and everything calibrated against it
+// stand regardless of that).
 //
 // Justification against the "no single heuristic wins" property
 // (WORK_PROMPT.md SS0): a B+tree's three operations each stress a

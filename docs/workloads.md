@@ -419,7 +419,11 @@ filesystem constraints were checked before writing any replay code:
   + NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks ≈ 268KB` — a hard
   cap on any SINGLE file, regardless of aggregate free space
   (`kernel/fs.h`). This is far tighter than the aggregate budget and is
-  what actually shapes the design.
+  what actually shapes the design. (A later merge of AU5TRA's own
+  doubly-indirect block work raised `MAXFILE` to 65,803 blocks, ~64MB —
+  the chunking below predates that and was kept as-is rather than
+  regenerated, since it remains correct either way; see
+  `user/tracereplay.c`'s header comment.)
 
 **Approach taken — option (a) from the task, "truncate to a prefix,"
 adapted to route around the per-file cap rather than the aggregate one**:

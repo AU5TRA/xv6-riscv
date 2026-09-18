@@ -195,7 +195,10 @@ UPROGS=\
 
 # Pre-split (on the host, see the header comments in user/tracereplay.c
 # and user/sqlitereplay.c) slices of the real Redis/SQLite traces, each
-# file kept under xv6's MAXFILE=268-block per-file cap (kernel/fs.h).
+# file kept under xv6's MAXFILE per-file cap (kernel/fs.h) -- 268 blocks
+# at the time these were generated, since raised to 65,803 blocks by a
+# later merge; kept pre-split rather than regenerated, see those files'
+# own header comments.
 TRACEREPLAY_DATA=$(addprefix $U/redisreplay,0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)
 SQLITEREPLAY_DATA=$(addprefix $U/sqlitereplay,0 1 2 3 4 5 6)
 

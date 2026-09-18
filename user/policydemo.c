@@ -241,12 +241,21 @@ run_scenario(int policy)
       while(tracing && (n = vmtrace_read(ev, 8)) > 0){
         for(int j = 0; j < n; j++){
           if(ev[j].type == VMTRACE_VICTIM_SELECTED){
+            // fld32(), not a plain (long) cast -- see the identical fix
+            // in dump_trace() above and in user/vmbench.c's
+            // vmbench_burn(): victim_vpn is uint32 as of the vmtrace
+            // schema v3 merge, and a real VMTRACE_NONE32 sentinel would
+            // otherwise zero-extend into a huge positive number instead
+            // of -1. Currently harmless here (VICTIM_SELECTED's
+            // victim_vpn is never actually the sentinel), but this
+            // keeps that fact from being load-bearing.
+            long victim_vpn = fld32(ev[j].victim_vpn);
             printf("[debug]   burn touch %d: victim vpn=%ld (heap "
                    "range is [%ld,%ld))\n", burn_touches,
-                   (long)ev[j].victim_vpn, heap_start_vpn,
+                   victim_vpn, heap_start_vpn,
                    heap_start_vpn + 4);
-            if((long)ev[j].victim_vpn >= heap_start_vpn &&
-               (long)ev[j].victim_vpn < heap_start_vpn + 4)
+            if(victim_vpn >= heap_start_vpn &&
+               victim_vpn < heap_start_vpn + 4)
               reached_heap = 1;
           }
         }

@@ -4,11 +4,16 @@ user/sqlitereplay.c.
 
 Runs on the HOST only, like tools/gen_zipf_table.py. Takes a prefix of a
 source trace's "T <vpn>" reference lines and splits it into fixed files
-small enough to fit xv6's per-file cap: MAXFILE = NDIRECT(12) +
-NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks = 268KB (kernel/fs.h) --
-the actual binding constraint (see user/tracereplay.c's own header
-comment for the full arithmetic and why aggregate free filesystem space,
-while also checked, is NOT the tight limit).
+small enough to fit xv6's per-file cap: at the time this was written,
+MAXFILE = NDIRECT(12) + NINDIRECT(BSIZE/sizeof(uint)=256) = 268 blocks =
+268KB (kernel/fs.h) -- the actual binding constraint (see
+user/tracereplay.c's own header comment for the full arithmetic and why
+aggregate free filesystem space, while also checked, is NOT the tight
+limit). A later merge (Austra-dev's doubly-indirect block support)
+raised MAXFILE to 65,803 blocks (~64MB); DEFAULT_BYTE_BUDGET/the 274432
+-byte assert below are now more conservative than strictly required,
+but were left as-is since the already-generated chunk files remain
+correct and there's no functional benefit to tightening them.
 
 A fixed LINE count per chunk doesn't work: VPN values grow in digit
 count as the trace progresses (more distinct pages get first-seen), so
