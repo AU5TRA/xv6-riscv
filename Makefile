@@ -208,8 +208,11 @@ fs.img: mkfs/mkfs README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY
 
 -include kernel/*.d user/*.d
 
+# *.log is deliberately absent from the list below. It is stock xv6 LaTeX
+# cruft -- nothing here generates a .log at the repo root -- and it deleted
+# the tracked pagingdemo_trace_sample.log on every clean build.
 clean: 
-	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+	rm -f *.tex *.dvi *.idx *.aux *.ind *.ilg \
 	*/*.o */*.d */*.asm */*.sym \
 	$K/kernel fs.img \
 	mkfs/mkfs .gdbinit \
