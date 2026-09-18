@@ -140,7 +140,20 @@ int
 vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
 {
   long arena_start_vpn = (long)arena_base / VMBENCH_PGSIZE;
-  int tracing = vmctl(VM_TRACE_ENABLE, 1) == 0;
+  // Do not seize the trace ring if something else is already capturing
+  // through it (vmdrain, say). Enabling and resetting it here wipes that
+  // capture's buffered records and restarts its sequence numbering, and
+  // the subsequent vmtrace_read() drain below eats records the other
+  // reader never sees. The symptom downstream is a capture reporting
+  // dropped=0 alongside sequence gaps -- 86 events vanished from a
+  // 150-event capture of btreebench before this check existed.
+  //
+  // When the ring is already owned, take the best-effort path below
+  // instead: the same fallback this function already documents for the
+  // case where tracing is unavailable at all.
+  struct vmtrace_header hdr;
+  int ring_owned_elsewhere = vmtrace_info(&hdr) == 0 && hdr.enabled != 0;
+  int tracing = !ring_owned_elsewhere && vmctl(VM_TRACE_ENABLE, 1) == 0;
   if(tracing)
     vmctl(VM_TRACE_RESET, 0);
 

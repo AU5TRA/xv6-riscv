@@ -12,3 +12,9 @@
 # checking it is meaningless: the trailing spaces are make's, not ours,
 # and normalising them would make the record no longer a record.
 docs/phase2/gate-results*.txt  -whitespace text eol=lf
+
+# Captured QEMU transcripts and reference streams, committed verbatim as
+# data. Whitespace-checking them is meaningless -- the trailing spaces are
+# the guest console's, not ours -- and normalising them would corrupt the
+# reference stream the simulator reads.
+traces/**  -whitespace
