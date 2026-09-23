@@ -2,12 +2,42 @@
 // contract and the reasoning behind each piece.
 #include "kernel/types.h"
 #include "kernel/vmstats.h"
+#include "kernel/fcntl.h"
 #include "kernel/vmtrace.h"
 #include "user/user.h"
 #include "user/vmbench.h"
 #include "user/zipf_table.h"
 
 int vmbench_trace_on;
+int vmbench_trace_fd = 1;      // console by default: unchanged behaviour
+char vmbench_trace_buf[VMBENCH_TRACE_BUFSZ];
+int vmbench_trace_len;
+
+// Point the reference stream at a file when bit 3 is set. Returns 0 if the
+// stream is left on the console or the file was opened, -1 if the file could
+// not be created -- a caller that asked for a file sink and did not get one
+// must fail rather than silently fall back to the console, because the run
+// would then take three times as long and quietly blow its time limit.
+int
+vmbench_trace_sink(int flags)
+{
+  if((flags & VMBENCH_TRACE_FILE) == 0)
+    return 0;
+  int fd = open(VMBENCH_TRACE_PATH, O_CREATE | O_TRUNC | O_WRONLY);
+  if(fd < 0)
+    return -1;
+  vmbench_trace_fd = fd;
+  return 0;
+}
+
+void
+vmbench_trace_flush(void)
+{
+  if(vmbench_trace_len > 0){
+    write(vmbench_trace_fd, vmbench_trace_buf, vmbench_trace_len);
+    vmbench_trace_len = 0;
+  }
+}
 
 char *
 vmbench_arena(int npages)
@@ -36,6 +66,7 @@ void
 vmbench_trace_stop(void)
 {
   vmbench_trace_on = 0;
+  vmbench_trace_flush();
 }
 
 int

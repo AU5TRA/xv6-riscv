@@ -77,14 +77,20 @@ int
 main(int argc, char *argv[])
 {
   if(argc != 3 && argc != 4){
-    printf("usage: lzwbench <resident_margin> <repeat_count> [trace]\n");
+    printf("usage: lzwbench <resident_margin> <repeat_count> "
+           "[trace: 1=console, 9=file]\n");
     exit(1);
   }
   int resident_margin = atoi(argv[1]);
   int repeat_count = atoi(argv[2]);
   if(repeat_count < 1)
     repeat_count = 1;
-  int trace = argc == 4 && atoi(argv[3]) != 0;
+  int trace_flags = argc == 4 ? atoi(argv[3]) : 0;
+  int trace = (trace_flags & 1) != 0;
+  if(trace && vmbench_trace_sink(trace_flags) < 0){
+    printf("lzwbench: cannot create %s\n", VMBENCH_TRACE_PATH);
+    exit(1);
+  }
 
   vmbench_banner("lzwbench", "setup");
   int fd = open("corpus.txt", 0);

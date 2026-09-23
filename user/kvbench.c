@@ -360,6 +360,10 @@ main(int argc, char *argv[])
   int mode = parse_mode(argv[5]);
   int flags = argc > 6 ? atoi(argv[6]) : 0;
   int trace = (flags & 1) != 0;
+  if(trace && vmbench_trace_sink(flags) < 0){
+    printf("kvbench: cannot create %s\n", VMBENCH_TRACE_PATH);
+    exit(1);
+  }
   int rehash_enabled = (flags & 2) != 0;
   int valuesize_enabled = (flags & 4) != 0;
   g_ttl_ticks = argc > 7 ? atoi(argv[7]) : 0;

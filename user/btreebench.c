@@ -42,6 +42,7 @@
 // paging trace: a root-to-leaf lookup is literally a chain of page
 // touches, one per tree level.
 #include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "kernel/vmstats.h"
 #include "user/user.h"
 #include "user/vmbench.h"
@@ -368,6 +369,10 @@ main(int argc, char *argv[])
   int mix = parse_mix(argv[5]);
   int flags = argc > 6 ? atoi(argv[6]) : 0;
   int trace = (flags & 1) != 0;
+  if(trace && vmbench_trace_sink(flags) < 0){
+    printf("btreebench: cannot create %s\n", VMBENCH_TRACE_PATH);
+    exit(1);
+  }
   int wal_enabled = (flags & 2) != 0;
   g_cache_enabled = (flags & 4) != 0;
   int wal_pages = argc > 7 ? atoi(argv[7]) : 4;

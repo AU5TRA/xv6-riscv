@@ -16,3 +16,14 @@ TAGS
 help.md
 HANDOFF*.md
 WORK_PROMPT*.md
+# Collected traces: ~600MB of reference strings across 36 runs, regenerable
+# with tools/collect_v2.sh. The dataset summary is small and descriptive, so
+# it is kept; the data itself is not.
+traces/*
+!traces/sweep/
+traces/sweep/*
+!traces/sweep/SUMMARY.txt
+
+# Working write-ups, kept out of the repo by request.
+docs/CAMPAIGN2-CHANGES.txt
+docs/CHANGES-VS-STOCK-XV6.txt

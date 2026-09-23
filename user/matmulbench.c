@@ -95,14 +95,19 @@ main(int argc, char *argv[])
 {
   if(argc != 5 && argc != 6){
     printf("usage: matmulbench <footprint_pages> <resident_margin> "
-           "<n> <naive|blocked> [trace]\n");
+           "<n> <naive|blocked> [trace: 1=console, 9=file]\n");
     exit(1);
   }
   int footprint_pages = atoi(argv[1]);
   int resident_margin = atoi(argv[2]);
   g_n = atoi(argv[3]);
   char *variant = argv[4];
-  int trace = argc == 6 && atoi(argv[5]) != 0;
+  int trace_flags = argc == 6 ? atoi(argv[5]) : 0;
+  int trace = (trace_flags & 1) != 0;
+  if(trace && vmbench_trace_sink(trace_flags) < 0){
+    printf("matmulbench: cannot create %s\n", VMBENCH_TRACE_PATH);
+    exit(1);
+  }
   int naive = strcmp(variant, "naive") == 0;
   if(!naive && strcmp(variant, "blocked") != 0){
     printf("matmulbench: unknown variant '%s' (want naive|blocked)\n",

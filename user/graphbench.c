@@ -154,7 +154,8 @@ main(int argc, char *argv[])
 {
   if(argc != 6 && argc != 7){
     printf("usage: graphbench <footprint_pages> <resident_margin> "
-           "<pagerank_iters> <seed> <bfs|pagerank|both> [trace]\n");
+           "<pagerank_iters> <seed> <bfs|pagerank|both> "
+           "[trace: 1=console, 9=file]\n");
     exit(1);
   }
   int footprint_pages = atoi(argv[1]);
@@ -162,7 +163,12 @@ main(int argc, char *argv[])
   int pr_iters = atoi(argv[3]);
   uint64 seed = (uint64)atoi(argv[4]);
   char *which = argv[5];
-  int trace = argc == 7 && atoi(argv[6]) != 0;
+  int trace_flags = argc == 7 ? atoi(argv[6]) : 0;
+  int trace = (trace_flags & 1) != 0;
+  if(trace && vmbench_trace_sink(trace_flags) < 0){
+    printf("graphbench: cannot create %s\n", VMBENCH_TRACE_PATH);
+    exit(1);
+  }
 
   vmbench_banner("graphbench", "setup");
   printf("[info] synthetic scale-free graph (preferential attachment "

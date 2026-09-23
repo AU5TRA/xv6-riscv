@@ -49,12 +49,56 @@ int vmbench_arena_free(int npages);
 // than at every call site individually.
 extern int vmbench_trace_on;
 
+// Reference logging is buffered, because xv6's printf() calls putc() which
+// issues write(fd, &c, 1) -- ONE SYSCALL PER CHARACTER. A "T 12345\n" line
+// is eight of them, so an unbuffered reference stream costs eight syscalls
+// per memory touch and tops out near 780 references/second. That, not the
+// UART and not the disk, is what made the graph/sort/matmul workloads
+// impossible to run to completion: they need millions of references.
+//
+// vmbench_trace_fd selects the sink: 1 (the default) keeps the stream in the
+// harness transcript exactly as before; a file descriptor sends it into the
+// guest filesystem instead, to be extracted host-side afterwards.
+#define VMBENCH_TRACE_BUFSZ 4096
+extern int vmbench_trace_fd;
+extern char vmbench_trace_buf[VMBENCH_TRACE_BUFSZ];
+extern int vmbench_trace_len;
+void vmbench_trace_flush(void);
+
+// Bit 3 of a benchmark's trace argument routes the reference string to a
+// file in the guest filesystem instead of the console. The file is pulled
+// out host-side from fs.img by tools/extract_file.py, so the stream never
+// pays the console's per-character syscall cost. Bit 0 keeps its original
+// meaning, so an existing script passing 1 behaves exactly as before, and
+// 9 means "trace, to a file".
+#define VMBENCH_TRACE_FILE 8
+#define VMBENCH_TRACE_PATH "reftrace.txt"
+int vmbench_trace_sink(int flags);
+
 static inline void
 vmbench_trace_ref(char *base, uint64 page)
 {
-  if(vmbench_trace_on)
-    printf("T %ld\n", (long)(((uint64)base + page * VMBENCH_PGSIZE) /
-                              VMBENCH_PGSIZE));
+  if(!vmbench_trace_on)
+    return;
+  uint64 vpn = ((uint64)base + page * VMBENCH_PGSIZE) / VMBENCH_PGSIZE;
+  // "T " + at most 20 digits + newline
+  if(vmbench_trace_len > VMBENCH_TRACE_BUFSZ - 24)
+    vmbench_trace_flush();
+  char *p = vmbench_trace_buf + vmbench_trace_len;
+  *p++ = 'T';
+  *p++ = ' ';
+  char digits[24];
+  int n = 0;
+  if(vpn == 0)
+    digits[n++] = '0';
+  while(vpn){
+    digits[n++] = (char)('0' + (int)(vpn % 10));
+    vpn /= 10;
+  }
+  while(n > 0)
+    *p++ = digits[--n];
+  *p++ = '\n';
+  vmbench_trace_len = (int)(p - vmbench_trace_buf);
 }
 
 // ---- Touch primitives -------------------------------------------------

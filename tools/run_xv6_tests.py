@@ -179,7 +179,14 @@ def run(args: argparse.Namespace) -> int:
                 if index == 4:
                     raise RuntimeError(f"QEMU exited while running {command!r}")
 
-                child.timeout = min(30, remaining(deadline))
+                # The command's own PASS marker has already been seen; this
+                # waits for the shell prompt behind it. It used to cap at 30 s,
+                # which silently truncated any command still doing work after
+                # printing PASS -- vmdrain flushing a 13 MB capture to the xv6
+                # filesystem at ~66 KB/s needs minutes, and QEMU was killed
+                # mid-drain, yielding a valid but incomplete capture. The
+                # overall --timeout is the real bound; honour it here.
+                child.timeout = remaining(deadline)
                 index = child.expect([PROMPT, FATAL, pexpect.TIMEOUT, pexpect.EOF])
                 if index != 0:
                     raise RuntimeError(
