@@ -23,6 +23,10 @@ traces/*
 !traces/sweep/
 traces/sweep/*
 !traces/sweep/SUMMARY.txt
+# traces/old/: previously-committed reference/calibration/real-application
+# traces, reorganized out of the way of the new per-workload sweep archive
+# pasted in from AU5TRA's collection. Kept tracked, same as before the move.
+!traces/old/
 
 # Working write-ups, kept out of the repo by request.
 docs/CAMPAIGN2-CHANGES.txt
