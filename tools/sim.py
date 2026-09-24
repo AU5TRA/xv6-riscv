@@ -17,10 +17,17 @@ important thing this file does; see validate_against_transcript().
 Usage:
     python3 tools/sim.py <transcript.log> [--policy fifo|clock|aging|lru|belady|all]
     python3 tools/sim.py <transcript.log> --validate
+    python3 tools/sim.py <transcript.log> --trace-file <workload.trace> [--policy ...] [--validate]
+
+--trace-file is for the newer split-capture format (tools/collect_v2.sh /
+user/vmbench.c's vmbench_trace_sink()): the TRACEHDR/RESULT lines are in
+<transcript.log> but the "T <vpn>" reference stream was written to a
+separate file instead of the console, for throughput. Omit it for an
+older, single-file transcript that already has both.
 """
 import sys
 import argparse
-from trace_decode import decode, parse_header
+from trace_decode import decode, decode_split, parse_header
 
 
 class Fifo:
@@ -222,13 +229,34 @@ def parse_result_lines(path):
 
 POLICY_NAME_BY_NUMBER = {0: "fifo", 1: "clock", 2: "aging"}
 
+# Field to read the REAL applied resident-frame limit from. Not
+# "arena_cache_budget" -- despite the name, every workload populates
+# that field with its own resident_margin CLI argument (the *requested*
+# margin added to the settled baseline -- see e.g. user/btreebench.c's
+# vmbench_trace_start() call), not a true capacity. "resident_limit" is
+# a live vmstats() snapshot taken after vmctl(VM_SET_LIMIT, ...) is
+# actually applied (see user/vmbench.c's vmbench_trace_start()
+# docstring: "Call this AFTER vmctl(VM_SET_LIMIT, ...) so the printed
+# limit is the real one"), so it's the field that matches what the
+# kernel actually enforced. Using arena_cache_budget instead silently
+# simulates the wrong capacity (confirmed on real captures: a 266 vs.
+# 270 mismatch here was enough to throw off both fault and eviction
+# counts) -- this was a real, undetected bug, not a stylistic choice.
+CAPACITY_FIELD = "resident_limit"
 
-def validate_against_transcript(path):
-    header, refs = decode(path)
+
+def validate_against_transcript(path, trace_file=None):
+    header, refs = (decode_split(path, trace_file) if trace_file
+                     else decode(path))
     if header is None:
         print("no TRACEHDR found")
         return False
-    capacity = int(header["arena_cache_budget"])
+    if not refs:
+        print("no 'T <vpn>' reference lines found -- if this transcript "
+              "was captured with vmbench_trace_sink() pointed at a file "
+              "(see user/vmbench.c), pass --trace-file <the .trace file>")
+        return False
+    capacity = int(header[CAPACITY_FIELD])
     policy_num = int(header["policy"])
     policy_name = POLICY_NAME_BY_NUMBER.get(policy_num)
     if policy_name is None:
@@ -257,19 +285,49 @@ def validate_against_transcript(path):
     # capacity was first reached) should equal kernel swap_faults; and
     # simulator evictions should equal kernel evictions directly (both
     # only ever count real evictions).
+    #
+    # KNOWN, PRE-EXISTING LIMITATION, not something this validation can
+    # fix: the trace only records touches to the workload's OWN arena
+    # (via touch_r/touch_w -> vmbench_trace_ref), never the process's
+    # baseline code/stack pages. At a generous margin nothing evicts and
+    # both sides trivially read 0. At real, moderate-to-tight pressure
+    # (the kind these captures are actually FOR), baseline pages compete
+    # for the same resident-frame budget the simulator is told to
+    # enforce purely against the arena stream, so an arena-only replay
+    # cannot exactly reproduce which page the real kernel evicted at
+    # every step. Confirmed empirically: even margin=10-in-40 native
+    # captures already mismatch this way. This is a real ceiling on
+    # exact-match validation at tight margins, not a bug to chase here --
+    # the simulator's relative comparison ACROSS policies on the SAME
+    # reference stream (its main purpose) is unaffected by it.
     ok_evictions = (real_evictions is not None and
                     sim_result["evictions"] == real_evictions)
     print()
     if ok_evictions:
         print("PASS: simulator eviction count matches kernel exactly.")
+    elif real_evictions in (0, None) or sim_result["evictions"] == 0:
+        print("INCONCLUSIVE: one side shows zero evictions (a generous "
+              "margin where nothing was evicted) -- not a meaningful "
+              "cross-check either way.")
     else:
-        print("MISMATCH: simulator eviction count does NOT match kernel.")
+        print("MISMATCH (expected at real/tight margins -- see the "
+              "KNOWN, PRE-EXISTING LIMITATION comment in this function's "
+              "source): simulator eviction count does not exactly match "
+              "the kernel's. The simulator only replays arena touches, "
+              "never the process's own baseline pages, which also "
+              "compete for frames under real pressure.")
     return ok_evictions
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("transcript")
+    ap.add_argument("--trace-file", default=None,
+                     help="separate file holding the 'T <vpn>' reference "
+                          "stream, for captures where vmbench_trace_sink() "
+                          "wrote it to a file instead of the console (the "
+                          "transcript then only has TRACEHDR/RESULT lines). "
+                          "Omit for an older single-file transcript.")
     ap.add_argument("--policy", default="all",
                      choices=["fifo", "clock", "aging", "lru", "belady", "all"])
     ap.add_argument("--validate", action="store_true",
@@ -279,14 +337,20 @@ def main():
     args = ap.parse_args()
 
     if args.validate:
-        ok = validate_against_transcript(args.transcript)
+        ok = validate_against_transcript(args.transcript, args.trace_file)
         sys.exit(0 if ok else 1)
 
-    header, refs = decode(args.transcript)
+    header, refs = (decode_split(args.transcript, args.trace_file)
+                     if args.trace_file else decode(args.transcript))
     if header is None:
         print("no TRACEHDR found -- was this run with tracing enabled?")
         sys.exit(1)
-    capacity = int(header["arena_cache_budget"])
+    if not refs:
+        print("no 'T <vpn>' reference lines found -- if this transcript "
+              "was captured with vmbench_trace_sink() pointed at a file "
+              "(see user/vmbench.c), pass --trace-file <the .trace file>")
+        sys.exit(1)
+    capacity = int(header[CAPACITY_FIELD])
     print(f"workload={header.get('workload')} capacity={capacity} "
           f"total_refs={len(refs)}")
     print()

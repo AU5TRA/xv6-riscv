@@ -66,6 +66,35 @@ def decode(path):
     return header, refs
 
 
+def decode_split(header_path, refs_path):
+    """Like decode(), but for captures where the TRACEHDR and the T <vpn>
+    reference stream live in two separate files -- the format
+    tools/collect_v2.sh's harness writes: vmbench_trace_sink() (see
+    user/vmbench.c) can point the reference stream at a file inside the
+    guest filesystem instead of the console, for throughput (one write()
+    per ~4KB instead of one per character via printf/putc()), extracted
+    host-side afterward (see tools/extract_file.py). The run's .log then
+    has the TRACEHDR and RESULT lines but zero "T " lines; the paired
+    .trace file has the reference stream but no header at all.
+
+    Pass the same path for both arguments to decode a single-file
+    (pre-split) transcript exactly like decode() would.
+    """
+    header = None
+    with open(header_path, "r", errors="replace") as f:
+        for line in f:
+            m = TRACEHDR_RE.match(line.rstrip("\n"))
+            if m:
+                header = parse_header(line.rstrip("\n"))
+    refs = []
+    with open(refs_path, "r", errors="replace") as f:
+        for line in f:
+            m = REF_RE.match(line.rstrip("\n"))
+            if m:
+                refs.append(int(m.group(1)))
+    return header, refs
+
+
 def reuse_distances(refs):
     """Exact stack (reuse) distances: for each reference after the
     first to a given page, the number of DISTINCT pages referenced
