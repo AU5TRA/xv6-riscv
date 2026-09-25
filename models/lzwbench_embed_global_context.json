@@ -1,0 +1,1 @@
+{"workload": "lzwbench", "experiment": "embedding", "model": "global_context_embed", "window": 16, "embed_dim": 16, "train_log": "lzw-p15-c8", "eval_log": "lzw-p20-c10", "capacity": 28, "eval_capacity": 30, "train_faults": 48143, "held_out_faults": 43623}

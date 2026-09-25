@@ -1,0 +1,1 @@
+{"workload": "matmulbench-blocked", "experiment": "embedding", "model": "global_context_embed", "window": 16, "embed_dim": 16, "train_log": "matmulB-c4", "eval_log": "matmulB-c8", "capacity": 8, "eval_capacity": 12, "train_faults": 652307, "held_out_faults": 119360}

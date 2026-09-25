@@ -1,0 +1,1 @@
+{"workload": "btreebench", "experiment": "embedding", "model": "global_context_embed", "window": 16, "embed_dim": 16, "train_log": "btree-p15-c266", "eval_log": "btree-p20-c355", "capacity": 270, "eval_capacity": 359, "train_faults": 74148, "held_out_faults": 61625}

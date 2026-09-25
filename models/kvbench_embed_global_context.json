@@ -1,0 +1,1 @@
+{"workload": "kvbench", "experiment": "embedding", "model": "global_context_embed", "window": 16, "embed_dim": 16, "train_log": "kv-p15-c79", "eval_log": "kv-p20-c106", "capacity": 82, "eval_capacity": 109, "train_faults": 39358, "held_out_faults": 36801}

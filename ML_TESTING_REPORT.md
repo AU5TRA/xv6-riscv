@@ -27,6 +27,25 @@ elsewhere can fail catastrophically (up to ~6,000x worse than the
 worst classical policy), not just mediocrely. See Experiment 3 below
 for the full results and the investigation into why.
 
+**Update after Experiments 4 and 5**: Experiment 4 (hand-written, not
+learned, LFU and stack-distance-based policies) confirms Experiment 3's
+mechanism directly — the *same* two workloads (`sortbench`,
+`matmulbench`) break just as catastrophically for a plain counter-based
+heuristic as they did for a trained model, so this was never a
+training/generalization artifact, it's that frequency/distance-based
+eviction is the wrong strategy for those specific access patterns,
+learned or not. It also turns up a genuine, cheap win: hand-written LFU
+beats every classical policy *and* every learned model tried so far on
+`lzwbench` (−24% vs. clock, no training required). Experiment 5, the
+more expensive cross-page/embedding model suggested as the natural next
+step, is a clear negative result: despite giving the model a learned
+per-page embedding and a global recent-context window (genuine
+cross-page information, unlike anything tried in Experiments 1-3), it
+does not beat the simple `global_frequency` feature on graphbench, does
+not beat hand-written LFU on `lzwbench`, and is catastrophically worse
+than classical policies on `sortbench` and both `matmulbench` variants
+— the extra model capacity and cross-page context bought nothing here.
+
 ## Setup, common to both experiments
 
 - **Workload**: `graphbench` (BFS + PageRank over a synthetic
@@ -327,6 +346,137 @@ shaped like `graphbench`, `lzwbench`, `kvbench`, or `btreebench` — larger,
 more varied working sets — the failure modes seen here were consistently
 mild even when a feature choice didn't help.
 
+## Experiment 4 — does a hand-written (non-learned) heuristic capture the same gain?
+
+**Question**: Experiment 3's winning features were `global_frequency`
+and `stack_distance`. If a plain, no-training counter-based version of
+those same ideas — actual LFU, and a proper stack-distance policy —
+gets close to what the learned models found, that's far cheaper to put
+in the kernel than a trained model. And if the *hand-written* version
+also fails catastrophically on `sortbench`/`matmulbench`, that would
+settle whether Experiment 3's catastrophic failures were a training
+artifact or a property of the strategy itself.
+
+**Setup**: added two policies to `tools/sim.py`, same shape as the
+existing `Fifo`/`Clock`/`Aging`/`Lru` classes, no learning involved:
+
+- `Lfu` — evict the resident page with the lowest total access count
+  so far.
+- `StackDistance` — evict the resident page with the largest current
+  stack distance (distinct pages touched since its own last access).
+
+Run across all seven workload/variant configurations via
+`tools/handwritten_policy_sweep.py`. Results: `traces/handwritten_results.csv`.
+
+**Results** (train / held-out faults, classical best and Belady shown for reference):
+
+| workload | best classical (held-out) | lfu | stackdist | belady |
+|---|---|---|---|---|
+| `btreebench` | 36,556 (lru) | 39,399 | 36,685 | 17,816 |
+| `kvbench` | 7,252 (lru) | 7,704 | 21,111 | 3,904 |
+| `sortbench` | 1,267 (aging/lru) | 1,047,108 | 825,610 | 983 |
+| `graphbench` | 134,760 (clock) | 140,133 | **134,396** | 75,779 |
+| `lzwbench` | 49,731 (clock) | **37,705** | 40,933 | 22,507 |
+| `matmulbench`-naive | 27 (lru) | 393,969 | 77 | 27 |
+| `matmulbench`-blocked | 298 (clock) | 484,475 | 21,588 | 121 |
+
+**Two findings**:
+
+1. **A cheap, real win on `lzwbench`**: hand-written `lfu`, with zero
+   training, beats every classical policy (−24.2% vs. clock) *and*
+   beats the best learned model from Experiment 3 on the same workload
+   (`stack_distance`/mlp at 40,743). `stackdist` also edges out clock
+   by a hair on `graphbench` (134,396 vs. 134,760), matching what the
+   learned `global_frequency` model found there, without training.
+   Confirms suggested next step 4 from the previous round of this
+   report directly.
+2. **The catastrophic failures are not a training artifact.** `lfu`
+   and `stackdist` fail on `sortbench` and `matmulbench` just as badly
+   as the learned models did in Experiment 3 — `lfu` is up to ~14,600x
+   worse than the best classical policy on `matmulbench`-naive, with no
+   model, no gradient descent, no generalization gap involved at all.
+   This sharpens Experiment 3's conclusion: it was never that a model
+   learned the wrong thing from limited data — frequency- and
+   distance-based eviction are *themselves* the wrong strategy for
+   these specific small, rigidly sequential access patterns, and
+   nothing about learning caused or could fix that. Sequential,
+   cyclic-walk workloads need recency, full stop; counting how often or
+   how widely a page has been touched actively misleads on them.
+
+## Experiment 5 — does cross-page context help (the expensive one)?
+
+**Question**: every feature tried in Experiments 1-4, learned or
+hand-written, only ever looked at a single page's own history in
+isolation (its own recency, frequency, or stack distance) — nothing
+could represent "these pages tend to be touched together," which is
+structurally closer to what graph topology (`graphbench`) or a
+matrix's memory-access order (`matmulbench`) actually is. Does giving
+the model genuine cross-page information — a learned representation of
+each page, combined with what's been happening across the *whole*
+process recently, not just this candidate's own history — find
+anything the simpler approaches missed?
+
+**Setup**: `GlobalContextModel` in `tools/ml_embedding_experiment.py` —
+a learned `nn.Embedding` per page (shaped freely during training,
+unlike Experiment 2's static, hand-computed `vpn_identity` scalar),
+fed into a small GRU over the last **W=16** *globally* referenced pages
+(the whole process's recent activity, not the candidate's own history),
+concatenated with the specific candidate page's own embedding, and
+passed through a small MLP head to predict next-reuse-distance. The
+global-context part is identical across every candidate compared at a
+single eviction (same caveat as Experiment 2's `position` feature), but
+each candidate's own embedding still differs, so the model can express
+"given what's just been happening, how does *this* page look" — real
+cross-page structure, short of full pairwise attention. Same 300,000
+-example training subsample and train/held-out-capacity split as every
+prior experiment, run across all seven workloads.
+
+**Results** (train / held-out faults):
+
+| workload | best classical (held-out) | best prior ML (held-out) | global-context embedding |
+|---|---|---|---|
+| `btreebench` | 36,556 | 36,273 | 74,148 / 61,625 |
+| `kvbench` | 7,252 | 7,243 | 39,358 / 36,801 |
+| `sortbench` | 1,267 | 1,073 | 492,119 / 379,422 |
+| `graphbench` | 134,760 | 128,996 | 143,017 / **134,510** |
+| `lzwbench` | 49,731 | 37,705 (hand-written lfu) | 48,143 / 43,623 |
+| `matmulbench`-naive | 27 | 27 | 71,339 / 38,607 |
+| `matmulbench`-blocked | 298 | 121 (belady) / 720 (best non-oracle) | 652,307 / 119,360 |
+
+**Finding: a clear negative result.** The embedding model never wins.
+On `graphbench` it essentially ties classical Clock (−0.2%) but loses
+to the much simpler `global_frequency`/linear model from Experiment 2
+(+4.3% worse). On `lzwbench` it beats plain Clock (−12.3%) but loses to
+the zero-training hand-written `lfu` from Experiment 4. Everywhere else
+it is worse than the best classical policy, often by a lot — and on
+`sortbench` and both `matmulbench` variants it is catastrophic, for the
+same reason Experiments 3-4 already identified: these workloads need
+precise recency tracking, and a W=16 global-context summary averages
+that away rather than preserving it. The one silver lining: on
+`sortbench`, the embedding model (379,422 held-out faults) is
+meaningfully *less* catastrophic than hand-written `lfu` or
+`stackdist` (1,047,108 / 825,610) — cross-page context isn't wrong
+there in the same absolute way frequency/stack-distance are, it just
+isn't nearly precise enough to compete with plain recency. Given the
+extra cost (a GRU forward pass per candidate at every eviction, vs. a
+single linear dot-product for the Experiment 2 models) bought nothing
+over the cheaper approaches on any of the seven workloads, this line
+isn't worth pursuing further without a fundamentally different way of
+encoding cross-page structure (true graph adjacency for `graphbench`,
+for instance, rather than a fixed recent-window proxy for it).
+
+**A concrete pitfall hit and fixed while building this**: the first run
+crashed on `lzwbench` with an out-of-range embedding index. The bug:
+page numbers in this project's traces are *absolute* virtual page
+numbers (offset by `arena_start_vpn`, e.g. 22 for `lzwbench`), not
+0-indexed — sizing the embedding table off the header's `arena_pages`
+count (as the first version of the script did) works only by
+coincidence when `arena_start_vpn` happens to be 0. Fixed by sizing the
+table off the actual observed max page number in the data instead of a
+header field. A reminder that even a metadata field with a plausible
+-sounding name (`arena_pages`) needs to be checked against the real
+data before being trusted as a bound.
+
 ## Why frequency, specifically
 
 None of the four classical kernel policies actually track long-run
@@ -361,49 +511,61 @@ workload, though it is far from the whole gap (138,343 vs. Belady's
   training on one workload's access pattern and evaluating on another's.
   Whether anything learned here transfers *across* workloads (as
   opposed to across capacities of the same workload) remains untested.
-- The features tried, even the expanded set in Experiment 3, are still
-  simple, hand-picked, single-page scalars. Nothing here has tried
-  genuine cross-page context (e.g. "which pages tend to be touched
-  together," closer to what graph topology or a matrix's memory layout
-  actually is) — Experiment 1's sequence models only ever saw a single
-  page's own history in isolation. That remains untried.
+- **Now tried in Experiment 5, and negative**: a genuine cross-page
+  feature (learned per-page embedding + global recent-context window)
+  never beat the simple single-page scalar features from Experiment 2,
+  and was catastrophic on the same workloads that were already
+  catastrophic. The specific approach tried (a fixed-length recent
+  -window proxy for context) doesn't seem to be the right way to expose
+  cross-page structure to these models — a genuinely relational feature
+  (e.g. real graph adjacency for `graphbench`) remains untried and may
+  behave differently, but "more expressive model, more context" alone
+  did not help.
 - The catastrophic-failure investigation (Experiment 3) identifies a
-  clear risk pattern (small, rigid working sets) but doesn't yet
-  identify a *fix* — no attempt was made here to make any model
-  robust against it, only to explain why it happens.
+  clear risk pattern (small, rigid working sets) and Experiment 4
+  confirms it isn't a training artifact — a hand-written, non-learned
+  version of the same strategy fails just as badly. No attempt was made
+  here to make any model *robust* against it, only to explain why it
+  happens; the practical implication (Experiment 3's) still stands:
+  evaluate on a genuinely held-out run before trusting any of this on a
+  `sortbench`/`matmulbench`-shaped workload.
 
 ## Suggested next steps
 
-1. **Now answered by Experiment 3**: frequency does *not* help
-   everywhere — it's graphbench-specific. The open question is now
-   *why* different workloads favor different features, and whether
-   that can be predicted from a workload's own characteristics (working
-   -set size, access regularity) rather than discovered by trial.
-2. Try a genuinely cross-page feature (e.g. an embedding of the page
-   itself learned jointly with the frequency signal, or a co-access
-   feature — "how often has this page been touched near page X") —
-   this is the natural way to let a model see something like graph
-   structure without hand-engineering it. Most promising on
-   `graphbench` specifically, given its structure is literally a graph.
-3. For the two workloads where classical policies (Clock in particular)
+1. **Answered by Experiment 3**: frequency does *not* help everywhere —
+   it's graphbench-specific.
+2. **Tried in Experiment 5, negative**: a global-recent-window
+   embedding model did not find cross-page structure that beats the
+   simple scalar features. If cross-page context is worth revisiting,
+   it likely needs a genuinely relational representation (real graph
+   adjacency for `graphbench`, e.g. message-passing over the actual
+   edge list) rather than a fixed recent-window proxy for it — a
+   materially different, and more involved, approach than Experiment 5.
+3. **Answered by Experiment 4**: hand-written LFU already captures (and
+   on `lzwbench`, exceeds) most of the learned-model gain, with no
+   training at all. `lzwbench` is now a strong, concrete candidate for
+   an actual kernel policy change — the win is real, reproducible
+   without any ML infrastructure, and the biggest single-workload
+   margin found in this whole report (−24% vs. Clock).
+4. For the two workloads where classical policies (Clock in particular)
    already do very well (`matmulbench` naive and blocked) — check
    whether that's specific to this project's Clock implementation or a
    general property of small, strided access patterns, before spending
    more effort trying to beat it there.
-4. If a frequency- or distance-based approach keeps winning on the
-   workloads where it does win, it's worth checking how close a
-   *hand-written* version of that same feature (a proper LFU, or a
-   hybrid frequency+recency policy, no learning at all) gets on its
-   own — if a simple counter-based heuristic captures most of the gain,
-   that's far cheaper to actually implement in the kernel than a
-   trained model, and worth knowing before investing further in the ML
-   direction specifically for those workloads.
 5. Before trusting any future model on a workload shaped like
    `sortbench` or `matmulbench`, evaluate on a genuinely held-out run
    first — this report found failures there that were severe (up to
-   ~6,000x), not just mediocre, and none of the earlier warning signs
-   (weak correlation, architecture-independence) predicted *how bad*
-   specifically; only the held-out simulation caught it.
+   ~14,600x, in Experiment 4's hand-written policies), not just
+   mediocre, and none of the earlier warning signs (weak correlation,
+   architecture-independence, or even the absence of any learning at
+   all) predicted *how bad* specifically; only the held-out simulation
+   caught it.
+6. Given Experiments 1, 3, and 5 all separately concluded that more
+   model capacity / more context did not help, and Experiment 4 found
+   the single best result in the whole report with zero training — the
+   highest-value remaining work here is probably implementing
+   hand-written LFU as an actual kernel policy for `lzwbench`-shaped
+   workloads, not further ML experimentation on this feature space.
 
 ## Files
 
@@ -424,3 +586,16 @@ workload, though it is far from the whole gap (138,343 vs. Belady's
   workload/feature-set/architecture/capacities/fault counts it came
   from, so any single result in this report can be reloaded without
   retraining).
+- `tools/sim.py` — also gained two hand-written policies for Experiment
+  4: `Lfu` and `StackDistance` (see `POLICIES` dict / `--policy` CLI
+  choices).
+- `tools/handwritten_policy_sweep.py` — Experiment 4: runs every
+  classical policy plus the two new hand-written ones across all seven
+  workloads, no training/torch dependency at all. Writes
+  `traces/handwritten_results.csv` (committed).
+- `tools/ml_embedding_experiment.py` — Experiment 5: the cross-page
+  `GlobalContextModel` (learned embedding + GRU over a global recent
+  -context window), run across all seven workloads. Writes
+  `traces/embedding_results.csv` (committed) and saves each workload's
+  trained model under `models/*_embed_global_context.{pt,json}`
+  (committed, same convention as Experiment 3's models).

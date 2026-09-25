@@ -30,6 +30,8 @@ traces/sweep/*
 # ML comprehensive-sweep results table (tools/ml_comprehensive.py):
 # small (~12KB), unlike the trace data it's derived from, so kept.
 !traces/ml_comprehensive_results.csv
+!traces/handwritten_results.csv
+!traces/embedding_results.csv
 
 # Working write-ups, kept out of the repo by request.
 docs/CAMPAIGN2-CHANGES.txt

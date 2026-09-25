@@ -1,0 +1,8 @@
+workload,capacity,eval_capacity,train_faults,held_out_faults
+btreebench,270,359,74148,61625
+kvbench,82,109,39358,36801
+sortbench,16,20,492119,379422
+graphbench,204,271,143017,134510
+lzwbench,28,30,48143,43623
+matmulbench-naive,8,12,71339,38607
+matmulbench-blocked,8,12,652307,119360

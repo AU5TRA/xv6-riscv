@@ -73,7 +73,7 @@ def run_workload(label, folder, train_stem, eval_stem, trace_stem, writer, csvfi
               f"held_out={ev_f:>8d} {extra}", flush=True)
 
     # classical policies, once per workload
-    for name in ("fifo", "clock", "aging", "lru", "belady"):
+    for name in ("fifo", "clock", "aging", "lru", "lfu", "stackdist", "belady"):
         tr = run_policy(name, train_refs, cap)["faults"]
         ev = run_policy(name, eval_refs, ev_cap)["faults"]
         emit("classical", name, tr, ev)

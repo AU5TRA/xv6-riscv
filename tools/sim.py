@@ -158,6 +158,69 @@ class Lru:
         self.order.append(vpn)
 
 
+class Lfu:
+    """Hand-written (no learning) Least-Frequently-Used: evict the
+    resident page with the lowest total access count so far. Added to
+    directly test whether the "global_frequency" feature's win in
+    ML_TESTING_REPORT.md's Experiment 2/3 needs a trained model at all,
+    or whether a plain counter-based heuristic captures the same gain
+    -- see that report for why this question matters (a hand-written
+    policy is far cheaper to actually put in the kernel)."""
+    name = "lfu"
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.resident = set()
+        self.freq = {}   # vpn -> access count (kept for ALL pages ever
+                          # seen, not just resident ones, same as the
+                          # "global_frequency" feature it mirrors)
+        self.faults = 0
+        self.evictions = 0
+
+    def access(self, vpn):
+        self.freq[vpn] = self.freq.get(vpn, 0) + 1
+        if vpn in self.resident:
+            return
+        self.faults += 1
+        if len(self.resident) >= self.capacity:
+            victim = min(self.resident, key=lambda p: self.freq[p])
+            self.resident.discard(victim)
+            self.evictions += 1
+        self.resident.add(vpn)
+
+
+class StackDistance:
+    """Hand-written (no learning): evict the resident page with the
+    largest current stack distance (distinct pages touched since its
+    last access) -- the theoretically correct LRU-style distance,
+    directly testing the "stack_distance" feature's win on lzwbench in
+    ML_TESTING_REPORT.md without any trained model."""
+    name = "stackdist"
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.resident = set()
+        self.last_distinct_at = {}  # vpn -> distinct-page clock value
+        self.distinct_seen = 0
+        self.faults = 0
+        self.evictions = 0
+
+    def access(self, vpn):
+        if vpn not in self.last_distinct_at:
+            self.distinct_seen += 1
+        if vpn in self.resident:
+            self.last_distinct_at[vpn] = self.distinct_seen
+            return
+        self.faults += 1
+        if len(self.resident) >= self.capacity:
+            victim = max(self.resident,
+                         key=lambda p: self.distinct_seen - self.last_distinct_at[p])
+            self.resident.discard(victim)
+            self.evictions += 1
+        self.resident.add(vpn)
+        self.last_distinct_at[vpn] = self.distinct_seen
+
+
 def belady_faults_evictions(refs, capacity):
     """Belady's optimal: evict whichever resident page's next use is
     furthest in the future (or never used again)."""
@@ -195,6 +258,8 @@ POLICIES = {
     "clock": Clock,
     "aging": Aging,
     "lru": Lru,
+    "lfu": Lfu,
+    "stackdist": StackDistance,
 }
 
 
@@ -329,7 +394,8 @@ def main():
                           "transcript then only has TRACEHDR/RESULT lines). "
                           "Omit for an older single-file transcript.")
     ap.add_argument("--policy", default="all",
-                     choices=["fifo", "clock", "aging", "lru", "belady", "all"])
+                     choices=["fifo", "clock", "aging", "lru", "lfu",
+                              "stackdist", "belady", "all"])
     ap.add_argument("--validate", action="store_true",
                      help="cross-check the simulator against this "
                           "transcript's own kernel-reported counters "
