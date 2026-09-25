@@ -1,0 +1,22 @@
+{
+  "workload": "matmulbench-naive",
+  "experiment": "feature",
+  "feature_set": "vpn_identity",
+  "features": [
+    "vpn_identity"
+  ],
+  "model": "mlp",
+  "train_log": "matmulN-c4",
+  "eval_log": "matmulN-c8",
+  "capacity": 8,
+  "eval_capacity": 12,
+  "correlations": {
+    "recency": 0.062307834877742316,
+    "stack_distance": -0.0008937140057012401,
+    "global_frequency": -0.03837583404138435,
+    "vpn_identity": 0.23291802874583556,
+    "position": 7.978624585054017e-05
+  },
+  "train_faults": 445639,
+  "held_out_faults": 36109
+}

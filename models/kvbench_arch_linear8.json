@@ -1,0 +1,12 @@
+{
+  "workload": "kvbench",
+  "experiment": "arch",
+  "model": "linear8",
+  "input": "interval_history_k8",
+  "train_log": "kv-p15-c79",
+  "eval_log": "kv-p20-c106",
+  "capacity": 82,
+  "eval_capacity": 109,
+  "train_faults": 36414,
+  "held_out_faults": 30506
+}

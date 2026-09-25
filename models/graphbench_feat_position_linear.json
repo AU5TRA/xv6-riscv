@@ -1,0 +1,22 @@
+{
+  "workload": "graphbench",
+  "experiment": "feature",
+  "feature_set": "position",
+  "features": [
+    "position"
+  ],
+  "model": "linear",
+  "train_log": "graph-p15-c200",
+  "eval_log": "graph-p20-c267",
+  "capacity": 204,
+  "eval_capacity": 271,
+  "correlations": {
+    "recency": -0.013949933868159022,
+    "stack_distance": -0.0069246118834505235,
+    "global_frequency": -0.21381437107568618,
+    "vpn_identity": 3.499959805036438e-05,
+    "position": -0.21782746086967844
+  },
+  "train_faults": 142879,
+  "held_out_faults": 134465
+}

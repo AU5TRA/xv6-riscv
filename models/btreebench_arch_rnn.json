@@ -1,0 +1,12 @@
+{
+  "workload": "btreebench",
+  "experiment": "arch",
+  "model": "rnn",
+  "input": "interval_history_k8",
+  "train_log": "btree-p15-c266",
+  "eval_log": "btree-p20-c355",
+  "capacity": 270,
+  "eval_capacity": 359,
+  "train_faults": 78839,
+  "held_out_faults": 67060
+}

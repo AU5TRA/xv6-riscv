@@ -1,0 +1,22 @@
+{
+  "workload": "matmulbench-blocked",
+  "experiment": "feature",
+  "feature_set": "recency_only",
+  "features": [
+    "recency"
+  ],
+  "model": "linear",
+  "train_log": "matmulB-c4",
+  "eval_log": "matmulB-c8",
+  "capacity": 8,
+  "eval_capacity": 12,
+  "correlations": {
+    "recency": 0.0033453675542515966,
+    "stack_distance": 0.004542255437765427,
+    "global_frequency": -0.10924423555563213,
+    "vpn_identity": 0.26059343966269266,
+    "position": 0.007988296388157753
+  },
+  "train_faults": 1323,
+  "held_out_faults": 720
+}

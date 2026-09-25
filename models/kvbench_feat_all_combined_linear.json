@@ -1,0 +1,26 @@
+{
+  "workload": "kvbench",
+  "experiment": "feature",
+  "feature_set": "all_combined",
+  "features": [
+    "recency",
+    "stack_distance",
+    "global_frequency",
+    "vpn_identity",
+    "position"
+  ],
+  "model": "linear",
+  "train_log": "kv-p15-c79",
+  "eval_log": "kv-p20-c106",
+  "capacity": 82,
+  "eval_capacity": 109,
+  "correlations": {
+    "recency": -0.07125566331640996,
+    "stack_distance": -0.0429632235123209,
+    "global_frequency": -0.023928794435058864,
+    "vpn_identity": 0.01965360161225205,
+    "position": 0.006458695412719317
+  },
+  "train_faults": 8412,
+  "held_out_faults": 7243
+}

@@ -1,0 +1,22 @@
+{
+  "workload": "sortbench",
+  "experiment": "feature",
+  "feature_set": "recency_only",
+  "features": [
+    "recency"
+  ],
+  "model": "linear",
+  "train_log": "sort-p15-c12",
+  "eval_log": "sort-p20-c16",
+  "capacity": 16,
+  "eval_capacity": 20,
+  "correlations": {
+    "recency": 0.001905918911509891,
+    "stack_distance": -0.0024650764905555927,
+    "global_frequency": 0.3437759466480176,
+    "vpn_identity": -0.0038681208415253274,
+    "position": 0.3420876263615302
+  },
+  "train_faults": 1267,
+  "held_out_faults": 1267
+}

@@ -1,0 +1,26 @@
+{
+  "workload": "btreebench",
+  "experiment": "feature",
+  "feature_set": "all_combined",
+  "features": [
+    "recency",
+    "stack_distance",
+    "global_frequency",
+    "vpn_identity",
+    "position"
+  ],
+  "model": "mlp",
+  "train_log": "btree-p15-c266",
+  "eval_log": "btree-p20-c355",
+  "capacity": 270,
+  "eval_capacity": 359,
+  "correlations": {
+    "recency": 0.07560618699221476,
+    "stack_distance": 0.07455480762150216,
+    "global_frequency": -0.3676083615434187,
+    "vpn_identity": 0.272831434418967,
+    "position": 0.1800437023243742
+  },
+  "train_faults": 66039,
+  "held_out_faults": 54032
+}

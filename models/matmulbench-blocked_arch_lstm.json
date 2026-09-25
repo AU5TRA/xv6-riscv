@@ -1,0 +1,12 @@
+{
+  "workload": "matmulbench-blocked",
+  "experiment": "arch",
+  "model": "lstm",
+  "input": "interval_history_k8",
+  "train_log": "matmulB-c4",
+  "eval_log": "matmulB-c8",
+  "capacity": 8,
+  "eval_capacity": 12,
+  "train_faults": 5000,
+  "held_out_faults": 3572
+}

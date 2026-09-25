@@ -1,0 +1,12 @@
+{
+  "workload": "lzwbench",
+  "experiment": "arch",
+  "model": "linear8",
+  "input": "interval_history_k8",
+  "train_log": "lzw-p15-c8",
+  "eval_log": "lzw-p20-c10",
+  "capacity": 28,
+  "eval_capacity": 30,
+  "train_faults": 57606,
+  "held_out_faults": 53628
+}

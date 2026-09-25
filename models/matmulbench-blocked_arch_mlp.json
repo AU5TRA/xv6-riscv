@@ -1,0 +1,12 @@
+{
+  "workload": "matmulbench-blocked",
+  "experiment": "arch",
+  "model": "mlp",
+  "input": "interval_history_k8",
+  "train_log": "matmulB-c4",
+  "eval_log": "matmulB-c8",
+  "capacity": 8,
+  "eval_capacity": 12,
+  "train_faults": 6296,
+  "held_out_faults": 4213
+}

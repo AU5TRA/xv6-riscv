@@ -1,0 +1,22 @@
+{
+  "workload": "lzwbench",
+  "experiment": "feature",
+  "feature_set": "recency_only",
+  "features": [
+    "recency"
+  ],
+  "model": "mlp",
+  "train_log": "lzw-p15-c8",
+  "eval_log": "lzw-p20-c10",
+  "capacity": 28,
+  "eval_capacity": 30,
+  "correlations": {
+    "recency": 0.029011114376901345,
+    "stack_distance": 0.010784369777471265,
+    "global_frequency": -0.056048046675745505,
+    "vpn_identity": -0.001788319292495601,
+    "position": -0.056039684580742356
+  },
+  "train_faults": 48013,
+  "held_out_faults": 43794
+}

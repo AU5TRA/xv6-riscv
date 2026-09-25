@@ -1,0 +1,12 @@
+{
+  "workload": "graphbench",
+  "experiment": "arch",
+  "model": "attention",
+  "input": "interval_history_k8",
+  "train_log": "graph-p15-c200",
+  "eval_log": "graph-p20-c267",
+  "capacity": 204,
+  "eval_capacity": 271,
+  "train_faults": 143107,
+  "held_out_faults": 134624
+}

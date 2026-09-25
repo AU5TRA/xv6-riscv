@@ -1,0 +1,12 @@
+{
+  "workload": "sortbench",
+  "experiment": "arch",
+  "model": "lstm",
+  "input": "interval_history_k8",
+  "train_log": "sort-p15-c12",
+  "eval_log": "sort-p20-c16",
+  "capacity": 16,
+  "eval_capacity": 20,
+  "train_faults": 1747,
+  "held_out_faults": 1631
+}
