@@ -272,6 +272,13 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
+  if(p->vm.policy == VM_POLICY_LFU){
+    static int lfu_debug_evictions = 0;
+    lfu_debug_evictions++;
+    if(lfu_debug_evictions % 200 == 0)
+      printk("LFU_DEBUG: eviction #%d, candidate_count=%d, victim freq=%lu va=%p\n",
+             lfu_debug_evictions, candidate_count, victim->frequency, (void *)victim->va);
+  }
   sample_page(victim, 0);
   // The A and D bits the policy actually saw, captured before anything
   // clears them. Without this the trace recorded which page was evicted but
