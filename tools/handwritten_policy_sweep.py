@@ -20,7 +20,7 @@ from sim import run_policy, CAPACITY_FIELD
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACES = ROOT / "traces"
-OUT = TRACES / "handwritten_results.csv"
+OUT = ROOT / "report" / "handwritten_results.csv"
 
 # same (workload, folder, train, eval, trace-stem) list as ml_comprehensive.py
 WORKLOADS = [

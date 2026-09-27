@@ -1,0 +1,43 @@
+ML-Based Page Replacement for xv6-riscv — Findings Summary
+
+Background
+
+xv6 is a small teaching operating system. This project explores whether a machine-learned page-replacement policy can outperform the classical policies already implemented in the kernel (FIFO, Clock, Aging, LRU) on a custom-built suite of workloads. All ML work runs offline, on the host machine in Python/PyTorch — xv6 itself has no floating point, so nothing runs inside the emulated kernel; the kernel only ever executes the classical policies. The workloads run for real inside xv6, and we capture their exact memory-page reference streams to train and evaluate ML models against afterward.
+
+Ground truth for "how good could a policy possibly be" comes from Belady's optimal algorithm — the provably best possible offline policy, which evicts whichever resident page will be needed furthest in the future. It requires knowing the future, so it can never run in a real kernel, but it gives an oracle upper bound to measure everything else against.
+
+The benchmark suite
+
+Seven workloads (six programs, one run in two variants), each designed so that no single simple heuristic trivially wins — every workload is built to have some structure that pure recency, pure frequency, or pure sequential access alone wouldn't capture.
+
+- btreebench — a real B+tree, standing in for a SQLite-style database pager. Mixes inserts (favor recency), point lookups that repeatedly re-hit the same upper tree nodes (favor frequency), and range scans (favor sequential read-ahead). No single classical policy wins across all three access types in the same run.
+- kvbench — an open-addressing hash table, standing in for Redis. Keys are drawn from a Zipfian (skewed hot/cold) distribution, and critically, the hot-key set rotates over time — this is what actually stresses a policy's ability to track changing recency, since a static hot set is something FIFO already handles fine once warmed up.
+- graphbench — BFS traversal plus PageRank over a synthetic scale-free graph. BFS visits vertices in a data-dependent order that can't be predicted from load order; PageRank repeatedly re-visits the same high-degree hub vertices across many iterations — a frequency signal FIFO is structurally blind to.
+- sortbench — classic external (bottom-up) merge sort. Deliberately the "boring" calibration workload: pure sequential locality, textbook-predictable fault counts, included as a sanity check that the whole measurement pipeline works correctly, not as a novel access pattern.
+- matmulbench (naive and blocked variants) — the same integer matrix multiply, computed two ways: naive row-order (poor spatial locality) vs. blocked/tiled (reuses a small tile repeatedly). A locality-contrast calibration pair, not a novel pattern in its own right.
+- lzwbench — LZW compression over a real text corpus (the GPL license text). The access pattern here is driven entirely by the input data's own byte sequence — genuinely data-dependent rather than engineered. Some short byte sequences get re-probed constantly (frequency-favoring); most dictionary entries are touched once and never again (recency-favoring) — both in the same run.
+
+What we tested
+
+Experiment 1 — does model architecture matter?
+Trained seven different model architectures (plain linear, MLP, RNN, LSTM, GRU, 1D-CNN, and a small self-attention model) on the same input: each page's last 8 access-interval gaps. All seven converged to nearly identical, mediocre results — none beat the classical policies meaningfully. A cheap correlation check run beforehand had already shown the input itself carried almost no signal. Conclusion: the bottleneck was the features being fed to the model, not the model's capacity or sophistication.
+
+Experiment 2 — does the choice of feature matter?
+Tried six different features on graphbench: recency, "stack distance" (theoretically correct LRU distance), total access frequency so far, raw page identity, position in the run, and all of them combined. Total access frequency, with nothing more than plain linear regression, was the first approach to genuinely beat every classical policy (~4% fewer faults than the best classical policy, holding up on held-out data). Interestingly, adding more features on top of frequency actually made things worse (diluted the one useful signal), and a feature that looked highly correlated with the outcome (position in the run) turned out to have zero actual predictive power for evictions, because it doesn't vary between the different pages being compared at any single eviction decision.
+
+Experiment 3 — does this generalize beyond graphbench?
+Repeated experiments 1 and 2 across all seven workloads — 133 trained models total. A learned model beat the best classical policy on 5 of 7 workloads, with real margins on some (lzwbench: −18%, sortbench: −15%), but there was no single winning feature — different workloads favored different features. More importantly, we found that on the two workloads with the smallest, most rigidly repetitive access patterns (sortbench and matmulbench), the same techniques that worked well elsewhere failed catastrophically — up to ~6,000x worse fault counts than the worst classical policy, not just mediocre. Root cause: a feature that's essentially constant for a given page across the whole run causes the model to make the exact same wrong eviction decision on every single repeating cycle, and with such a small working set, that one bad decision never gets diluted by variety the way it would on a larger, more varied workload.
+
+Experiment 4 — do simple, hand-written (non-learned) heuristics capture the same gains?
+Added two classic, hand-coded (no training, no ML at all) policies — LFU (evict least-frequently-used) and a proper stack-distance policy — directly to the kernel simulator, and ran them across all seven workloads. Two notable results: (1) hand-written LFU, with zero training, beat every classical policy and every learned model tried on lzwbench (−24% vs. Clock) — the single best result found in the whole project, and essentially free to implement for real. (2) The same catastrophic failures from Experiment 3 showed up again on sortbench/matmulbench, this time with no learning involved at all — confirming those failures are a property of frequency/distance-based eviction itself on those access patterns, not an artifact of training.
+
+Experiment 5 — does giving the model cross-page context help? (the more expensive experiment)
+Every prior model only ever looked at a single page's own history in isolation. This experiment gave a model genuine cross-page information: a learned representation ("embedding") for every page, combined with a summary of the last 16 pages touched anywhere in the whole process, fed through a small recurrent network. This is a real, if partial, step toward letting a model see structure like "which pages tend to be touched together" — closer to graph topology or matrix memory layout. Result: a clear negative finding. This more sophisticated, more expensive model never beat the much simpler frequency-based approach from Experiment 2 or 4 on any workload, tied classical Clock on graphbench at best, and was catastrophically worse than classical policies on sortbench and both matmulbench variants. More model capacity and more context did not translate into a better policy in this feature space.
+
+Bottom line
+
+- Model architecture was never the bottleneck — seven architectures and, separately, a much more sophisticated cross-page model, all converged to results no better than much simpler approaches.
+- The feature/signal given to the model is what matters. The single best-performing feature found across this whole project was plain access frequency — essentially rediscovering LFU.
+- The single most actionable, concrete result: hand-written LFU (no ML required) beats everything else tried on lzwbench by a wide margin, and is cheap to actually implement.
+- A clear risk pattern was identified and confirmed twice (once with learned models, once with hand-written heuristics): on workloads with small, rigidly repeating access patterns (sortbench, matmulbench), frequency/distance-based policies — learned or not — can fail catastrophically, far worse than doing nothing sophisticated at all. Any future policy needs to be evaluated on a genuinely held-out run before being trusted, since these failures gave no earlier warning signs.
+- Overall, none of the approaches tried came close to closing the full gap to Belady's theoretical optimum on any workload — real headroom remains, but not one this project's feature/architecture search was able to reach.

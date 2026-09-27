@@ -39,7 +39,8 @@ import ml_feature_experiments as feat  # build_labels()
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACES = ROOT / "traces"
-MODELS_DIR = ROOT / "models"
+REPORT = ROOT / "report"
+MODELS_DIR = REPORT / "models"
 
 WORKLOADS = [
     ("btreebench", "btreebench", "btree-p15-c266", "btree-p20-c355", "btreebench"),
@@ -192,7 +193,7 @@ def main():
             f'"eval_capacity": {ev_cap}, "train_faults": {tr_f}, '
             f'"held_out_faults": {ev_f}}}')
 
-    out = TRACES / "embedding_results.csv"
+    out = REPORT / "embedding_results.csv"
     with out.open("w") as f:
         f.write("workload,capacity,eval_capacity,train_faults,held_out_faults\n")
         for r in results:

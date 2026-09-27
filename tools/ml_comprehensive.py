@@ -28,8 +28,9 @@ from sim import run_policy, CAPACITY_FIELD
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACES = ROOT / "traces"
-MODELS_DIR = ROOT / "models"
-RESULTS_CSV = TRACES / "ml_comprehensive_results.csv"
+REPORT = ROOT / "report"
+MODELS_DIR = REPORT / "models"
+RESULTS_CSV = REPORT / "ml_comprehensive_results.csv"
 
 # (workload label, folder name, train log stem, eval log stem, trace-file stem)
 WORKLOADS = [

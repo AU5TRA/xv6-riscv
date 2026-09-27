@@ -253,8 +253,8 @@ tighter of two capacities, evaluate at the looser one). 133 models
 trained and evaluated in total (19 per workload × 7), ~76 minutes wall
 time. Every trained model's weights and a metadata sidecar (workload,
 feature set, capacities, resulting fault counts) are saved under
-`models/` — 266 files, so any individual result here can be reloaded
-without retraining. Full numeric results: `traces/ml_comprehensive_results.csv`
+`report/models/` — 266 files, so any individual result here can be reloaded
+without retraining. Full numeric results: `report/ml_comprehensive_results.csv`
 (both gitignored, regenerable via `tools/ml_comprehensive.py`, same as
 the trace data itself).
 
@@ -366,7 +366,7 @@ existing `Fifo`/`Clock`/`Aging`/`Lru` classes, no learning involved:
   stack distance (distinct pages touched since its own last access).
 
 Run across all seven workload/variant configurations via
-`tools/handwritten_policy_sweep.py`. Results: `traces/handwritten_results.csv`.
+`tools/handwritten_policy_sweep.py`. Results: `report/handwritten_results.csv`.
 
 **Results** (train / held-out faults, classical best and Belady shown for reference):
 
@@ -577,10 +577,10 @@ workload, though it is far from the whole gap (138,343 vs. Belady's
   graphbench only.
 - `tools/ml_comprehensive.py` — Experiment 3: every architecture and
   feature set from Experiments 1-2, run across all seven workload/
-  variant configurations. Writes `traces/ml_comprehensive_results.csv`
+  variant configurations. Writes `report/ml_comprehensive_results.csv`
   (committed — small, ~12KB, unlike the underlying trace data) and
   saves every one of the 133 trained models' weights plus a metadata
-  sidecar under `models/` (also committed — 266 files, ~1.5MB total,
+  sidecar under `report/models/` (also committed — 266 files, ~1.5MB total,
   small enough to version directly rather than only be regenerable;
   each `.pt` is a PyTorch `state_dict`, each `.json` records the exact
   workload/feature-set/architecture/capacities/fault counts it came
@@ -592,10 +592,10 @@ workload, though it is far from the whole gap (138,343 vs. Belady's
 - `tools/handwritten_policy_sweep.py` — Experiment 4: runs every
   classical policy plus the two new hand-written ones across all seven
   workloads, no training/torch dependency at all. Writes
-  `traces/handwritten_results.csv` (committed).
+  `report/handwritten_results.csv` (committed).
 - `tools/ml_embedding_experiment.py` — Experiment 5: the cross-page
   `GlobalContextModel` (learned embedding + GRU over a global recent
   -context window), run across all seven workloads. Writes
-  `traces/embedding_results.csv` (committed) and saves each workload's
-  trained model under `models/*_embed_global_context.{pt,json}`
+  `report/embedding_results.csv` (committed) and saves each workload's
+  trained model under `report/models/*_embed_global_context.{pt,json}`
   (committed, same convention as Experiment 3's models).
