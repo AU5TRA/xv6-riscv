@@ -498,6 +498,8 @@ main(int argc, char **argv)
       policy = VM_POLICY_CLOCK;
     else if(strcmp(argv[2], "aging") == 0)
       policy = VM_POLICY_AGING;
+    else if(strcmp(argv[2], "lfu") == 0)
+      policy = VM_POLICY_LFU;
     if(policy < 0 || vmctl(VM_SET_POLICY, policy) < 0){
       printf("prefetchtest: %s: FAIL\n", name);
       exit(1);

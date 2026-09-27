@@ -185,6 +185,32 @@ choose_aging(struct vm_page **candidates, int count)
   return victim;
 }
 
+// Least-Frequently-Used: evict the resident candidate with the smallest
+// cumulative access count. Reuses the same page->frequency counter that
+// choose_clock/choose_aging already maintain via sample_page() -- a
+// periodic hardware-accessed-bit sample taken each time a page is
+// scanned as an eviction candidate, not a true per-access counter (the
+// same approximation choose_aging's own recency counter already makes).
+// Tie-break on load_sequence (oldest first), matching choose_aging's own
+// tie-break rule.
+static struct vm_page *
+choose_lfu(struct vm_page **candidates, int count)
+{
+  struct vm_page *victim = 0;
+  int cleared = 0;
+  for(int i = 0; i < count; i++){
+    struct vm_page *page = candidates[i];
+    cleared |= sample_page(page, 1);
+    if(victim == 0 || page->frequency < victim->frequency ||
+       (page->frequency == victim->frequency &&
+        page->load_sequence < victim->load_sequence))
+      victim = page;
+  }
+  if(cleared)
+    sfence_vma();
+  return victim;
+}
+
 static struct vm_page *
 choose_policy_victim(struct proc *p, int count, int *fallback)
 {
@@ -203,6 +229,8 @@ choose_policy_victim(struct proc *p, int count, int *fallback)
     victim = choose_clock(p, frame_table.candidates, count);
   else if(p->vm.policy == VM_POLICY_AGING)
     victim = choose_aging(frame_table.candidates, count);
+  else if(p->vm.policy == VM_POLICY_LFU)
+    victim = choose_lfu(frame_table.candidates, count);
   else
     victim = 0;
 

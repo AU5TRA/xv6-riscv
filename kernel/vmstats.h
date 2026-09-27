@@ -21,7 +21,8 @@
 #define VM_POLICY_FIFO 0
 #define VM_POLICY_CLOCK 1
 #define VM_POLICY_AGING 2
-#define VM_POLICY_COUNT 3
+#define VM_POLICY_LFU 3
+#define VM_POLICY_COUNT 4
 
 #define VM_FAIL_NONE 0
 #define VM_FAIL_SWAP_READ 1

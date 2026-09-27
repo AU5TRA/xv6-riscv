@@ -1542,6 +1542,8 @@ main(int argc, char **argv)
       requested_policy = VM_POLICY_CLOCK;
     else if(strcmp(argv[2], "aging") == 0)
       requested_policy = VM_POLICY_AGING;
+    else if(strcmp(argv[2], "lfu") == 0)
+      requested_policy = VM_POLICY_LFU;
     else {
       printf("vmtest: %s: FAIL\n", name);
       exit(1);
