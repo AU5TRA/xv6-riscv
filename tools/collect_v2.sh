@@ -1,14 +1,32 @@
 #!/bin/bash
-# Capacity matrix, second campaign: all 36 runs with the buffered file sink.
+# Capacity matrix driver: every workload at every capacity, with the buffered
+# file sink.
 #
-# What changed since the first campaign (see xv6-file-sink-design.docx):
+# History. Campaign 2 (traces/sweep) introduced the file sink:
 #   * the reference string is buffered and written to a file inside the guest
 #     rather than one character at a time to the console;
 #   * it is recovered host-side from fs.img, so it never crosses the UART;
-#   * the per-run limit is 5400s, not 3600s -- the old limit, not the
-#     workloads, ended nine runs;
-#   * every workload parameter is otherwise byte-identical to the first
-#     campaign, so each run has an exact counterpart to be checked against.
+#   * every workload parameter is byte-identical to the first campaign, so
+#     each run has an exact counterpart to be checked against.
+# Campaign 3 (the default below) re-collects with graphbench tracing all five
+# of its arrays, the R/W access type on every reference, and the sort/matmul
+# verification scans moved out of the measured window.
+#
+# Settings, all overridable from the environment:
+#   OUT            where this campaign writes          (traces/sweep-rw)
+#   BASE           the campaign it is checked against  (traces/sweep)
+#   WORKLOADS      which to run, cheapest first        (kv btree matmul sort graph)
+#   TIMEOUT        per-run limit in seconds            (5400)
+#   GRAPH_TIMEOUT  per-run limit for graphbench        (10800)
+#
+# lzw is left out of the default: at repeat_count 2 its reference string is
+# ~109 MB, past xv6's 64 MiB MAXFILE, and the file sink loses the tail
+# silently. Add it to WORKLOADS only once that is resolved.
+#
+# OUT is never written over: the driver refuses to start if OUT already holds
+# traces or is the same directory as BASE. Several drivers can run in
+# parallel from separate copies of the tree, each with its own WORKLOADS --
+# fs.img is per tree, so they do not share a disk.
 #
 # fs.img is rebuilt before every run. Without that, a 27MB trace left by the
 # previous run would change block allocation and free-space layout for the
@@ -16,18 +34,43 @@
 #
 # Ordered cheapest first, so a mistake surfaces in minutes rather than hours.
 
-cd /mnt/d/thesis/xv6-riscv || exit 1
-. /home/ashfaq/xv6env.sh
+# Run from the tree this script lives in, so a copy on the WSL filesystem
+# really runs there instead of on the 9p-mounted Windows drive.
+cd "$(dirname "$0")/.." || exit 1
+. "$HOME/xv6env.sh"
 unset VM_DEBUG
 
-OUT=traces/sweep
-BASE=traces/sweep-prefilesink
+OUT="${OUT:-traces/sweep-rw}"
+BASE="${BASE:-traces/sweep}"
+WORKLOADS="${WORKLOADS:-kv btree matmul sort graph}"
+TIMEOUT="${TIMEOUT:-5400}"
+GRAPH_TIMEOUT="${GRAPH_TIMEOUT:-10800}"
 RES="$OUT/RESULTS.tsv"
 CMP="$OUT/COMPARISON.tsv"
 STATUS="$OUT/STATUS.txt"
 STATE="$OUT/.state"
-TIMEOUT=5400
-TOTAL=36
+
+TOTAL=0
+for w in $WORKLOADS; do
+  case "$w" in
+    kv|btree|matmul|sort|lzw|graph) TOTAL=$((TOTAL + 6)) ;;
+    *) echo "collect_v2: unknown workload '$w' in WORKLOADS" >&2; exit 1 ;;
+  esac
+done
+want() {
+  case " $WORKLOADS " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+if [ "$(realpath -m "$OUT")" = "$(realpath -m "$BASE")" ]; then
+  echo "collect_v2: OUT and BASE are both $OUT -- a campaign cannot be its own baseline" >&2
+  exit 1
+fi
+if ls "$OUT"/*.trace >/dev/null 2>&1; then
+  echo "collect_v2: $OUT already holds traces; refusing to overwrite them." >&2
+  echo "  Choose another OUT, or move that campaign aside first." >&2
+  exit 1
+fi
 
 mkdir -p "$OUT" "$STATE"
 : > "$RES"
@@ -36,6 +79,7 @@ echo 0    > "$STATE/done"
 echo 0    > "$STATE/paced"
 echo "-"  > "$STATE/current"
 echo "-"  > "$STATE/started_at"
+echo "$TIMEOUT" > "$STATE/timeout"
 date -Is  > "$STATE/campaign_start"
 
 # --------------------------------------------------------------- status ---
@@ -44,28 +88,32 @@ date -Is  > "$STATE/campaign_start"
 # with it and the "updated" line goes stale, so a dead campaign can never
 # again look like a running one.
 write_status() {
-  local done cur started paced elapsed
+  local done cur started paced elapsed limit
   done=$(cat "$STATE/done" 2>/dev/null || echo 0)
   paced=$(cat "$STATE/paced" 2>/dev/null || echo 0)
   cur=$(cat "$STATE/current" 2>/dev/null || echo -)
   started=$(cat "$STATE/started_at" 2>/dev/null || echo -)
+  # Read, not inherited: the heartbeat is a subshell forked before any
+  # per-workload limit is set.
+  limit=$(cat "$STATE/timeout" 2>/dev/null || echo -)
   if [ "$started" != "-" ]; then
     elapsed="$(( $(date +%s) - started ))s"
   else
     elapsed="-"
   fi
   {
-    echo "TRACE COLLECTION STATUS  --  campaign 2 (buffered file sink)"
+    echo "TRACE COLLECTION STATUS  --  $OUT"
     echo "==========================================================="
     echo "campaign started  $(cat "$STATE/campaign_start")"
     echo "updated           $(date -Is)"
     echo "driver pid        $$"
+    echo "workloads         $WORKLOADS"
     echo
     echo "  If 'updated' is more than a couple of minutes old, the driver is"
     echo "  no longer running. A heartbeat refreshes this file every 20s."
     echo
     echo "PROGRESS :  $done of $TOTAL runs complete"
-    echo "RUNNING  :  $cur   (elapsed $elapsed, limit ${TIMEOUT}s)"
+    echo "RUNNING  :  $cur   (elapsed $elapsed, limit ${limit}s)"
     echo "PACED    :  $paced run(s) needed pacing"
     echo
     echo "RESULTS"
@@ -81,7 +129,7 @@ write_status() {
     echo "  LIMIT   the true frame limit the kernel applied (settled + margin)"
     echo "  REFS    reference-string lines recovered from fs.img"
     echo
-    echo "COMPARISON AGAINST CAMPAIGN 1"
+    echo "COMPARISON AGAINST $BASE"
     echo "-----------------------------"
     printf "%-14s %5s %11s %11s %9s %9s %8s %s\n" \
       WORKLOAD NOM REFS_OLD REFS_NEW FAULT_OLD FAULT_NEW DELTA VERDICT
@@ -89,22 +137,17 @@ write_status() {
       -------------- ----- ----------- ----------- --------- --------- -------- -------
     cat "$CMP" 2>/dev/null
     echo
-    echo "  Expected: REFS identical (the workload is deterministic), faults"
-    echo "  about 0.3% lower (the buffered instrument holds ~1 fewer frame)."
+    echo "  Against campaign 2, expected: the page sequence 'identical' for kv,"
+    echo "  btree, sort and matmul (the R/W letter is not compared); REFS DIFFER"
+    echo "  for graph, which now traces all five arrays instead of the edges"
+    echo "  alone. Counters may move slightly: the binaries changed layout, and"
+    echo "  sort/matmul no longer count their verification scans."
     echo
-    echo "PAGE COUNTS (measured) -- nominal percentages are of these:"
-    echo "  btreebench 1773   kvbench 528   graphbench 1334"
-    echo "  sortbench    81   matmul   18   lzwbench    50"
-    echo
-    echo "KNOWN ISSUE (unchanged from campaign 1, deliberately not fixed here)"
+    echo "KNOWN ISSUE (unchanged since campaign 1, deliberately not fixed here)"
     echo "  The capacity argument is a MARGIN above the settled resident set,"
-    echo "  not an absolute frame count. For btreebench/kvbench/graphbench the"
-    echo "  settled baseline is ~4 frames, so the axis is off by a constant and"
-    echo "  the curves are valid. For sortbench/matmul/lzw the offset is a"
-    echo "  large fraction of the working set and those axis labels are wrong"
-    echo "  by roughly 2x. The true LIMIT column above is the honest axis."
-    echo "  Re-parameterising is a separate change; altering it here would"
-    echo "  confound it with the instrumentation change under test."
+    echo "  not an absolute frame count, and LIMIT includes the program's own"
+    echo "  code and stack. See the ARENA column of SUMMARY.txt for the frames"
+    echo "  the traced pages actually had."
   } > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"
 }
 
@@ -132,6 +175,11 @@ compare_to_baseline() {
   local label="$1" nom="$2" stem="$3" refs_new="$4" faults_new="$5" evicts_new="$6"
   local blog="$BASE/$stem.log"
   local refs_old faults_old evicts_old delta verdict pct
+  # Where the baseline's references live: a file-sink campaign has them in
+  # <stem>.trace, a console campaign (campaign 1) inline in <stem>.log. The
+  # counters are in the .log either way.
+  local brefs="$BASE/$stem.trace"
+  [ -f "$brefs" ] || brefs="$blog"
 
   if [ ! -f "$blog" ]; then
     printf "%-14s %5s %11s %11s %9s %9s %8s %s\n" \
@@ -140,7 +188,7 @@ compare_to_baseline() {
     return
   fi
 
-  refs_old=$(grep -c '^T ' "$blog" 2>/dev/null)
+  refs_old=$(grep -cE '^[TRW] ' "$brefs" 2>/dev/null)
   faults_old=$(grep -oE "swap_faults=[0-9]+" "$blog" | head -1 | cut -d= -f2)
   evicts_old=$(grep -oE "evictions=[0-9]+" "$blog" | head -1 | cut -d= -f2)
 
@@ -155,14 +203,17 @@ compare_to_baseline() {
   if [ "$refs_old" != "$refs_new" ]; then
     verdict="REFS DIFFER"
   else
-    # byte-for-byte check of the reference sequence itself
-    grep '^T ' "$blog" | tr -d '\r' > /tmp/base_refs.$$
-    if cmp -s /tmp/base_refs.$$ "$OUT/$stem.trace"; then
+    # exact check of the page sequence itself. Page numbers only: a baseline
+    # captured before the access type was recorded says "T" where a new
+    # trace says "R" or "W".
+    grep -E '^[TRW] ' "$brefs" | tr -d '\r' | cut -c3- > /tmp/base_refs.$$
+    grep -E '^[TRW] ' "$OUT/$stem.trace" | cut -c3- > /tmp/new_refs.$$
+    if cmp -s /tmp/base_refs.$$ /tmp/new_refs.$$; then
       verdict="identical"
     else
       verdict="SEQUENCE DIFFERS"
     fi
-    rm -f /tmp/base_refs.$$
+    rm -f /tmp/base_refs.$$ /tmp/new_refs.$$
   fi
 
   delta=$((faults_new - faults_old))
@@ -194,7 +245,7 @@ run_one() {
   make fs.img >/dev/null 2>&1
 
   s=$(date +%s)
-  python3 tools/run_xv6_tests.py --cpus 1 --timeout "$TIMEOUT" "$*" \
+  python3 tools/run_xv6_tests.py --cpus 1 --timeout "$(cat "$STATE/timeout")" "$*" \
       > "$OUT/$stem.harness" 2>&1
   rc=$?
   e=$(date +%s)
@@ -211,7 +262,7 @@ run_one() {
   # pull the reference string out of the guest filesystem
   if python3 tools/extract_file.py fs.img reftrace.txt "$OUT/$stem.trace" \
         >/dev/null 2>&1 && [ -s "$OUT/$stem.trace" ]; then
-    refs=$(grep -c '^T ' "$OUT/$stem.trace")
+    refs=$(grep -cE '^[TRW] ' "$OUT/$stem.trace")
   fi
 
   if [ "$rc" = "0" ] && [ "${refs:-0}" -gt 0 ] && [ "$faults" != "-" ]; then
@@ -242,41 +293,45 @@ HB_PID=$!
 # --- cheapest first, so a mistake costs minutes rather than hours ----------
 
 # kvbench: 528 pages, ~160k refs
-for spec in "5 26" "10 53" "15 79" "20 106" "25 132" "30 158"; do
+want kv && for spec in "5 26" "10 53" "15 79" "20 106" "25 132" "30 158"; do
   set -- $spec
   run_one kvbench "$1%" "$2" "kv-p$1-c$2" kvbench 2000 "$2" 20000 1 A 9
 done
 
 # btreebench: 1773 pages, ~224k refs
-for spec in "5 89" "10 177" "15 266" "20 355" "25 443" "30 532"; do
+want btree && for spec in "5 89" "10 177" "15 266" "20 355" "25 443" "30 532"; do
   set -- $spec
   run_one btreebench "$1%" "$2" "btree-p$1-c$2" btreebench 5000 "$2" 45000 1 mixed 9
 done
 
 # matmulbench: 18 pages; a locality contrast, not a percentage sweep
-for spec in "22 4" "44 8" "67 12"; do
+want matmul && for spec in "22 4" "44 8" "67 12"; do
   set -- $spec
   run_one matmul-naive "$1%" "$2" "matmulN-c$2" matmulbench 2000 "$2" 96 naive 9
   run_one matmul-block "$1%" "$2" "matmulB-c$2" matmulbench 2000 "$2" 96 blocked 9
 done
 
 # sortbench: 81 pages, ~1.85M refs
-for spec in "5 4" "10 8" "15 12" "20 16" "25 20" "30 24"; do
+want sort && for spec in "5 4" "10 8" "15 12" "20 16" "25 20" "30 24"; do
   set -- $spec
   run_one sortbench "$1%" "$2" "sort-p$1-c$2" sortbench 2000 "$2" 40000 1 9
 done
 
-# lzwbench: 50 pages, >1.9M refs at repeat_count 2
-for spec in "5 3" "10 5" "15 8" "20 10" "25 13" "30 15"; do
+# lzwbench: 50 pages, ~20M refs at repeat_count 2 -- see the header note
+want lzw && for spec in "5 3" "10 5" "15 8" "20 10" "25 13" "30 15"; do
   set -- $spec
   run_one lzwbench "$1%" "$2" "lzw-p$1-c$2" lzwbench "$2" 2 9
 done
 
-# graphbench: 1334 pages, ~2.7M refs -- the reason for all of this
-for spec in "5 67" "10 133" "15 200" "20 267" "25 334" "30 400"; do
+# graphbench: all ~2000 arena pages, ~6.25M refs. p5 took 4200s when only
+# the edges were traced, and full tracing made p30 1.57x slower, so the
+# default limit would end the tightest runs.
+echo "$GRAPH_TIMEOUT" > "$STATE/timeout"
+want graph && for spec in "5 67" "10 133" "15 200" "20 267" "25 334" "30 400"; do
   set -- $spec
   run_one graphbench "$1%" "$2" "graph-p$1-c$2" graphbench 2000 "$2" 1 1 both 9
 done
+echo "$TIMEOUT" > "$STATE/timeout"
 
 cleanup
 trap - EXIT

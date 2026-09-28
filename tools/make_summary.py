@@ -10,13 +10,19 @@ Writes: traces/sweep/SUMMARY.txt
 
 from __future__ import annotations
 
+import collections
 import re
+import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWEEP = ROOT / "traces" / "sweep"
 OUT = SWEEP / "SUMMARY.txt"
 MAXFILE = (11 + 256 + 65536) * 1024
+
+# Reference lines: "R <vpn>" / "W <vpn>", or "T <vpn>" in captures made
+# before the access type was recorded.
+REF_PREFIXES = (b"T ", b"R ", b"W ")
 
 # stem -> (workload, nominal label, what the workload models)
 MODELS = {
@@ -29,9 +35,29 @@ MODELS = {
     "matmulB": ("matmulbench blocked", "matrix multiply, cache-tiled order"),
 }
 
+# Workloads whose trace leaves part of the arena itself untraced. Those pages
+# compete for frames in ways the FIFO model below cannot represent, and a fit
+# would still land on some h, so these are excluded by construction rather
+# than by fit quality.
+#
+# graphbench traces all five arrays since graph_trace() was added; its entry
+# describes the traces/sweep/graph-* captures made before that, and goes
+# once they are re-collected.
+NO_FIT = {
+    "graph": "only the edge array is traced; rank, next_rank, visited and "
+             "queue are not",
+    "lzw": "only the dictionary table is traced; the input and output "
+           "buffers are not",
+}
+
+# A fit further off than this is printed, but its ARENA/COVERAGE are not
+# trusted. The misses are all matmul runs on an eviction cliff, where one
+# frame of h changes the eviction count several-fold.
+FIT_TOLERANCE = 0.05
+
 FIELD = {
     "faults": re.compile(r"swap_faults=(\d+)"),
-    "evicts": re.compile(r"evictions=(\d+)"),
+    "evicts": re.compile(r"RESULT evictions=(\d+)"),
     "limit": re.compile(r"resident_limit=(\d+)"),
     "arena": re.compile(r"arena_start_vpn=(\d+)"),
     "pages": re.compile(r"arena_pages=(\d+)"),
@@ -60,7 +86,7 @@ def count_refs(path: Path) -> int:
     n = 0
     with path.open("rb") as fh:
         for line in fh:
-            if line.startswith(b"T "):
+            if line[:2] in REF_PREFIXES:
                 n += 1
     return n
 
@@ -69,11 +95,59 @@ def distinct_pages(path: Path) -> int:
     seen = set()
     with path.open("rb") as fh:
         for line in fh:
-            if line.startswith(b"T "):
+            if line[:2] in REF_PREFIXES:
                 tok = line[2:].strip()
                 if tok.isdigit():
                     seen.add(tok)
     return len(seen)
+
+
+def load_refs(path: Path) -> list:
+    with path.open("rb") as fh:
+        return [int(line[2:]) for line in fh if line[:2] in REF_PREFIXES]
+
+
+def fifo_hot_evictions(refs, limit: int, hot: int) -> int:
+    """Evictions FIFO makes at `limit` frames when `hot` untraced pages
+    (code, stack) are always in use: an evicted hot page faults straight
+    back in, taking the next-oldest frame. Mirrors choose_fifo() in
+    kernel/vmpage.c, which evicts by load order with no exemption for the
+    program's own text."""
+    queue = collections.deque(-(i + 1) for i in range(hot))
+    resident = set(queue)
+    evictions = 0
+    for vpn in refs:
+        if vpn in resident:
+            continue
+        pending = [vpn]
+        while pending:
+            page = pending.pop()
+            if len(resident) >= limit:
+                victim = queue.popleft()
+                resident.discard(victim)
+                evictions += 1
+                if victim < 0:
+                    pending.append(victim)
+            resident.add(page)
+            queue.append(page)
+    return evictions
+
+
+def fit_untraced(refs, limit: int, kernel_evictions: int, max_hot: int):
+    """The number of always-hot untraced pages that best reproduces the
+    kernel's eviction count, and the relative error of that fit. `max_hot`
+    bounds the search by the pages that exist outside the arena at all."""
+    if not kernel_evictions:
+        return None
+    best = None
+    for hot in range(0, min(limit - 1, max_hot) + 1):
+        ev = fifo_hot_evictions(refs, limit, hot)
+        err = (ev - kernel_evictions) / kernel_evictions
+        if best is None or abs(err) < abs(best[1]):
+            best = (hot, err)
+        if ev > 1.5 * kernel_evictions:
+            break
+    return best
 
 
 def main():
@@ -90,6 +164,7 @@ def main():
             "refs": count_refs(trace),
             "pages": distinct_pages(trace),
             "limit": scalar(log, "limit"),
+            "below_arena": scalar(log, "arena"),
             "faults": scalar(log, "faults"),
             "evicts": scalar(log, "evicts"),
             "reads": scalar(log, "reads"),
@@ -99,6 +174,21 @@ def main():
     order = ["kv", "btree", "sort", "graph", "lzw", "matmulN", "matmulB"]
     rows.sort(key=lambda r: (order.index(r["fam"]), r["limit"] or 0))
 
+    # The reference string is identical at every capacity of a workload, so
+    # it is loaded once per workload for the fits.
+    refs_by_fam = {}
+    for r in rows:
+        r["fit"] = None
+        if r["fam"] in NO_FIT or not r["limit"]:
+            continue
+        if r["fam"] not in refs_by_fam:
+            refs_by_fam[r["fam"]] = load_refs(SWEEP / r["trace"])
+        # Pages below the arena (text, data, stack) are the only untraced
+        # pages these workloads have, so they bound the fit.
+        r["fit"] = fit_untraced(refs_by_fam[r["fam"]], r["limit"],
+                                r["evicts"], r["below_arena"] or 0)
+    refs_by_fam.clear()
+
     L = []
     A = L.append
     A("=" * 78)
@@ -106,12 +196,15 @@ def main():
     A("=" * 78)
     A("")
     A("36 runs: six workloads, each at six memory capacities.")
-    A("Each run records the complete reference string (every page the program")
-    A("touched, in order) plus the kernel's own fault and eviction counters at")
-    A("that capacity.")
+    A("Each run records the reference string of the workload's own data (every")
+    A("traced arena page it touched, in order) plus the kernel's own fault and")
+    A("eviction counters at that capacity. The program's code and stack are not")
+    A("traced, but they share the frame limit; see UNTRACED below.")
     A("")
     A("Location:  traces/sweep/")
-    A("  <run>.trace    the reference string, one 'T <page>' line per access")
+    A("  <run>.trace    the reference string, one 'R <page>' (read) or 'W <page>'")
+    A("                 (write) line per access; 'T <page>' in captures")
+    A("                 made before the access type was recorded")
     A("  <run>.log      the full run transcript and RESULT counters")
     A("  <run>.harness  the test-harness output for that run")
     A("")
@@ -131,33 +224,65 @@ def main():
         name, desc = MODELS[r["fam"]]
         A("")
         A("%s -- %s" % (name, desc))
-        A("  working set %d pages, %s references per run"
+        A("  working set %d traced pages, %s references per run"
           % (r["pages"], "{:,}".format(r["refs"])))
         A("")
-        A("    %-8s %10s %12s %12s %12s" %
-          ("FRAMES", "COVERAGE", "FAULTS", "EVICTIONS", "TRACE FILE"))
+        A(" %5s %8s %5s %8s %6s %9s %9s %s" %
+          ("LIMIT", "UNTRACED", "ARENA", "COVERAGE", "FIT",
+           "FAULTS", "EVICTIONS", "TRACE FILE"))
         for q in rows:
             if q["fam"] != r["fam"]:
                 continue
-            cov = 100.0 * (q["limit"] or 0) / q["pages"] if q["pages"] else 0
-            A("    %-8s %9.1f%% %12s %12s   %s" %
-              (q["limit"], cov,
+            fit = q["fit"]
+            if fit is None:
+                untraced = arena = cover = err = "-"
+            else:
+                hot, e = fit
+                untraced = str(hot)
+                err = "%+.1f%%" % (100.0 * e)
+                if abs(e) <= FIT_TOLERANCE and q["pages"]:
+                    arena = str(q["limit"] - hot)
+                    cover = "%.1f%%" % (100.0 * (q["limit"] - hot) / q["pages"])
+                else:
+                    arena = cover = "?"
+            A(" %5s %8s %5s %8s %6s %9s %9s %s" %
+              (q["limit"], untraced, arena, cover, err,
                "{:,}".format(q["faults"] or 0),
                "{:,}".format(q["evicts"] or 0),
                q["trace"]))
+        if r["fam"] in NO_FIT:
+            A("")
+            for line in textwrap.wrap(
+                    "No UNTRACED/ARENA/COVERAGE: %s. FAULTS and EVICTIONS "
+                    "include those untraced pages, so they cannot be "
+                    "reproduced by replaying this trace." % NO_FIT[r["fam"]],
+                    width=76):
+                A("  " + line)
 
     A("")
     A("")
     A("HOW TO READ THIS")
     A("-" * 78)
-    A("FRAMES    the number of physical pages the kernel allowed the program.")
-    A("          This is the real capacity the run executed under, read back")
+    A("LIMIT     the number of physical pages the kernel allowed the whole")
+    A("          process -- traced data AND its own code and stack. Read back")
     A("          from the kernel, not the number requested on the command")
     A("          line. Use this column, not the percentage in the filename.")
-    A("COVERAGE  FRAMES as a percentage of the working set, i.e. how much of")
-    A("          the program's memory actually fitted at once.")
-    A("FAULTS    times the program touched a page that was not resident and")
-    A("          the kernel had to fetch it from swap.")
+    A("UNTRACED  estimated frames held by untraced code/stack pages. Measured,")
+    A("          not assumed: the number of always-in-use extra pages for which")
+    A("          FIFO over this trace reproduces the kernel's EVICTIONS. FIFO")
+    A("          evicts the program's own text like any other page, and it")
+    A("          faults straight back in, so these pages hold frames")
+    A("          throughout the run.")
+    A("ARENA     LIMIT - UNTRACED: frames actually available to the traced")
+    A("          pages. This is the capacity to simulate the trace at.")
+    A("COVERAGE  ARENA as a percentage of the traced working set.")
+    A("FIT       how far that FIFO replay lands from the kernel's EVICTIONS.")
+    A("          Beyond +/-%.0f%% ARENA and COVERAGE are shown as '?': those runs"
+      % (100 * FIT_TOLERANCE))
+    A("          sit on an eviction cliff, where one frame changes evictions")
+    A("          several-fold, so no single UNTRACED value is meaningful.")
+    A("FAULTS    times the process touched a page that was not resident and")
+    A("          the kernel had to fetch it from swap (code and stack included).")
     A("EVICTIONS times a resident page had to be thrown out to make room.")
     A("")
     A("Within a workload the reference string is identical at every capacity --")

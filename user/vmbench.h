@@ -34,7 +34,12 @@ int vmbench_arena_free(int npages);
 // ---- Reference logging -------------------------------------------------
 // When reference tracing is on (vmbench_trace_on != 0, toggled by
 // vmbench_trace_start/stop below), vmbench_trace_ref prints a compact
-// "T <vpn>" line -- a full reference stream, not just faults. This is
+// "R <vpn>" or "W <vpn>" line -- a full reference stream, not just
+// faults. W means the access modified the page at all, R that it only
+// read it; that is what an offline replay needs to know which evictions
+// cost a write-back. (Captures made before the access type was recorded
+// use "T <vpn>" for every reference; the host tools accept all three.)
+// This is
 // what Phase 3 (trace collection) needs for Belady labeling: the
 // kernel's own vmtrace ring only records FAULTS, so it can't see a
 // benign re-touch of an already-resident page, which Belady's
@@ -45,8 +50,10 @@ int vmbench_arena_free(int npages);
 //
 // Call this from a workload's OWN page-accessor function (the one
 // thing every access already funnels through -- e.g. btreebench's
-// bt_node(), kvbench's kv_key_ptr(), graphbench's edge_dst()) rather
-// than at every call site individually.
+// bt_node(), kvbench's kv_key_ptr()) rather than at every call site
+// individually. It has to be an accessor that EVERY arena access goes
+// through: graphbench once traced only edge_dst(), which left four of
+// its five arrays -- and most of its faults -- out of the trace.
 extern int vmbench_trace_on;
 
 // Reference logging is buffered, because xv6's printf() calls putc() which
@@ -75,17 +82,22 @@ void vmbench_trace_flush(void);
 #define VMBENCH_TRACE_PATH "reftrace.txt"
 int vmbench_trace_sink(int flags);
 
+// The access argument of vmbench_trace_ref(). There is deliberately no
+// "unknown" value: every call site has to say which one it is.
+#define VMBENCH_READ 'R'
+#define VMBENCH_WRITE 'W'
+
 static inline void
-vmbench_trace_ref(char *base, uint64 page)
+vmbench_trace_ref(char *base, uint64 page, char access)
 {
   if(!vmbench_trace_on)
     return;
   uint64 vpn = ((uint64)base + page * VMBENCH_PGSIZE) / VMBENCH_PGSIZE;
-  // "T " + at most 20 digits + newline
+  // "R " + at most 20 digits + newline
   if(vmbench_trace_len > VMBENCH_TRACE_BUFSZ - 24)
     vmbench_trace_flush();
   char *p = vmbench_trace_buf + vmbench_trace_len;
-  *p++ = 'T';
+  *p++ = access;
   *p++ = ' ';
   char digits[24];
   int n = 0;
@@ -106,7 +118,7 @@ static inline uchar
 touch_r(char *base, uint64 page)
 {
   uchar v = *(volatile uchar *)(base + page * VMBENCH_PGSIZE);
-  vmbench_trace_ref(base, page);
+  vmbench_trace_ref(base, page, VMBENCH_READ);
   return v;
 }
 
@@ -114,7 +126,7 @@ static inline void
 touch_w(char *base, uint64 page, uchar val)
 {
   *(volatile uchar *)(base + page * VMBENCH_PGSIZE) = val;
-  vmbench_trace_ref(base, page);
+  vmbench_trace_ref(base, page, VMBENCH_WRITE);
 }
 
 // Prints a documented trace-file header (workload name + parameters +

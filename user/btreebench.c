@@ -112,7 +112,8 @@ wal_append(int key, int value, int op)
 {
   if(g_wal_pos + (long)sizeof(struct wal_record) > g_wal_capacity)
     g_wal_pos = 0; // wrap: simulates a checkpoint/truncation boundary
-  vmbench_trace_ref(g_wal, (uint64)(g_wal_pos / VMBENCH_PGSIZE));
+  vmbench_trace_ref(g_wal, (uint64)(g_wal_pos / VMBENCH_PGSIZE),
+                    VMBENCH_WRITE);
   struct wal_record *r = (struct wal_record *)(g_wal + g_wal_pos);
   r->key = key;
   r->value = value;
@@ -155,12 +156,28 @@ cache_touch(int idx)
   return 0;
 }
 
+// `access` says whether the caller goes on to modify the node. A cache
+// hit charges no reference at all, so a write that hits the cache leaves
+// no trace either -- the same filtering reads get.
 static struct bt_node *
-bt_node(int idx)
+bt_node(int idx, char access)
 {
   if(!g_cache_enabled || !cache_touch(idx))
-    vmbench_trace_ref(g_arena, (uint64)idx);
+    vmbench_trace_ref(g_arena, (uint64)idx, access);
   return (struct bt_node *)(g_arena + (uint64)idx * VMBENCH_PGSIZE);
+}
+
+// A node on an insert's way down: the internal nodes it passes through
+// are only read, and the leaf it lands on is always modified (a value
+// update or an insert). Which one idx is can only be learned from the
+// node itself, so this looks before charging the reference -- the same
+// page either way, so the reference string is unchanged.
+static struct bt_node *
+bt_node_insert_path(int idx)
+{
+  struct bt_node *n = (struct bt_node *)(g_arena +
+                                         (uint64)idx * VMBENCH_PGSIZE);
+  return bt_node(idx, n->is_leaf ? VMBENCH_WRITE : VMBENCH_READ);
 }
 
 static int
@@ -179,7 +196,7 @@ bt_init(void)
 {
   g_next_free = 0;
   g_root = bt_alloc();
-  struct bt_node *r = bt_node(g_root);
+  struct bt_node *r = bt_node(g_root, VMBENCH_WRITE);
   r->is_leaf = 1;
   r->nkeys = 0;
   r->next_leaf = -1;
@@ -189,13 +206,13 @@ static int
 bt_find_leaf(int key)
 {
   int idx = g_root;
-  struct bt_node *n = bt_node(idx);
+  struct bt_node *n = bt_node(idx, VMBENCH_READ);
   while(!n->is_leaf){
     int i = 0;
     while(i < n->nkeys && key >= n->keys[i])
       i++;
     idx = n->children[i];
-    n = bt_node(idx);
+    n = bt_node(idx, VMBENCH_READ);
   }
   return idx;
 }
@@ -204,7 +221,7 @@ static int
 bt_lookup(int key)
 {
   int leaf = bt_find_leaf(key);
-  struct bt_node *n = bt_node(leaf);
+  struct bt_node *n = bt_node(leaf, VMBENCH_READ);
   for(int i = 0; i < n->nkeys; i++)
     if(n->keys[i] == key)
       return n->values[i];
@@ -219,7 +236,7 @@ bt_insert(int key, int value)
   int depth = 0;
 
   int idx = g_root;
-  struct bt_node *n = bt_node(idx);
+  struct bt_node *n = bt_node_insert_path(idx);
   while(!n->is_leaf){
     int i = 0;
     while(i < n->nkeys && key >= n->keys[i])
@@ -232,7 +249,7 @@ bt_insert(int key, int value)
     path_child[depth] = i;
     depth++;
     idx = n->children[i];
-    n = bt_node(idx);
+    n = bt_node_insert_path(idx);
   }
 
   int pos = 0;
@@ -256,8 +273,8 @@ bt_insert(int key, int value)
   // Split the leaf.
   int mid = n->nkeys / 2;
   int new_idx = bt_alloc();
-  n = bt_node(idx);
-  struct bt_node *nn = bt_node(new_idx);
+  n = bt_node(idx, VMBENCH_WRITE);
+  struct bt_node *nn = bt_node(new_idx, VMBENCH_WRITE);
   nn->is_leaf = 1;
   nn->nkeys = n->nkeys - mid;
   for(int j = 0; j < nn->nkeys; j++){
@@ -275,7 +292,7 @@ bt_insert(int key, int value)
     depth--;
     int pidx = path[depth];
     int ci = path_child[depth];
-    struct bt_node *p = bt_node(pidx);
+    struct bt_node *p = bt_node(pidx, VMBENCH_WRITE);
     for(int j = p->nkeys; j > ci; j--){
       p->keys[j] = p->keys[j - 1];
       p->children[j + 1] = p->children[j];
@@ -290,8 +307,8 @@ bt_insert(int key, int value)
     int pmid = p->nkeys / 2;
     int mid_key = p->keys[pmid];
     int new_pidx = bt_alloc();
-    p = bt_node(pidx);
-    struct bt_node *np = bt_node(new_pidx);
+    p = bt_node(pidx, VMBENCH_WRITE);
+    struct bt_node *np = bt_node(new_pidx, VMBENCH_WRITE);
     np->is_leaf = 0;
     np->nkeys = p->nkeys - pmid - 1;
     for(int j = 0; j < np->nkeys; j++)
@@ -305,7 +322,7 @@ bt_insert(int key, int value)
   }
 
   int new_root = bt_alloc();
-  struct bt_node *nr = bt_node(new_root);
+  struct bt_node *nr = bt_node(new_root, VMBENCH_WRITE);
   nr->is_leaf = 0;
   nr->nkeys = 1;
   nr->keys[0] = up_key;
@@ -323,7 +340,7 @@ bt_scan(int start_key, int count)
   int leaf = bt_find_leaf(start_key);
   int seen = 0;
   while(leaf >= 0 && seen < count){
-    struct bt_node *n = bt_node(leaf);
+    struct bt_node *n = bt_node(leaf, VMBENCH_READ);
     for(int i = 0; i < n->nkeys && seen < count; i++){
       if(n->keys[i] >= start_key)
         seen++;

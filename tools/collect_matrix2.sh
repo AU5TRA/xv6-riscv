@@ -71,7 +71,7 @@ run_one() {
   L=$(grep -oE '/[^ ]+\.log' "$OUT/$stem.harness" | tail -1)
   if [ -n "$L" ] && [ -f "$L" ]; then
     cp "$L" "$OUT/$stem.log"
-    refs=$(grep -c "^T " "$OUT/$stem.log")
+    refs=$(grep -cE "^[TRW] " "$OUT/$stem.log")
     faults=$(grep -oE "swap_faults=[0-9]+" "$OUT/$stem.log" | head -1 | cut -d= -f2)
     evicts=$(grep -oE "evictions=[0-9]+" "$OUT/$stem.log" | head -1 | cut -d= -f2)
   else

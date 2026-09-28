@@ -3,9 +3,10 @@ COLLECTED TRACE DATASET -- SUMMARY
 ==============================================================================
 
 36 runs: six workloads, each at six memory capacities.
-Each run records the complete reference string (every page the program
-touched, in order) plus the kernel's own fault and eviction counters at
-that capacity.
+Each run records the reference string of the workload's own data (every
+traced arena page it touched, in order) plus the kernel's own fault and
+eviction counters at that capacity. The program's code and stack are not
+traced, but they share the frame limit; see UNTRACED below.
 
 Location:  traces/sweep/
   <run>.trace    the reference string, one 'T <page>' line per access
@@ -19,87 +20,106 @@ PER-WORKLOAD
 ------------------------------------------------------------------------------
 
 kvbench -- key-value cache with Zipf-skewed access
-  working set 528 pages, 160,256 references per run
+  working set 528 traced pages, 160,256 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    29             5.5%       21,412       21,413   kv-p5-c26.trace
-    56            10.6%       14,287       14,288   kv-p10-c53.trace
-    82            15.5%       11,311       11,312   kv-p15-c79.trace
-    109           20.6%        9,496        9,497   kv-p20-c106.trace
-    135           25.6%        8,110        8,111   kv-p25-c132.trace
-    161           30.5%        7,083        7,084   kv-p30-c158.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+    29        6    23     4.4%  -0.7%    21,412    21,413 kv-p5-c26.trace
+    56        7    49     9.3%  +0.4%    14,287    14,288 kv-p10-c53.trace
+    82        7    75    14.2%  -0.1%    11,311    11,312 kv-p15-c79.trace
+   109        8   101    19.1%  +0.7%     9,496     9,497 kv-p20-c106.trace
+   135        8   127    24.1%  +0.0%     8,110     8,111 kv-p25-c132.trace
+   161        9   152    28.8%  +0.3%     7,083     7,084 kv-p30-c158.trace
 
 btreebench -- B-tree database index, root-to-leaf lookups
-  working set 1773 pages, 223,649 references per run
+  working set 1773 traced pages, 223,649 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    93             5.2%       85,656       87,339   btree-p5-c89.trace
-    181           10.2%       64,059       65,654   btree-p10-c177.trace
-    270           15.2%       50,290       51,796   btree-p15-c266.trace
-    359           20.2%       40,994       42,411   btree-p20-c355.trace
-    447           25.2%       33,669       34,998   btree-p25-c443.trace
-    536           30.2%       27,449       28,689   btree-p30-c532.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+    93        4    89     5.0%  +0.4%    85,656    87,339 btree-p5-c89.trace
+   181        4   177    10.0%  -0.4%    64,059    65,654 btree-p10-c177.trace
+   270        4   266    15.0%  -0.2%    50,290    51,796 btree-p15-c266.trace
+   359        5   354    20.0%  +0.1%    40,994    42,411 btree-p20-c355.trace
+   447        5   442    24.9%  +0.1%    33,669    34,998 btree-p25-c443.trace
+   536        5   531    29.9%  +0.1%    27,449    28,689 btree-p30-c532.trace
 
 sortbench -- external merge sort, streaming access
-  working set 79 pages, 1,854,621 references per run
+  working set 79 traced pages, 1,854,621 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    8             10.1%        2,405        2,444   sort-p5-c4.trace
-    12            15.2%        1,838        1,877   sort-p10-c8.trace
-    16            20.3%        1,663        1,702   sort-p15-c12.trace
-    20            25.3%        1,569        1,608   sort-p20-c16.trace
-    24            30.4%        1,516        1,555   sort-p25-c20.trace
-    28            35.4%        1,476        1,515   sort-p30-c24.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+     8        4     4     5.1%  +0.1%     2,405     2,444 sort-p5-c4.trace
+    12        4     8    10.1%  -2.5%     1,838     1,877 sort-p10-c8.trace
+    16        4    12    15.2%  -3.4%     1,663     1,702 sort-p15-c12.trace
+    20        5    15    19.0%  +2.5%     1,569     1,608 sort-p20-c16.trace
+    24        5    19    24.1%  +0.6%     1,516     1,555 sort-p25-c20.trace
+    28        5    23    29.1%  -0.7%     1,476     1,515 sort-p30-c24.trace
 
 graphbench -- graph analytics: BFS plus PageRank
-  working set 1334 pages, 2,703,968 references per run
+  working set 1334 traced pages, 2,703,968 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    71             5.3%    2,034,991    2,035,488   graph-p5-c67.trace
-    137           10.3%    1,047,967    1,048,464   graph-p10-c133.trace
-    204           15.3%      488,385      488,882   graph-p15-c200.trace
-    271           20.3%      348,986      349,483   graph-p20-c267.trace
-    338           25.3%      276,699      277,196   graph-p25-c334.trace
-    404           30.3%      233,219      233,716   graph-p30-c400.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+    71        -     -        -      - 2,034,991 2,035,488 graph-p5-c67.trace
+   137        -     -        -      - 1,047,967 1,048,464 graph-p10-c133.trace
+   204        -     -        -      -   488,385   488,882 graph-p15-c200.trace
+   271        -     -        -      -   348,986   349,483 graph-p20-c267.trace
+   338        -     -        -      -   276,699   277,196 graph-p25-c334.trace
+   404        -     -        -      -   233,219   233,716 graph-p30-c400.trace
+
+  No UNTRACED/ARENA/COVERAGE: only the edge array is traced; rank, next_rank,
+  visited and queue are not. FAULTS and EVICTIONS include those untraced
+  pages, so they cannot be reproduced by replaying this trace.
 
 lzwbench -- LZW text compression over a real corpus
-  working set 49 pages, 12,295,734 references per run
+  working set 49 traced pages, 12,295,734 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    23            46.9%      129,092      129,101   lzw-p5-c3.trace
-    25            51.0%      122,179      122,188   lzw-p10-c5.trace
-    28            57.1%      111,962      111,971   lzw-p15-c8.trace
-    30            61.2%      105,859      105,868   lzw-p20-c10.trace
-    33            67.3%       96,603       96,612   lzw-p25-c13.trace
-    35            71.4%       90,487       90,496   lzw-p30-c15.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+    23        -     -        -      -   129,092   129,101 lzw-p5-c3.trace
+    25        -     -        -      -   122,179   122,188 lzw-p10-c5.trace
+    28        -     -        -      -   111,962   111,971 lzw-p15-c8.trace
+    30        -     -        -      -   105,859   105,868 lzw-p20-c10.trace
+    33        -     -        -      -    96,603    96,612 lzw-p25-c13.trace
+    35        -     -        -      -    90,487    90,496 lzw-p30-c15.trace
+
+  No UNTRACED/ARENA/COVERAGE: only the dictionary table is traced; the input
+  and output buffers are not. FAULTS and EVICTIONS include those untraced
+  pages, so they cannot be reproduced by replaying this trace.
 
 matmulbench naive -- matrix multiply, row-major order
-  working set 27 pages, 1,778,688 references per run
+  working set 27 traced pages, 1,778,688 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    8             29.6%      174,553      174,562   matmulN-c4.trace
-    12            44.4%      140,048      140,057   matmulN-c8.trace
-    16            59.3%        2,113        2,122   matmulN-c12.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+     8        3     5    18.5%  -4.5%   174,553   174,562 matmulN-c4.trace
+    12        3     9    33.3%  -4.5%   140,048   140,057 matmulN-c8.trace
+    16        4     ?        ? -93.7%     2,113     2,122 matmulN-c12.trace
 
 matmulbench blocked -- matrix multiply, cache-tiled order
-  working set 27 pages, 1,999,872 references per run
+  working set 27 traced pages, 1,999,872 references per run
 
-    FRAMES     COVERAGE       FAULTS    EVICTIONS   TRACE FILE
-    8             29.6%       21,594       21,603   matmulB-c4.trace
-    12            44.4%        3,538        3,547   matmulB-c8.trace
-    16            59.3%        1,443        1,452   matmulB-c12.trace
+ LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
+     8        4     ?        ? -48.2%    21,594    21,603 matmulB-c4.trace
+    12        5     7    25.9%  -0.7%     3,538     3,547 matmulB-c8.trace
+    16        5    11    40.7%  -1.7%     1,443     1,452 matmulB-c12.trace
 
 
 HOW TO READ THIS
 ------------------------------------------------------------------------------
-FRAMES    the number of physical pages the kernel allowed the program.
-          This is the real capacity the run executed under, read back
+LIMIT     the number of physical pages the kernel allowed the whole
+          process -- traced data AND its own code and stack. Read back
           from the kernel, not the number requested on the command
           line. Use this column, not the percentage in the filename.
-COVERAGE  FRAMES as a percentage of the working set, i.e. how much of
-          the program's memory actually fitted at once.
-FAULTS    times the program touched a page that was not resident and
-          the kernel had to fetch it from swap.
+UNTRACED  estimated frames held by untraced code/stack pages. Measured,
+          not assumed: the number of always-in-use extra pages for which
+          FIFO over this trace reproduces the kernel's EVICTIONS. FIFO
+          evicts the program's own text like any other page, and it
+          faults straight back in, so these pages hold frames
+          throughout the run.
+ARENA     LIMIT - UNTRACED: frames actually available to the traced
+          pages. This is the capacity to simulate the trace at.
+COVERAGE  ARENA as a percentage of the traced working set.
+FIT       how far that FIFO replay lands from the kernel's EVICTIONS.
+          Beyond +/-5% ARENA and COVERAGE are shown as '?': those runs
+          sit on an eviction cliff, where one frame changes evictions
+          several-fold, so no single UNTRACED value is meaningful.
+FAULTS    times the process touched a page that was not resident and
+          the kernel had to fetch it from swap (code and stack included).
 EVICTIONS times a resident page had to be thrown out to make room.
 
 Within a workload the reference string is identical at every capacity --

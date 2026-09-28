@@ -27,12 +27,13 @@ static long g_n;
 
 // One accessor both arrays funnel through for trace purposes: g_a and
 // g_b are contiguous within the same arena (g_b = g_a + g_n), so a
-// pointer's offset from g_a directly gives its page.
+// pointer's offset from g_a directly gives its page. A merge pass only
+// ever reads src[] and only ever writes dst[].
 static void
-sort_trace(int *p)
+sort_trace(int *p, char access)
 {
   vmbench_trace_ref((char *)g_a, (uint64)(((char *)p - (char *)g_a) /
-                                           VMBENCH_PGSIZE));
+                                           VMBENCH_PGSIZE), access);
 }
 
 static void
@@ -48,19 +49,19 @@ merge_pass(int *src, int *dst, long run)
 
     long i = lo, j = mid, k = lo;
     while(i < mid && j < hi){
-      sort_trace(&src[i]);
-      sort_trace(&src[j]);
-      sort_trace(&dst[k]);
+      sort_trace(&src[i], VMBENCH_READ);
+      sort_trace(&src[j], VMBENCH_READ);
+      sort_trace(&dst[k], VMBENCH_WRITE);
       dst[k++] = (src[i] <= src[j]) ? src[i++] : src[j++];
     }
     while(i < mid){
-      sort_trace(&src[i]);
-      sort_trace(&dst[k]);
+      sort_trace(&src[i], VMBENCH_READ);
+      sort_trace(&dst[k], VMBENCH_WRITE);
       dst[k++] = src[i++];
     }
     while(j < hi){
-      sort_trace(&src[j]);
-      sort_trace(&dst[k]);
+      sort_trace(&src[j], VMBENCH_READ);
+      sort_trace(&dst[k], VMBENCH_WRITE);
       dst[k++] = src[j++];
     }
   }
@@ -144,11 +145,6 @@ main(int argc, char *argv[])
     passes++;
   }
 
-  long inversions = 0;
-  for(long i = 1; i < g_n; i++)
-    if(src[i - 1] > src[i])
-      inversions++;
-
   if(trace)
     vmbench_trace_stop();
 
@@ -157,6 +153,15 @@ main(int argc, char *argv[])
   struct vmbench_delta d;
   vmbench_delta(&before, &after, &d);
   vmbench_print_delta("sortbench workload", &d);
+
+  // The sortedness check is verification, not workload: it runs after the
+  // trace stops and the counters are read, so its 39-page scan neither
+  // goes untraced inside the reference string nor inflates the fault and
+  // eviction counts reported for the sort.
+  long inversions = 0;
+  for(long i = 1; i < g_n; i++)
+    if(src[i - 1] > src[i])
+      inversions++;
 
   vmbench_result("footprint_pages", footprint_pages);
   vmbench_result("resident_margin", resident_margin);

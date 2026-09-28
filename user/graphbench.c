@@ -56,12 +56,40 @@ static int *g_next_rank;
 static int *g_visited;
 static int *g_queue;
 static int g_v;
+static long g_trace_refs;
+
+// Records one reference to the arena page holding *p. Every access the
+// timed phases make to any of the five arrays goes through here -- not
+// just the edges -- because BFS's visited[] checks and PageRank's
+// next_rank[] updates are the random, hub-driven accesses this workload
+// exists for; a trace of the edge array alone is nearly sequential and
+// cannot reproduce the kernel's own fault counts. One reference per
+// element access; a read-then-write of the same element in one step
+// (visited check-and-set, next_rank +=) counts once, as a write when
+// the element is written at all.
+//
+// All five arrays live in one arena starting at g_edges, so addresses
+// are taken relative to it, and PageRank's rank/next_rank pointer swap
+// needs no special case.
+//
+// g_trace_refs counts references whether or not tracing is on; it is
+// printed as a RESULT line so a captured trace can be checked for a
+// silently lost tail (vmbench_trace_flush() does not check write()).
+static void
+graph_trace(const int *p, char access)
+{
+  g_trace_refs++;
+  vmbench_trace_ref((char *)g_edges,
+                    (uint64)(((const char *)p - (const char *)g_edges) /
+                             VMBENCH_PGSIZE),
+                    access);
+}
 
 static int
 edge_dst(int v, int k)
 {
   long idx = (long)v * AVG_DEGREE + k;
-  vmbench_trace_ref((char *)g_edges, (uint64)(idx / (VMBENCH_PGSIZE / (long)sizeof(int))));
+  graph_trace(&g_edges[idx], VMBENCH_READ);
   return g_edges[idx];
 }
 
@@ -104,19 +132,27 @@ build_graph(struct vmbench_rng *rng)
 static long
 bfs(int start)
 {
-  for(int i = 0; i < g_v; i++)
+  for(int i = 0; i < g_v; i++){
+    graph_trace(&g_visited[i], VMBENCH_WRITE);
     g_visited[i] = 0;
+  }
   int head = 0, tail = 0;
+  graph_trace(&g_queue[tail], VMBENCH_WRITE);
   g_queue[tail++] = start;
+  graph_trace(&g_visited[start], VMBENCH_WRITE);
   g_visited[start] = 1;
   long visited_count = 1;
 
   while(head < tail){
+    graph_trace(&g_queue[head], VMBENCH_READ);
     int u = g_queue[head++];
     for(int k = 0; k < AVG_DEGREE; k++){
       int w = edge_dst(u, k);
+      graph_trace(&g_visited[w],
+                  g_visited[w] ? VMBENCH_READ : VMBENCH_WRITE);
       if(!g_visited[w]){
         g_visited[w] = 1;
+        graph_trace(&g_queue[tail], VMBENCH_WRITE);
         g_queue[tail++] = w;
         visited_count++;
       }
@@ -132,14 +168,18 @@ pagerank_iteration(void)
 {
   int base = (int)(((long)(PR_DAMPING_DEN - PR_DAMPING_NUM) * PR_SCALE) /
                     ((long)PR_DAMPING_DEN * g_v));
-  for(int v = 0; v < g_v; v++)
+  for(int v = 0; v < g_v; v++){
+    graph_trace(&g_next_rank[v], VMBENCH_WRITE);
     g_next_rank[v] = base;
+  }
 
   for(int u = 0; u < g_v; u++){
+    graph_trace(&g_rank[u], VMBENCH_READ);
     int share = (int)(((long)g_rank[u] * PR_DAMPING_NUM) /
                        ((long)PR_DAMPING_DEN * AVG_DEGREE));
     for(int k = 0; k < AVG_DEGREE; k++){
       int w = edge_dst(u, k);
+      graph_trace(&g_next_rank[w], VMBENCH_WRITE);
       g_next_rank[w] += share;
     }
   }
@@ -264,6 +304,7 @@ main(int argc, char *argv[])
   vmbench_result("avg_degree", AVG_DEGREE);
   vmbench_result("bfs_visited", bfs_visited);
   vmbench_result("pagerank_iters", pr_ran ? pr_iters : 0);
+  vmbench_result("trace_refs", g_trace_refs);
   vmbench_result("zero_faults", d.zero_faults);
   vmbench_result("swap_faults", d.swap_faults);
   vmbench_result("evictions", d.evictions);

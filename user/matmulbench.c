@@ -29,17 +29,17 @@ static long g_n;
 // element's offset from g_a gives its page regardless of which matrix
 // it belongs to.
 static void
-matmul_trace(int *p)
+matmul_trace(int *p, char access)
 {
   vmbench_trace_ref((char *)g_a, (uint64)(((char *)p - (char *)g_a) /
-                                           VMBENCH_PGSIZE));
+                                           VMBENCH_PGSIZE), access);
 }
 
 static int
 at(int *m, long i, long j)
 {
   int *p = &m[i * g_n + j];
-  matmul_trace(p);
+  matmul_trace(p, VMBENCH_READ);
   return *p;
 }
 
@@ -47,7 +47,7 @@ static void
 set_at(int *m, long i, long j, int v)
 {
   int *p = &m[i * g_n + j];
-  matmul_trace(p);
+  matmul_trace(p, VMBENCH_WRITE);
   *p = v;
 }
 
@@ -172,10 +172,6 @@ main(int argc, char *argv[])
   else
     matmul_blocked();
 
-  long checksum = 0;
-  for(long i = 0; i < g_n * g_n; i++)
-    checksum += g_c[i];
-
   if(trace)
     vmbench_trace_stop();
 
@@ -184,6 +180,14 @@ main(int argc, char *argv[])
   struct vmbench_delta d;
   vmbench_delta(&before, &after, &d);
   vmbench_print_delta("matmulbench workload", &d);
+
+  // The checksum is verification, not workload: it runs after the trace
+  // stops and the counters are read, so its scan of C neither goes
+  // untraced inside the reference string nor inflates the fault and
+  // eviction counts reported for the multiply.
+  long checksum = 0;
+  for(long i = 0; i < g_n * g_n; i++)
+    checksum += g_c[i];
 
   vmbench_result("footprint_pages", footprint_pages);
   vmbench_result("resident_margin", resident_margin);

@@ -93,17 +93,19 @@ static long g_varena_size;
 static long g_varena_bump;
 static long g_vfree_head = -1;
 
+// Every slot-field access charges one reference; `access` says whether the
+// caller reads the field or assigns it.
 static int *
-kv_slot_key(struct kv_table *t, long slot)
+kv_slot_key(struct kv_table *t, long slot, char access)
 {
   long off = slot * KV_SLOT_BYTES;
-  vmbench_trace_ref(t->base, (uint64)(off / VMBENCH_PGSIZE));
+  vmbench_trace_ref(t->base, (uint64)(off / VMBENCH_PGSIZE), access);
   return (int *)(t->base + off);
 }
 
-static int *kv_slot_value_off(struct kv_table *t, long slot) { return kv_slot_key(t, slot) + 1; }
-static int *kv_slot_value_size(struct kv_table *t, long slot) { return kv_slot_key(t, slot) + 2; }
-static int *kv_slot_expiry(struct kv_table *t, long slot) { return kv_slot_key(t, slot) + 3; }
+static int *kv_slot_value_off(struct kv_table *t, long slot, char access) { return kv_slot_key(t, slot, access) + 1; }
+static int *kv_slot_value_size(struct kv_table *t, long slot, char access) { return kv_slot_key(t, slot, access) + 2; }
+static int *kv_slot_expiry(struct kv_table *t, long slot, char access) { return kv_slot_key(t, slot, access) + 3; }
 
 static long
 kv_hash(int key, long nslots)
@@ -121,7 +123,8 @@ varena_touch_range(long value_off, int size)
   long start_page = value_off / VMBENCH_PGSIZE;
   long end_page = (value_off + size - 1) / VMBENCH_PGSIZE;
   for(long p = start_page; p <= end_page; p++){
-    vmbench_trace_ref(g_varena, (uint64)p);
+    // A write even when a GET calls this: the touch stores a byte.
+    vmbench_trace_ref(g_varena, (uint64)p, VMBENCH_WRITE);
     *(volatile char *)(g_varena + p * VMBENCH_PGSIZE) = 1;
   }
 }
@@ -132,14 +135,20 @@ varena_alloc(int size)
   long prev = -1, cur = g_vfree_head;
   while(cur != -1){
     long page = cur / VMBENCH_PGSIZE;
-    vmbench_trace_ref(g_varena, (uint64)page);
+    vmbench_trace_ref(g_varena, (uint64)page, VMBENCH_READ);
     int *chdr_size = (int *)(g_varena + cur);
     int *chdr_next = chdr_size + 1;
     if(*chdr_size >= size){
       if(prev == -1)
         g_vfree_head = *chdr_next;
-      else
+      else {
+        // Unlinking from mid-list rewrites the previous chunk's header,
+        // which may sit on another page. Only reachable with variable
+        // value sizes; with fixed sizes the head chunk always fits.
+        vmbench_trace_ref(g_varena, (uint64)(prev / VMBENCH_PGSIZE),
+                          VMBENCH_WRITE);
         *((int *)(g_varena + prev) + 1) = *chdr_next;
+      }
       return cur + VCHUNK_HDR_BYTES;
     }
     prev = cur;
@@ -151,7 +160,8 @@ varena_alloc(int size)
     exit(1);
   }
   long hdr_off = g_varena_bump;
-  vmbench_trace_ref(g_varena, (uint64)(hdr_off / VMBENCH_PGSIZE));
+  vmbench_trace_ref(g_varena, (uint64)(hdr_off / VMBENCH_PGSIZE),
+                    VMBENCH_WRITE);
   *(int *)(g_varena + hdr_off) = size;
   g_varena_bump += VCHUNK_HDR_BYTES + size;
   return hdr_off + VCHUNK_HDR_BYTES;
@@ -161,7 +171,8 @@ static void
 varena_free(long value_off)
 {
   long hdr_off = value_off - VCHUNK_HDR_BYTES;
-  vmbench_trace_ref(g_varena, (uint64)(hdr_off / VMBENCH_PGSIZE));
+  vmbench_trace_ref(g_varena, (uint64)(hdr_off / VMBENCH_PGSIZE),
+                    VMBENCH_WRITE);
   *((int *)(g_varena + hdr_off) + 1) = (int)g_vfree_head;
   g_vfree_head = hdr_off;
 }
@@ -174,15 +185,15 @@ migrate_step(void)
   int moved = 0;
   while(moved < g_migrate_batch && g_migrate_cursor < g_table.nslots){
     long slot = g_migrate_cursor++;
-    int key = *kv_slot_key(&g_table, slot);
+    int key = *kv_slot_key(&g_table, slot, VMBENCH_READ);
     if(key != KV_EMPTY){
       long nslot = kv_hash(key, g_new_table.nslots);
       for(long tries = 0; tries < g_new_table.nslots; tries++){
-        if(*kv_slot_key(&g_new_table, nslot) == KV_EMPTY){
-          *kv_slot_key(&g_new_table, nslot) = key;
-          *kv_slot_value_off(&g_new_table, nslot) = *kv_slot_value_off(&g_table, slot);
-          *kv_slot_value_size(&g_new_table, nslot) = *kv_slot_value_size(&g_table, slot);
-          *kv_slot_expiry(&g_new_table, nslot) = *kv_slot_expiry(&g_table, slot);
+        if(*kv_slot_key(&g_new_table, nslot, VMBENCH_READ) == KV_EMPTY){
+          *kv_slot_key(&g_new_table, nslot, VMBENCH_WRITE) = key;
+          *kv_slot_value_off(&g_new_table, nslot, VMBENCH_WRITE) = *kv_slot_value_off(&g_table, slot, VMBENCH_READ);
+          *kv_slot_value_size(&g_new_table, nslot, VMBENCH_WRITE) = *kv_slot_value_size(&g_table, slot, VMBENCH_READ);
+          *kv_slot_expiry(&g_new_table, nslot, VMBENCH_WRITE) = *kv_slot_expiry(&g_table, slot, VMBENCH_READ);
           break;
         }
         nslot = (nslot + 1) % g_new_table.nslots;
@@ -209,17 +220,17 @@ migrate_step(void)
 static int
 expired(struct kv_table *t, long slot, int now)
 {
-  int exp = *kv_slot_expiry(t, slot);
+  int exp = *kv_slot_expiry(t, slot, VMBENCH_READ);
   return exp != KV_NO_TTL && exp <= now;
 }
 
 static void
 clear_slot(struct kv_table *t, long slot)
 {
-  int voff = *kv_slot_value_off(t, slot);
+  int voff = *kv_slot_value_off(t, slot, VMBENCH_READ);
   if(voff != 0)
     varena_free(voff);
-  *kv_slot_key(t, slot) = KV_EMPTY;
+  *kv_slot_key(t, slot, VMBENCH_WRITE) = KV_EMPTY;
 }
 
 // Inserts/updates in ONE table (used by both the direct path and by
@@ -230,22 +241,22 @@ put_in_table(struct kv_table *t, int key, int value_size, int ttl_ticks)
   int now = (int)uptime();
   long slot = kv_hash(key, t->nslots);
   for(long tries = 0; tries < t->nslots; tries++){
-    int cur = *kv_slot_key(t, slot);
+    int cur = *kv_slot_key(t, slot, VMBENCH_READ);
     if(cur != KV_EMPTY && expired(t, slot, now))
       clear_slot(t, slot);
-    cur = *kv_slot_key(t, slot);
+    cur = *kv_slot_key(t, slot, VMBENCH_READ);
     if(cur == KV_EMPTY || cur == key){
       if(cur == key){
-        int old_off = *kv_slot_value_off(t, slot);
+        int old_off = *kv_slot_value_off(t, slot, VMBENCH_READ);
         if(old_off != 0)
           varena_free(old_off);
       }
       long voff = varena_alloc(value_size);
       varena_touch_range(voff, value_size);
-      *kv_slot_key(t, slot) = key;
-      *kv_slot_value_off(t, slot) = (int)voff;
-      *kv_slot_value_size(t, slot) = value_size;
-      *kv_slot_expiry(t, slot) = ttl_ticks > 0 ? now + ttl_ticks : KV_NO_TTL;
+      *kv_slot_key(t, slot, VMBENCH_WRITE) = key;
+      *kv_slot_value_off(t, slot, VMBENCH_WRITE) = (int)voff;
+      *kv_slot_value_size(t, slot, VMBENCH_WRITE) = value_size;
+      *kv_slot_expiry(t, slot, VMBENCH_WRITE) = ttl_ticks > 0 ? now + ttl_ticks : KV_NO_TTL;
       return;
     }
     slot = (slot + 1) % t->nslots;
@@ -275,7 +286,7 @@ get_from_table(struct kv_table *t, int key, int *found)
   int now = (int)uptime();
   long slot = kv_hash(key, t->nslots);
   for(long tries = 0; tries < t->nslots; tries++){
-    int cur = *kv_slot_key(t, slot);
+    int cur = *kv_slot_key(t, slot, VMBENCH_READ);
     if(cur == KV_EMPTY)
       return 0;
     if(cur == key){
@@ -283,8 +294,8 @@ get_from_table(struct kv_table *t, int key, int *found)
         clear_slot(t, slot);
         return 0;
       }
-      int voff = *kv_slot_value_off(t, slot);
-      int vsize = *kv_slot_value_size(t, slot);
+      int voff = *kv_slot_value_off(t, slot, VMBENCH_READ);
+      int vsize = *kv_slot_value_size(t, slot, VMBENCH_READ);
       varena_touch_range(voff, vsize);
       *found = 1;
       return vsize;
@@ -397,7 +408,7 @@ main(int argc, char *argv[])
   if(g_nkeys > VMBENCH_ZIPF_N)
     g_nkeys = VMBENCH_ZIPF_N;
 
-  *kv_slot_key(&g_table, 0) = KV_EMPTY;
+  *kv_slot_key(&g_table, 0, VMBENCH_WRITE) = KV_EMPTY;
 
   uint64 settled;
   int proven = vmbench_burn(g_table.base, table_pages + varena_pages, &settled);
@@ -418,7 +429,7 @@ main(int argc, char *argv[])
 
   vmbench_banner("kvbench", "populate");
   for(long slot = 0; slot < g_table.nslots; slot++)
-    *kv_slot_key(&g_table, slot) = KV_EMPTY;
+    *kv_slot_key(&g_table, slot, VMBENCH_WRITE) = KV_EMPTY;
   for(long k = 0; k < g_nkeys; k++)
     put_in_table(&g_table, (int)k, value_size_for(&rng, valuesize_enabled), 0);
 
@@ -466,7 +477,7 @@ main(int argc, char *argv[])
           if(g_new_table.base != SBRK_ERROR){
             g_new_table.nslots = (long)(table_pages * 2) * KV_SLOTS_PER_PAGE;
             for(long s = 0; s < g_new_table.nslots; s++)
-              *kv_slot_key(&g_new_table, s) = KV_EMPTY;
+              *kv_slot_key(&g_new_table, s, VMBENCH_WRITE) = KV_EMPTY;
             g_migrating = 1;
             g_migrate_cursor = 0;
             expansions++;

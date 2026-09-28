@@ -21,7 +21,7 @@ Usage:
 
 --trace-file is for the newer split-capture format (tools/collect_v2.sh /
 user/vmbench.c's vmbench_trace_sink()): the TRACEHDR/RESULT lines are in
-<transcript.log> but the "T <vpn>" reference stream was written to a
+<transcript.log> but the "R|W <vpn>" reference stream was written to a
 separate file instead of the console, for throughput. Omit it for an
 older, single-file transcript that already has both.
 """
@@ -317,7 +317,7 @@ def validate_against_transcript(path, trace_file=None):
         print("no TRACEHDR found")
         return False
     if not refs:
-        print("no 'T <vpn>' reference lines found -- if this transcript "
+        print("no 'R|W <vpn>' (or legacy 'T <vpn>') reference lines found -- if this transcript "
               "was captured with vmbench_trace_sink() pointed at a file "
               "(see user/vmbench.c), pass --trace-file <the .trace file>")
         return False
@@ -388,7 +388,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("transcript")
     ap.add_argument("--trace-file", default=None,
-                     help="separate file holding the 'T <vpn>' reference "
+                     help="separate file holding the 'R|W <vpn>' (or legacy 'T <vpn>') reference "
                           "stream, for captures where vmbench_trace_sink() "
                           "wrote it to a file instead of the console (the "
                           "transcript then only has TRACEHDR/RESULT lines). "
@@ -412,7 +412,7 @@ def main():
         print("no TRACEHDR found -- was this run with tracing enabled?")
         sys.exit(1)
     if not refs:
-        print("no 'T <vpn>' reference lines found -- if this transcript "
+        print("no 'R|W <vpn>' (or legacy 'T <vpn>') reference lines found -- if this transcript "
               "was captured with vmbench_trace_sink() pointed at a file "
               "(see user/vmbench.c), pass --trace-file <the .trace file>")
         sys.exit(1)

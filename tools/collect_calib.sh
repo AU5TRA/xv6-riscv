@@ -24,13 +24,13 @@ cal() {   # $1=name  $2=third-arg value used  $3...=command
   if [ -z "$L" ] || [ ! -f "$L" ]; then
     printf "%-12s ARG=%-8s FAILED no transcript\n" "$name" "$arg" | tee -a "$CAL"; return
   fi
-  refs=$(grep -c "^T " "$L")
-  pages=$(grep "^T " "$L" | awk '{print $2}' | sort -u | wc -l)
+  refs=$(grep -cE "^[TRW] " "$L")
+  pages=$(grep -E "^[TRW] " "$L" | awk '{print $2}' | sort -u | wc -l)
   printf "%-12s arg=%-8s rc=%d %4ds refs=%-8s pages=%-6s refs_per_arg=%.2f\n" \
     "$name" "$arg" "$rc" "$((e-s))" "$refs" "$pages" \
     "$(awk -v r=$refs -v a=$arg 'BEGIN{print (a>0)? r/a : 0}')" | tee -a "$CAL"
   if [ "$rc" != "0" ]; then
-    grep -vE "^T |^\\$|^#" "$L" | tail -2 | sed 's/^/             /' | tee -a "$CAL"
+    grep -vE "^[TRW] |^\\$|^#" "$L" | tail -2 | sed 's/^/             /' | tee -a "$CAL"
   fi
 }
 
