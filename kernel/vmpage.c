@@ -93,6 +93,14 @@ setup_page(struct vm_page *page, struct proc *p, pagetable_t pagetable,
   page->busy = purpose == VM_FRAME_CONSTRUCTION;
   page->load_sequence = ++load_sequence;
   page->aging_counter = 0xff;
+  // Count the fault-in touch itself as this page's first access (matches
+  // tools/sim.py's own Lfu.access(), which increments frequency on every
+  // touch including the one that first loads a page). Without this, a
+  // freshly-loaded page starts at frequency=0 -- an unconditional minimum
+  // against any already-resident page with frequency>=1 -- so choose_lfu
+  // would evict it again before it's ever sampled as accessed even once,
+  // a real livelock under memory pressure (see AUSTRA_HANDOFF.md).
+  page->frequency = 1;
   owned_list_insert(page);
 }
 
@@ -186,11 +194,26 @@ choose_aging(struct vm_page **candidates, int count)
 }
 
 // Least-Frequently-Used: evict the resident candidate with the smallest
-// cumulative access count. Reuses the same page->frequency counter that
-// choose_clock/choose_aging already maintain via sample_page() -- a
-// periodic hardware-accessed-bit sample taken each time a page is
-// scanned as an eviction candidate, not a true per-access counter (the
-// same approximation choose_aging's own recency counter already makes).
+// DECAYED access-frequency estimate. page->frequency is halved on every
+// scan and then bumped by one if the page was found accessed (the same
+// scan-driven approximation choose_clock/choose_aging already make via
+// sample_page(), just applied to a magnitude instead of a recency bit).
+//
+// An earlier version used a raw, never-decaying cumulative count and
+// livelocked under real memory pressure: a page that had survived many
+// earlier scans kept climbing without bound, while any page reloaded to
+// replace an eviction victim restarted from a small fixed value -- so a
+// freshly-loaded page was *permanently* disadvantaged against the
+// established resident set, got evicted again immediately (before ever
+// being sampled as accessed even once), and the very next fault reloaded
+// the same page into the same trap, forever. Verified via instrumented
+// counter: 40,000+ evictions of one physical page inside a workload that
+// can produce at most ~12,000 real faults (see AUSTRA_HANDOFF.md).
+// Decaying old counts bounds this: a long-idle survivor's frequency
+// shrinks back toward 0 instead of accumulating an unbeatable lead, so a
+// newly-loaded page competes on comparable terms rather than being
+// structurally locked out.
+//
 // Tie-break on load_sequence (oldest first), matching choose_aging's own
 // tie-break rule.
 static struct vm_page *
@@ -200,7 +223,9 @@ choose_lfu(struct vm_page **candidates, int count)
   int cleared = 0;
   for(int i = 0; i < count; i++){
     struct vm_page *page = candidates[i];
-    cleared |= sample_page(page, 1);
+    int accessed = sample_page(page, 1);
+    cleared |= accessed;
+    page->frequency = (page->frequency >> 1) + (accessed ? 1 : 0);
     if(victim == 0 || page->frequency < victim->frequency ||
        (page->frequency == victim->frequency &&
         page->load_sequence < victim->load_sequence))
