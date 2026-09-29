@@ -18,3 +18,6 @@ docs/phase2/gate-results*.txt  -whitespace text eol=lf
 # the guest console's, not ours -- and normalising them would corrupt the
 # reference stream the simulator reads.
 traces/**  -whitespace
+
+# The stream manifest is read by bash (tools/collect_streams.sh).
+tools/*.tsv text eol=lf

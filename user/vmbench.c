@@ -30,11 +30,25 @@ vmbench_trace_sink(int flags)
   return 0;
 }
 
+long vmbench_trace_refs;
+long vmbench_trace_bytes;
+
+// A short write is fatal, not ignored. xv6's writei() refuses a write that
+// would cross MAXFILE outright, so an oversized trace used to lose its whole
+// tail silently while the run still printed PASS -- lzwbench's did, at 58%.
+// Exiting here means no PASS, so the harness records the run as failed.
 void
 vmbench_trace_flush(void)
 {
   if(vmbench_trace_len > 0){
-    write(vmbench_trace_fd, vmbench_trace_buf, vmbench_trace_len);
+    int n = write(vmbench_trace_fd, vmbench_trace_buf, vmbench_trace_len);
+    if(n != vmbench_trace_len){
+      printf("\nvmbench: trace write failed (%d of %d bytes) after %ld "
+             "bytes and %ld references -- trace is incomplete\n",
+             n, vmbench_trace_len, vmbench_trace_bytes, vmbench_trace_refs);
+      exit(1);
+    }
+    vmbench_trace_bytes += n;
     vmbench_trace_len = 0;
   }
 }
@@ -59,6 +73,8 @@ vmbench_trace_start(const char *workload, const char *params, uint64 seed,
          "arena_start_vpn=%ld arena_pages=%d\n",
          workload, params, (long)seed, s.resident_limit,
          arena_cache_budget, s.policy, arena_start_vpn, arena_pages);
+  vmbench_trace_refs = 0;
+  vmbench_trace_bytes = 0;
   vmbench_trace_on = 1;
 }
 
@@ -67,6 +83,11 @@ vmbench_trace_stop(void)
 {
   vmbench_trace_on = 0;
   vmbench_trace_flush();
+  // What the workload believes it wrote. The host compares this against the
+  // extracted file's line count and size, which catches loss anywhere after
+  // the write() -- in the filesystem, the disk image, or the extraction.
+  printf("TRACEEND refs=%ld bytes=%ld\n", vmbench_trace_refs,
+         vmbench_trace_bytes);
 }
 
 int

@@ -70,6 +70,10 @@ extern int vmbench_trace_on;
 extern int vmbench_trace_fd;
 extern char vmbench_trace_buf[VMBENCH_TRACE_BUFSZ];
 extern int vmbench_trace_len;
+// Totals since vmbench_trace_start(), printed by vmbench_trace_stop() as
+// "TRACEEND refs=N bytes=M" for the host to check the extracted file against.
+extern long vmbench_trace_refs;
+extern long vmbench_trace_bytes;
 void vmbench_trace_flush(void);
 
 // Bit 3 of a benchmark's trace argument routes the reference string to a
@@ -111,6 +115,7 @@ vmbench_trace_ref(char *base, uint64 page, char access)
     *p++ = digits[--n];
   *p++ = '\n';
   vmbench_trace_len = (int)(p - vmbench_trace_buf);
+  vmbench_trace_refs++;
 }
 
 // ---- Touch primitives -------------------------------------------------
