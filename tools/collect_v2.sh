@@ -18,6 +18,9 @@
 #   WORKLOADS      which to run, cheapest first        (kv btree matmul sort graph)
 #   TIMEOUT        per-run limit in seconds            (5400)
 #   GRAPH_TIMEOUT  per-run limit for graphbench        (10800)
+#   ONLY           run just these stems, space-separated (e.g. "graph-p5-c67"),
+#                  so one workload's capacities can be split across parallel
+#                  lanes -- see tools/run_sweep_lanes.sh
 #
 # lzw is left out of the default: at repeat_count 2 its reference string is
 # ~109 MB, past xv6's 64 MiB MAXFILE, and the file sink loses the tail
@@ -50,6 +53,7 @@ CMP="$OUT/COMPARISON.tsv"
 STATUS="$OUT/STATUS.txt"
 STATE="$OUT/.state"
 
+ONLY="${ONLY:-}"
 TOTAL=0
 for w in $WORKLOADS; do
   case "$w" in
@@ -57,6 +61,7 @@ for w in $WORKLOADS; do
     *) echo "collect_v2: unknown workload '$w' in WORKLOADS" >&2; exit 1 ;;
   esac
 done
+[ -n "$ONLY" ] && TOTAL=$(echo $ONLY | wc -w)
 want() {
   case " $WORKLOADS " in *" $1 "*) return 0 ;; esac
   return 1
@@ -235,6 +240,10 @@ compare_to_baseline() {
 run_one() {
   local label="$1" nom="$2" margin="$3" stem="$4"; shift 4
   local s e rc L refs faults evicts limit result
+
+  if [ -n "$ONLY" ]; then
+    case " $ONLY " in *" $stem "*) ;; *) return ;; esac
+  fi
 
   echo "$label $nom (margin $margin)" > "$STATE/current"
   date +%s > "$STATE/started_at"
