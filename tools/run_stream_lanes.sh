@@ -38,7 +38,8 @@ for line in open(manifest):
     if line.startswith("#") or not line.strip():
         continue
     stem, est, phase, cmd = line.rstrip("\n").split("\t")
-    if phase in phases and not os.path.exists(os.path.join(out, stem + ".ok")):
+    done = os.path.join(out, stem.split("-")[0], stem + ".ok")   # per-workload folder
+    if phase in phases and not os.path.exists(done):
         rows.append((int(est), line))
 rows.sort(key=lambda r: -r[0])
 load = [0] * lanes

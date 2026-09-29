@@ -84,10 +84,16 @@ def assign_splits(stems):
     return split
 
 
+def stream_file(stem, ext):
+    """A collected stream's file: traces/streams/<workload>/<stem><ext>,
+    the workload being the stem up to its first "-" (kv-A-s1 -> kv/)."""
+    return STREAMS / stem.split("-")[0] / (stem + ext)
+
+
 def collected_stems():
     """Dataset streams that were collected and verified (an .ok marker),
     without the "-rep" determinism repeats."""
-    return sorted(p.stem for p in STREAMS.glob("*.ok")
+    return sorted(p.stem for p in STREAMS.glob("*/*.ok")
                   if not p.stem.endswith("-rep") and STEM_RE.match(p.stem))
 
 
@@ -209,7 +215,7 @@ def prepare_one(args):
         done = json.load(open(cached))
         if done["entry"]["split"] == split and (done["rows"] or not with_baselines):
             return done["entry"], [tuple(r) for r in done["rows"]]
-    header, results, end = read_log(STREAMS / (stem + ".log"))
+    header, results, end = read_log(stream_file(stem, ".log"))
     arrays = ML / (stem + ".npz")
     vpn = None
     if arrays.exists():
@@ -224,7 +230,7 @@ def prepare_one(args):
         except Exception:
             vpn = None
     if vpn is None:
-        vpn, write = read_trace(STREAMS / (stem + ".trace"))
+        vpn, write = read_trace(stream_file(stem, ".trace"))
         if end is None or end[0] != len(vpn):
             raise SystemExit("%s: trace has %d references, TRACEEND says %s"
                              % (stem, len(vpn), end))
@@ -277,7 +283,7 @@ def prepare(jobs, with_baselines):
     ML.mkdir(parents=True, exist_ok=True)
     work = [(s, split[s], with_baselines) for s in stems]
     # biggest first, so a long graph stream does not start last
-    work.sort(key=lambda w: -(STREAMS / (w[0] + ".trace")).stat().st_size)
+    work.sort(key=lambda w: -stream_file(w[0], ".trace").stat().st_size)
     if jobs > 1:
         # ProcessPoolExecutor, not multiprocessing.Pool: when a worker dies
         # (out of memory, say) Pool waits forever, while the executor raises.

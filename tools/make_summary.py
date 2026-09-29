@@ -11,12 +11,15 @@ Writes: traces/sweep/SUMMARY.txt
 from __future__ import annotations
 
 import collections
+import json
+import os
 import re
 import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SWEEP = ROOT / "traces" / "sweep"
+# The campaign to summarise: SWEEP=traces/sweep-rw python3 tools/make_summary.py
+SWEEP = ROOT / os.environ.get("SWEEP", "traces/sweep")
 OUT = SWEEP / "SUMMARY.txt"
 MAXFILE = (11 + 256 + 65536) * 1024
 
@@ -40,9 +43,9 @@ MODELS = {
 # would still land on some h, so these are excluded by construction rather
 # than by fit quality.
 #
-# graphbench traces all five arrays since graph_trace() was added; its entry
-# describes the traces/sweep/graph-* captures made before that, and goes
-# once they are re-collected.
+# graphbench has traced all five arrays since graph_trace() was added, so its
+# entry applies only to captures made before that -- the ones in the legacy
+# "T <vpn>" format (see no_fit_reason).
 NO_FIT = {
     "graph": "only the edge array is traced; rank, next_rank, visited and "
              "queue are not",
@@ -107,6 +110,21 @@ def load_refs(path: Path) -> list:
         return [int(line[2:]) for line in fh if line[:2] in REF_PREFIXES]
 
 
+def no_fit_reason(fam: str, trace: Path):
+    """Why a workload's trace cannot be fitted, or None if it can."""
+    if fam == "graph":
+        with trace.open("rb") as fh:
+            legacy = fh.read(2) == b"T "
+        return NO_FIT["graph"] if legacy else None
+    return NO_FIT.get(fam)
+
+
+def traceend(log: Path):
+    """(refs, bytes) from the run's TRACEEND line, or None if it predates it."""
+    m = re.search(r"TRACEEND refs=(\d+) bytes=(\d+)", log.read_text(errors="replace"))
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
 def fifo_hot_evictions(refs, limit: int, hot: int) -> int:
     """Evictions FIFO makes at `limit` frames when `hot` untraced pages
     (code, stack) are always in use: an evicted hot page faults straight
@@ -169,6 +187,8 @@ def main():
             "evicts": scalar(log, "evicts"),
             "reads": scalar(log, "reads"),
             "writes": scalar(log, "writes"),
+            "traceend": traceend(log),
+            "no_fit": no_fit_reason(family(stem), trace),
         })
 
     order = ["kv", "btree", "sort", "graph", "lzw", "matmulN", "matmulB"]
@@ -179,7 +199,7 @@ def main():
     refs_by_fam = {}
     for r in rows:
         r["fit"] = None
-        if r["fam"] in NO_FIT or not r["limit"]:
+        if r["no_fit"] or not r["limit"]:
             continue
         if r["fam"] not in refs_by_fam:
             refs_by_fam[r["fam"]] = load_refs(SWEEP / r["trace"])
@@ -195,13 +215,19 @@ def main():
     A("COLLECTED TRACE DATASET -- SUMMARY")
     A("=" * 78)
     A("")
-    A("36 runs: six workloads, each at six memory capacities.")
+    # matmulN/matmulB are one workload in two variants, at fewer capacities.
+    per_fam = collections.Counter(r["fam"] for r in rows)
+    workloads = sorted({MODELS[f][0].split()[0] for f in per_fam})
+    caps = sorted(set(per_fam.values()), reverse=True)
+    A("%d runs: %d workloads (matmulbench in two variants), at %s memory"
+      % (len(rows), len(workloads), " or ".join(str(c) for c in caps)))
+    A("capacities each.")
     A("Each run records the reference string of the workload's own data (every")
     A("traced arena page it touched, in order) plus the kernel's own fault and")
     A("eviction counters at that capacity. The program's code and stack are not")
     A("traced, but they share the frame limit; see UNTRACED below.")
     A("")
-    A("Location:  traces/sweep/")
+    A("Location:  %s/" % SWEEP.relative_to(ROOT).as_posix())
     A("  <run>.trace    the reference string, one 'R <page>' (read) or 'W <page>'")
     A("                 (write) line per access; 'T <page>' in captures")
     A("                 made before the access type was recorded")
@@ -250,12 +276,12 @@ def main():
                "{:,}".format(q["faults"] or 0),
                "{:,}".format(q["evicts"] or 0),
                q["trace"]))
-        if r["fam"] in NO_FIT:
+        if r["no_fit"]:
             A("")
             for line in textwrap.wrap(
                     "No UNTRACED/ARENA/COVERAGE: %s. FAULTS and EVICTIONS "
                     "include those untraced pages, so they cannot be "
-                    "reproduced by replaying this trace." % NO_FIT[r["fam"]],
+                    "reproduced by replaying this trace." % r["no_fit"],
                     width=76):
                 A("  " + line)
 
@@ -295,7 +321,7 @@ def main():
     A("-" * 78)
     A("xv6 caps any single file at %s bytes. A trace that reached the cap"
       % "{:,}".format(MAXFILE))
-    A("would stop growing without raising an error, so the margin matters:")
+    A("would lose its tail, so the margin matters:")
     A("")
     A("    %-12s %14s %10s %16s" % ("WORKLOAD", "BYTES", "OF CAP", "HEADROOM"))
     seen = set()
@@ -307,15 +333,30 @@ def main():
           % (MODELS[r["fam"]][0].split()[0], "{:,}".format(r["size"]),
              100.0 * r["size"] / MAXFILE, "{:,}".format(MAXFILE - r["size"])))
     A("")
-    A("All 36 traces were verified complete. lzwbench is the only one close to")
-    A("the cap, with 976 bytes to spare; it was checked two independent ways.")
-    A("Re-running any of these 36 configurations is safe, because the workloads")
-    A("are deterministic and produce the same size every time. Increasing any")
-    A("workload's size argument is not safe until a length check is added.")
+    checked = [r for r in rows if r["traceend"]]
+    matched = [r for r in checked if r["traceend"] == (r["refs"], r["size"])]
+    if checked and len(checked) == len(rows):
+        for line in textwrap.wrap(
+                "Completeness: %d of %d traces match the TRACEEND count their "
+                "run reported (references and bytes). A trace that would outgrow "
+                "the cap now stops its run with an error instead of passing."
+                % (len(matched), len(rows)), width=78):
+            A(line)
+    else:
+        for line in textwrap.wrap(
+                "Completeness: these traces predate the TRACEEND check, so "
+                "nothing in the capture proves they are whole. lzwbench's are "
+                "known to be truncated: they end 976 bytes short of the cap, at "
+                "58%% of the references the run made.", width=78):
+            A(line)
     A("")
 
     text = "\n".join(L) + "\n"
-    OUT.write_text(text)
+    with open(OUT, "w", newline="\n") as fh:
+        fh.write(text)
+    # The same numbers, machine-readable, for documents built from them.
+    with open(SWEEP / "SUMMARY.json", "w", newline="\n") as fh:
+        json.dump(rows, fh, indent=1)
     print(text)
 
 

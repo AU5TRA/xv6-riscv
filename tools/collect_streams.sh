@@ -10,6 +10,8 @@
 #   * the log carries TRACEEND refs=N bytes=M (user/vmbench.c), and
 #   * the extracted trace has exactly N lines, exactly M bytes, and no line
 #     that is not "R <vpn>" or "W <vpn>".
+# Each stream's files go in a folder named for its workload ($OUT/kv/,
+# $OUT/btree/, ...), the part of the stem before the first "-".
 # Collected streams get an <stem>.ok marker and are skipped on a re-run, so
 # an interrupted lane resumes where it stopped. Anything else is recorded as
 # FAILED with the reason and retried next time.
@@ -34,33 +36,36 @@ grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r stem est phase cmd; do
   # trailing \r would reach xv6's shell as part of the last argument.
   cmd="${cmd%$'\r'}"
   [ -n "$stem" ] || continue
-  if [ -f "$OUT/$stem.ok" ]; then
+  # One folder per workload: kv-A-s1 lives in $OUT/kv/.
+  D="$OUT/${stem%%-*}"
+  mkdir -p "$D"
+  if [ -f "$D/$stem.ok" ]; then
     continue
   fi
-  rm -f fs.img "$OUT/$stem.trace"
+  rm -f fs.img "$D/$stem.trace"
   make fs.img >/dev/null 2>&1
 
   s=$(date +%s)
   python3 tools/run_xv6_tests.py --cpus 1 --timeout "$TIMEOUT" "$cmd" \
-      > "$OUT/$stem.harness" 2>&1 < /dev/null
+      > "$D/$stem.harness" 2>&1 < /dev/null
   rc=$?
   e=$(date +%s)
 
-  L=$(grep -oE '/[^ ]+\.log' "$OUT/$stem.harness" | tail -1)
-  [ -n "$L" ] && [ -f "$L" ] && cp "$L" "$OUT/$stem.log"
-  python3 tools/extract_file.py fs.img reftrace.txt "$OUT/$stem.trace" \
+  L=$(grep -oE '/[^ ]+\.log' "$D/$stem.harness" | tail -1)
+  [ -n "$L" ] && [ -f "$L" ] && cp "$L" "$D/$stem.log"
+  python3 tools/extract_file.py fs.img reftrace.txt "$D/$stem.trace" \
       >/dev/null 2>&1
 
-  want_refs=$(grep -oE 'TRACEEND refs=[0-9]+' "$OUT/$stem.log" 2>/dev/null | cut -d= -f2)
-  want_bytes=$(grep -oE 'TRACEEND refs=[0-9]+ bytes=[0-9]+' "$OUT/$stem.log" 2>/dev/null | sed 's/.*bytes=//')
+  want_refs=$(grep -oE 'TRACEEND refs=[0-9]+' "$D/$stem.log" 2>/dev/null | cut -d= -f2)
+  want_bytes=$(grep -oE 'TRACEEND refs=[0-9]+ bytes=[0-9]+' "$D/$stem.log" 2>/dev/null | sed 's/.*bytes=//')
   got_refs=0; got_bytes=0; bad=-1
-  if [ -f "$OUT/$stem.trace" ]; then
-    got_refs=$(wc -l < "$OUT/$stem.trace")
-    got_bytes=$(wc -c < "$OUT/$stem.trace")
-    bad=$(grep -vcE '^[RW] [0-9]+$' "$OUT/$stem.trace")
+  if [ -f "$D/$stem.trace" ]; then
+    got_refs=$(wc -l < "$D/$stem.trace")
+    got_bytes=$(wc -c < "$D/$stem.trace")
+    bad=$(grep -vcE '^[RW] [0-9]+$' "$D/$stem.trace")
   fi
 
-  if [ "$rc" != 0 ] || ! grep -q '^PASS' "$OUT/$stem.log" 2>/dev/null; then
+  if [ "$rc" != 0 ] || ! grep -q '^PASS' "$D/$stem.log" 2>/dev/null; then
     result="FAILED(run rc=$rc)"
   elif [ -z "$want_refs" ]; then
     result="FAILED(no TRACEEND)"
@@ -70,7 +75,7 @@ grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r stem est phase cmd; do
     result="FAILED($bad malformed lines)"
   else
     result="ok"
-    touch "$OUT/$stem.ok"
+    touch "$D/$stem.ok"
   fi
   printf "%s\t%s\t%s\t%s\t%s\t%ds\t%s\n" "$stem" "$phase" "$got_refs" \
     "$got_bytes" "$rc" "$((e - s))" "$result" >> "$RES"

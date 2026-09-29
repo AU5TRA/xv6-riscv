@@ -43,8 +43,9 @@ for line in open(MANIFEST):
 problems, info = [], {}
 print("%-26s %10s %11s %6s %6s  %s" % ("STREAM", "REFS", "BYTES", "PAGES", "W%", "STATUS"))
 for stem in stems:
-    trace = os.path.join(OUT, stem + ".trace")
-    if not os.path.exists(os.path.join(OUT, stem + ".ok")):
+    folder = os.path.join(OUT, stem.split("-")[0])     # one folder per workload
+    trace = os.path.join(folder, stem + ".trace")
+    if not os.path.exists(os.path.join(folder, stem + ".ok")):
         print("%-26s %10s %11s %6s %6s  %s" % (stem, "-", "-", "-", "-", "MISSING"))
         problems.append(stem + ": not collected")
         continue
