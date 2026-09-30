@@ -237,6 +237,48 @@ def main():
         rows.append(list(key) + [f4(a["geo_ratio"]), f4(a["mean_gap"]), a["n"], a["cens"]])
     write("summary_extras.csv", ["kind", "scope", "features", "workload", "split",
                                  "geo_ratio_vs_clock", "mean_gap_closed", "cells", "censored"], rows)
+    # ---------------------------------------------------------------- in-kernel
+    kr = [r for r in read("kernel_eval.csv") if r["status"] == "ok"]
+    kb = defaultdict(dict)
+    for r in kr:
+        kb[(r["stem"], r["fraction"])][r["policy"] + ("/" + r["model"] if r["model"] else "")] = r
+    krows = []
+    kagg = defaultdict(list)
+    for (stem, frac), d in kb.items():
+        if "clock" not in d:
+            continue
+        c = d["clock"]
+        cf = int(c["swap_faults"]) + int(c["zero_faults"])
+        cw = max(int(c["page_writes"]), 1)
+        for name, r in d.items():
+            f = int(r["swap_faults"]) + int(r["zero_faults"])
+            wl = r["workload"]
+            label = name.replace("/" + wl + "-k", "/workload-k").replace("/" + wl, "/workload")
+            ev = max(int(r["evictions"]), 1)
+            kagg[(label, wl, r["split"])].append(
+                (f / cf, int(r["page_writes"]) / cw,
+                 int(r["select_ticks"]) / ev, int(r["candidates_scanned"]) / ev))
+    for (label, wl, split), v in sorted(kagg.items()):
+        a_ = np.array(v)
+        krows.append([label, wl, split, len(v),
+                      f4(float(np.exp(np.log(np.maximum(a_[:, 0], 1e-9)).mean()))),
+                      f4(float(np.exp(np.log(np.maximum(a_[:, 1], 1e-9)).mean()))),
+                      f"{a_[:, 2].mean():.1f}", f"{a_[:, 3].mean():.1f}"])
+    write("summary_kernel.csv", ["policy", "workload", "split", "streams",
+                                 "geo_faults_vs_clock", "geo_writes_vs_clock",
+                                 "select_ticks_per_eviction", "candidates_per_eviction"], krows)
+    kvs = read("kernel_vs_sim.csv")
+    if kvs:
+        agg_ = defaultdict(list)
+        for r in kvs:
+            m, wl = r["model"], r["workload"]
+            label = r["policy"] if not m else "ml/" + (
+                "global" if m == "global" else "workload-k" if m == wl + "-k" else "workload")
+            agg_[(label, r["workload"])].append(float(r["kernel_over_sim"]))
+        write("summary_kernel_vs_sim.csv", ["policy", "workload", "runs", "median_kernel_over_sim",
+                                            "min", "max"],
+              [[k[0], k[1], len(v), f4(float(np.median(v))), f4(min(v)), f4(max(v))]
+               for k, v in sorted(agg_.items())])
     print("summaries written")
 
 

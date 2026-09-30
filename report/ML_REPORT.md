@@ -1098,28 +1098,28 @@ with it:
 | workload | split | tier | float | int, 4-bit | int, 8-bit | int, 12-bit |
 |---|---|---|---|---|---|---|
 | btree | test | oracle (F) | 0.861 | 0.861 | 0.861 | 0.861 |
-| btree | test | kernel (K) | 0.852 | 0.868 | 0.851 | 0.851 |
-| btree | test | kernel+refault (K∪K+) | 0.833 | 0.835 | 0.833 | 0.833 |
+| btree | test | kernel (K) | 0.852 | 0.867 | 0.850 | 0.851 |
+| btree | test | kernel+refault (K∪K+) | 0.833 | 0.834 | 0.833 | 0.833 |
 | btree | test | oracle+kernel | 0.845 | 0.840 | 0.845 | 0.846 |
 | btree | heldout | oracle (F) | 0.861 | 0.861 | 0.861 | 0.861 |
-| btree | heldout | kernel (K) | 0.893 | 0.874 | 0.891 | 0.893 |
+| btree | heldout | kernel (K) | 0.893 | 0.875 | 0.891 | 0.893 |
 | btree | heldout | kernel+refault (K∪K+) | 0.863 | 0.875 | 0.862 | 0.863 |
 | btree | heldout | oracle+kernel | 0.864 | 0.870 | 0.864 | 0.864 |
 | graph | test | oracle (F) | 0.855 | 0.856 | 0.855 | 0.855 |
 | graph | test | kernel (K) | 0.871 | 0.867 | 0.871 | 0.871 |
 | graph | test | kernel+refault (K∪K+) | 0.845 | 0.848 | 0.845 | 0.845 |
-| graph | test | oracle+kernel | 0.855 | 0.856 | 0.856 | 0.855 |
+| graph | test | oracle+kernel | 0.855 | 0.856 | 0.856 | 0.856 |
 | graph | heldout | oracle (F) | 0.786 | 0.786 | 0.786 | 0.786 |
 | graph | heldout | kernel (K) | 0.805 | 0.800 | 0.805 | 0.805 |
 | graph | heldout | kernel+refault (K∪K+) | 0.798 | 0.812 | 0.799 | 0.798 |
 | graph | heldout | oracle+kernel | 0.767 | 0.766 | 0.767 | 0.767 |
 | kv | test | oracle (F) | 0.910 | 0.911 | 0.910 | 0.910 |
-| kv | test | kernel (K) | 0.917 | 0.918 | 0.917 | 0.917 |
-| kv | test | kernel+refault (K∪K+) | 0.905 | 0.905 | 0.905 | 0.905 |
+| kv | test | kernel (K) | 0.917 | 0.917 | 0.917 | 0.917 |
+| kv | test | kernel+refault (K∪K+) | 0.905 | 0.905 | 0.905 | 0.904 |
 | kv | test | oracle+kernel | 0.937 | 0.930 | 0.937 | 0.937 |
 | kv | heldout | oracle (F) | 0.890 | 0.890 | 0.890 | 0.890 |
 | kv | heldout | kernel (K) | 0.916 | 0.916 | 0.916 | 0.916 |
-| kv | heldout | kernel+refault (K∪K+) | 0.905 | 0.904 | 0.904 | 0.904 |
+| kv | heldout | kernel+refault (K∪K+) | 0.905 | 0.903 | 0.904 | 0.904 |
 | kv | heldout | oracle+kernel | 0.922 | 0.915 | 0.922 | 0.922 |
 | matmul | heldout | oracle (F) | 0.823 | 0.823 | 0.823 | 0.823 |
 | matmul | heldout | kernel (K) | 0.789 | 0.789 | 0.789 | 0.789 |
@@ -1151,6 +1151,56 @@ multiply-adds and table lookups per candidate to a scan the kernel already
 performs, plus the probation comparison. The MLPs (2×32) would need ~1,300 multiply-adds per
 candidate; the GRU and embedding models need transcendental functions and
 per-page state far beyond this, and are ablations only.
+
+## 8b. In xv6 itself: `VM_POLICY_ML`
+
+The selected kernel+refault model now runs inside the kernel
+(`kernel/vmpage.c`, commit `a60faaa`):
+
+* **`choose_ml()`** scans every candidate the way `choose_aging()` already
+  does — read and clear `PTE_A`, update the aging counter and a sampled-access
+  count — then evicts the page with the highest integer score
+  Σ qa[j]·X_j, oldest load first on a tie, skipping pages loaded fewer than
+  *p* scans ago while an older one exists.
+* **Features** are computed by `kernel/mlfeat.h`, which the host simulator's
+  integer mode includes too, so a model scores a page identically in both.
+  `log1p` is a 256-entry table plus a most-significant-bit search and a
+  1,024-entry mantissa table (within 1.04 Q8 units of exact); nothing needs
+  floating point or libgcc.
+* **Bookkeeping**: five fields per resident page (load scan, last-seen scan,
+  sampled count, refault count, refault distance), and for every swap slot
+  the owner's scan count when the page was written out and its refault count
+  — the same information Linux's workingset keeps in a shadow entry. A
+  per-process scan counter is the time base.
+* **Weights are per process**: the default is the global kernel+refault model
+  (`kernel/mlweights.h`); `vmctl(VM_SET_ML_WEIGHTS, &w)` loads another, which
+  is inherited on fork and kept across exec. `tools/ml2/export_kernel.py`
+  generates both headers and `user/mlmodels.h` (every exported model by name).
+* **`vmrun`** runs a program under a policy: `vmrun ml kv kvbench …`.
+* **Cost accounting**: `vmstats` gains `select_ticks` (timer ticks spent
+  choosing a victim) and `candidates_scanned`, for every policy.
+
+**Tested.** It builds under `-Werror`; `vmtest policies-correctness ml`
+passes; `vmtest data-invariance` — the same workload under every policy and
+both prefetch modes, required to produce byte-identical data — passes with
+all five policies (checksum `AB0C8578` in every configuration; ML needs 1,328
+evictions there against Clock's 1,696).
+
+**The same study found and fixed the LFU livelock** (`160e238`): with the
+decayed counter the kernel LFU passes data-invariance (1,485 evictions,
+checksum identical).
+
+**A fairness bug in the benchmark harness, found and fixed.** `vmbench`
+sizes each process's baseline with a "burn" phase that evicts pages, then
+sets the resident limit to baseline + margin. Under the chosen policy the burn
+settled differently — Clock at 13 resident pages, Aging at 9, ML at 28 for the
+same matmul run — so each policy got a different amount of memory (and ML
+looked impossibly good: 68 faults, below Belady's 3,599). The burn now runs
+under FIFO, the policy every trace was collected with, and restores the
+process's own policy afterwards; every policy then settles at the same
+resident set.
+
+<!-- KERNEL_RESULTS -->
 
 ## 9. Relation to Linux
 

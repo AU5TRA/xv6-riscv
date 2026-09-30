@@ -1,0 +1,4 @@
+stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript
+graph-both2000x1-s5,test,graph,graph-both2000x1,0.1,200,ml,graph,ok,165113,165610,545,104910870,33784440,497,380,test-logs/kernel_eval/20261001-015211-600917-vmrun-ml-graph-graphbench-2000-200-1-5-both-0.log
+graph-both2000x1-s5,test,graph,graph-both2000x1,0.1,200,ml,graph-k,ok,165138,165635,596,93127467,33789540,497,449,test-logs/kernel_eval/20261001-015831-225956-vmrun-ml-graph-k-graphbench-2000-200-1-5-both-0.log
+graph-both2000x1-s5,test,graph,graph-both2000x1,0.1,200,ml,global,ok,176729,177226,10281,107006068,36154104,497,1508,test-logs/kernel_eval/20261001-015211-594641-vmrun-ml-global-graphbench-2000-200-1-5-both-0.log

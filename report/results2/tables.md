@@ -411,28 +411,28 @@
 | workload | split | tier | float | int, 4-bit | int, 8-bit | int, 12-bit |
 |---|---|---|---|---|---|---|
 | btree | test | oracle (F) | 0.861 | 0.861 | 0.861 | 0.861 |
-| btree | test | kernel (K) | 0.852 | 0.868 | 0.851 | 0.851 |
-| btree | test | kernel+refault (K∪K+) | 0.833 | 0.835 | 0.833 | 0.833 |
+| btree | test | kernel (K) | 0.852 | 0.867 | 0.850 | 0.851 |
+| btree | test | kernel+refault (K∪K+) | 0.833 | 0.834 | 0.833 | 0.833 |
 | btree | test | oracle+kernel | 0.845 | 0.840 | 0.845 | 0.846 |
 | btree | heldout | oracle (F) | 0.861 | 0.861 | 0.861 | 0.861 |
-| btree | heldout | kernel (K) | 0.893 | 0.874 | 0.891 | 0.893 |
+| btree | heldout | kernel (K) | 0.893 | 0.875 | 0.891 | 0.893 |
 | btree | heldout | kernel+refault (K∪K+) | 0.863 | 0.875 | 0.862 | 0.863 |
 | btree | heldout | oracle+kernel | 0.864 | 0.870 | 0.864 | 0.864 |
 | graph | test | oracle (F) | 0.855 | 0.856 | 0.855 | 0.855 |
 | graph | test | kernel (K) | 0.871 | 0.867 | 0.871 | 0.871 |
 | graph | test | kernel+refault (K∪K+) | 0.845 | 0.848 | 0.845 | 0.845 |
-| graph | test | oracle+kernel | 0.855 | 0.856 | 0.856 | 0.855 |
+| graph | test | oracle+kernel | 0.855 | 0.856 | 0.856 | 0.856 |
 | graph | heldout | oracle (F) | 0.786 | 0.786 | 0.786 | 0.786 |
 | graph | heldout | kernel (K) | 0.805 | 0.800 | 0.805 | 0.805 |
 | graph | heldout | kernel+refault (K∪K+) | 0.798 | 0.812 | 0.799 | 0.798 |
 | graph | heldout | oracle+kernel | 0.767 | 0.766 | 0.767 | 0.767 |
 | kv | test | oracle (F) | 0.910 | 0.911 | 0.910 | 0.910 |
-| kv | test | kernel (K) | 0.917 | 0.918 | 0.917 | 0.917 |
-| kv | test | kernel+refault (K∪K+) | 0.905 | 0.905 | 0.905 | 0.905 |
+| kv | test | kernel (K) | 0.917 | 0.917 | 0.917 | 0.917 |
+| kv | test | kernel+refault (K∪K+) | 0.905 | 0.905 | 0.905 | 0.904 |
 | kv | test | oracle+kernel | 0.937 | 0.930 | 0.937 | 0.937 |
 | kv | heldout | oracle (F) | 0.890 | 0.890 | 0.890 | 0.890 |
 | kv | heldout | kernel (K) | 0.916 | 0.916 | 0.916 | 0.916 |
-| kv | heldout | kernel+refault (K∪K+) | 0.905 | 0.904 | 0.904 | 0.904 |
+| kv | heldout | kernel+refault (K∪K+) | 0.905 | 0.903 | 0.904 | 0.904 |
 | kv | heldout | oracle+kernel | 0.922 | 0.915 | 0.922 | 0.922 |
 | matmul | heldout | oracle (F) | 0.823 | 0.823 | 0.823 | 0.823 |
 | matmul | heldout | kernel (K) | 0.789 | 0.789 | 0.789 | 0.789 |
@@ -491,17 +491,51 @@
 | sort | heldout | kernel+refault (K∪K+) | 0.933 | 0.951 |
 | sort | heldout | oracle+kernel | 1.001 | 1.001 |
 
+<!-- kernel_test -->
+**In xv6 itself: faults relative to Clock, test streams, 10% (kernel counters; geo-mean over streams)**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+
+*Every policy runs the same workload command with the same resident limit; faults = zero-fill + swap faults.*
+
+<!-- kernel_writes_test -->
+**In xv6 itself: page writes relative to Clock, test streams, 10%**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+
+<!-- kernel_heldout -->
+**In xv6 itself: faults relative to Clock, heldout streams, 10% (kernel counters; geo-mean over streams)**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+
+*Every policy runs the same workload command with the same resident limit; faults = zero-fill + swap faults.*
+
+<!-- kernel_writes_heldout -->
+**In xv6 itself: page writes relative to Clock, heldout streams, 10%**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+
+<!-- kernel_cost -->
+**Victim-selection cost in xv6: timer ticks (10 MHz, emulated) and candidates per eviction, mean over all runs**
+
+| policy | ticks / eviction | candidates / eviction |
+|---|---|---|
+
 <!-- quant_compact -->
 **Integer-only scoring of the selected kernel+refault model (per-workload) — faults / Clock**
 
 | workload | split | float | int, 4-bit | int, 8-bit | int, 12-bit |
 |---|---|---|---|---|---|
-| btree | test | 0.833 | 0.835 | 0.833 | 0.833 |
+| btree | test | 0.833 | 0.834 | 0.833 | 0.833 |
 | btree | heldout | 0.863 | 0.875 | 0.862 | 0.863 |
 | graph | test | 0.845 | 0.848 | 0.845 | 0.845 |
 | graph | heldout | 0.798 | 0.812 | 0.799 | 0.798 |
-| kv | test | 0.905 | 0.905 | 0.905 | 0.905 |
-| kv | heldout | 0.905 | 0.904 | 0.904 | 0.904 |
+| kv | test | 0.905 | 0.905 | 0.905 | 0.904 |
+| kv | heldout | 0.905 | 0.903 | 0.904 | 0.904 |
 | matmul | heldout | 0.681 | 0.681 | 0.681 | 0.681 |
 | sort | test | 0.983 | 0.983 | 0.983 | 0.983 |
 | sort | heldout | 0.933 | 0.932 | 0.933 | 0.933 |

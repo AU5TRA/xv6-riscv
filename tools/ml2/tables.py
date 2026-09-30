@@ -301,6 +301,50 @@ def main():
                     t.add([wl, split, name, fmt(v[0], v[4]), fmt(*e)])
     T["dagger"] = t
 
+    # ---- 13 in-kernel ---------------------------------------------------------
+    kern = {(r["policy"], r["workload"], r["split"]): r for r in read("summary_kernel.csv")}
+    kpol = [("fifo", "FIFO"), ("aging", "Aging"), ("lfu", "LFU (decayed)"),
+            ("ml/global", "ML global"), ("ml/workload", "ML per-workload"),
+            ("ml/workload-k", "ML per-workload, K only")]
+    for split in SPLITS:
+        t = Table(f"In xv6 itself: faults relative to Clock, {split} streams, 10% "
+                  "(kernel counters; geo-mean over streams)",
+                  ["workload"] + [n for _, n in kpol],
+                  "Every policy runs the same workload command with the same resident limit; "
+                  "faults = zero-fill + swap faults.")
+        for wl in WL:
+            vals = [kern.get((p_, wl, split)) for p_, _ in kpol]
+            if any(vals):
+                t.add([wl] + [fmt(float(v["geo_faults_vs_clock"])) if v else "—" for v in vals])
+        T[f"kernel_{split}"] = t
+        t = Table(f"In xv6 itself: page writes relative to Clock, {split} streams, 10%",
+                  ["workload"] + [n for _, n in kpol])
+        for wl in WL:
+            vals = [kern.get((p_, wl, split)) for p_, _ in kpol]
+            if any(vals):
+                t.add([wl] + [fmt(float(v["geo_writes_vs_clock"])) if v else "—" for v in vals])
+        T[f"kernel_writes_{split}"] = t
+    t = Table("Victim-selection cost in xv6: timer ticks (10 MHz, emulated) and candidates "
+              "per eviction, mean over all runs", ["policy", "ticks / eviction",
+                                                   "candidates / eviction"])
+    cost = defaultdict(list)
+    for (p_, wl, split), r in kern.items():
+        cost[p_].append((float(r["select_ticks_per_eviction"]), float(r["candidates_per_eviction"])))
+    for p_, name in [("clock", "Clock")] + kpol:
+        if cost.get(p_):
+            v = np.array(cost[p_])
+            t.add([name, f"{v[:, 0].mean():.1f}", f"{v[:, 1].mean():.1f}"])
+    T["kernel_cost"] = t
+    kvs = read("summary_kernel_vs_sim.csv")
+    if kvs:
+        t = Table("Kernel vs simulator: kernel faults / simulated faults for the same stream, "
+                  "frames and policy (median over runs)", ["policy", "workload", "runs",
+                                                            "median", "min", "max"])
+        for r in kvs:
+            t.add([r["policy"], r["workload"], r["runs"], r["median_kernel_over_sim"],
+                   r["min"], r["max"]])
+        T["kernel_vs_sim"] = t
+
     # compact versions for the slides: the kernel+refault tier only
     for name in ("quant", "dagger"):
         full = T[name]
