@@ -15,13 +15,17 @@ import models as M
 import pagesim as ps
 import train_nn as T
 
-EVAL_FRACS = ("0.05", "0.1", "0.2")
+EVAL_FRACS = ("0.1",)
+PROTECT = (0, 2)   # probation chosen per model on validation
 EVAL_SPLITS = ("val", "test", "heldout")
 OUT = ps.ROOT / "report" / "results2" / "nn_eval.csv"
-HEADER = ["model", "kind", "scope", "features", "tiers", "stem", "split",
+HEADER = ["model", "kind", "scope", "features", "tiers", "protect_age", "stem", "split",
           "workload", "variant", "fraction", "frames", "faults", "writebacks",
           "aborted"]
 POLICY = {"mlp": "learned", "gru": "gru", "embed": "embed"}
+CLOCK = {(r["stem"], r["fraction"]): int(r["faults"]) for r in
+         csv.DictReader(open(ps.ROOT / "report" / "results2" / "classical.csv"))
+         if r["policy"] == "clock"}
 
 
 def tiers_of(spec):
@@ -35,16 +39,18 @@ def job(args):
     stem, frac, names = args
     s = ps.load_stream(stem)
     cap = s.capacities[frac]
-    limit = 5 * ps.baselines()[(stem, frac)]["fifo"]
+    limit = min(5 * ps.baselines()[(stem, frac)]["fifo"], 3 * CLOCK[(stem, frac)])
     rows = []
     for name in names:
         spec = json.load(open(M.MODELS / "nn" / f"{name}.json"))
-        sm = T.embed_scored(spec, s) if spec["kind"] == "embed" else M.to_scored(spec)
-        r = ps.run(s, cap, POLICY[spec["kind"]], sm, max_faults=limit)
-        scope = name.split("_")[1]
-        rows.append([name, spec["kind"], scope, "+".join(spec.get("features", [])),
-                     tiers_of(spec), stem, s.split, s.workload, s.variant, frac, cap,
-                     r["faults"], r["writebacks"], int(r["aborted"])])
+        for pa in PROTECT:
+            spec["protect_age"] = pa
+            sm = T.embed_scored(spec, s) if spec["kind"] == "embed" else M.to_scored(spec)
+            r = ps.run(s, cap, POLICY[spec["kind"]], sm, max_faults=limit)
+            scope = name.split("_")[1]
+            rows.append([name, spec["kind"], scope, "+".join(spec.get("features", [])),
+                         tiers_of(spec), pa, stem, s.split, s.workload, s.variant, frac,
+                         cap, r["faults"], r["writebacks"], int(r["aborted"])])
     return stem, frac, rows
 
 
@@ -60,7 +66,7 @@ def main():
             done = {(r["model"], r["stem"], r["fraction"]) for r in csv.DictReader(f)}
     refs = {e["stem"]: e["refs"] for e in ps.index()["streams"]}
     tasks = []
-    for stem in ps.stems(EVAL_SPLITS):
+    for stem in ps.stems(EVAL_SPLITS) + ps.stems("train", "matmul"):
         wl = ps.index_entry(stem)["workload"]
         mine = [n for n in names if n.split("_")[1] in (wl, "global")]
         for frac in EVAL_FRACS:

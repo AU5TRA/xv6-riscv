@@ -57,7 +57,7 @@ class Model(C.Structure):
                 ("head_w", C.POINTER(C.c_float)), ("head_layers", C.c_int),
                 ("head_sizes", C.c_int * (MAXL + 1)), ("emb_d", C.c_int),
                 ("emb", C.POINTER(C.c_float)), ("quant_w", C.c_int),
-                ("qa", C.c_int32 * NF)]
+                ("qa", C.c_int32 * NF), ("protect_age", C.c_int)]
 
 
 class Result(C.Structure):
@@ -72,7 +72,7 @@ class Recorder(C.Structure):
                 ("feat", C.POINTER(C.c_float)), ("label", C.POINTER(C.c_float)),
                 ("group", C.POINTER(C.c_int32)), ("is_opt", C.POINTER(C.c_uint8)),
                 ("hist", C.POINTER(C.c_float)), ("page", C.POINTER(C.c_int32)),
-                ("ctx", C.POINTER(C.c_int32))]
+                ("ctx", C.POINTER(C.c_int32)), ("n_recent", C.c_int)]
 
 
 _lib = _build()
@@ -171,7 +171,7 @@ def run(s, cap, policy, model=None, max_faults=0):
 
 
 def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False,
-           max_cand=0):
+           max_cand=0, n_recent=0):
     """Replay under `behavior` and record every candidate at a random fraction
     `p` of evictions. Returns dict of arrays (features for all NF features)."""
     feat = np.zeros((max_rows, NF), np.float32)
@@ -182,7 +182,7 @@ def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False,
     page = np.zeros(max_rows, np.int32) if seq else None
     ctx = np.zeros((max_rows, EMB_W), np.int32) if seq else None
     rec = Recorder(p=p, rng=seed * 0x9E3779B97F4A7C15 % (1 << 64) or 1,
-                   max_cand=max_cand,
+                   max_cand=max_cand, n_recent=n_recent,
                    cap=max_rows, feat=_fptr(feat), label=_fptr(label),
                    group=group.ctypes.data_as(C.POINTER(C.c_int32)),
                    is_opt=is_opt.ctypes.data_as(C.POINTER(C.c_uint8)),
@@ -208,6 +208,7 @@ class ScoredModel:
         self.kw = kw
         self.c = Model()
         self.c.kind = {"mlp": 0, "gru": 1, "embed": 2}[kind]
+        self.c.protect_age = int(kw.get("protect_age", 0))
         self._keep = []
         if kind == "mlp":
             feats = kw["features"]

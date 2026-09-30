@@ -1,0 +1,42 @@
+\begin{tabular}{lrrrr}
+\toprule
+workload & split & features & v1 & v2 \\
+\midrule
+btree & heldout & F & 0.853 & 0.849 \\
+btree & heldout & K & 0.849 & 0.851 \\
+btree & heldout & K$\cup$K{+} & 0.847 & 0.846 \\
+btree & heldout & all & 0.899 & 0.877 \\
+graph & val & F & $\geq$1.258 & 0.707 \\
+graph & val & K & $\geq$1.273 & 0.809 \\
+graph & val & K$\cup$K{+} & $\geq$1.334 & 1.383 \\
+graph & val & all & $\geq$1.257 & 0.661 \\
+graph & test & F & $\geq$1.255 & 0.720 \\
+graph & test & K & $\geq$1.268 & 0.806 \\
+graph & test & K$\cup$K{+} & $\geq$1.330 & 1.463 \\
+graph & test & all & $\geq$1.254 & 0.669 \\
+kv & val & F & 0.964 & 0.960 \\
+kv & val & K & 0.986 & 1.003 \\
+kv & val & K$\cup$K{+} & 0.994 & 0.991 \\
+kv & val & all & 1.020 & 1.042 \\
+kv & test & F & 0.959 & 0.956 \\
+kv & test & K & 0.987 & 1.004 \\
+kv & test & K$\cup$K{+} & 0.997 & 0.986 \\
+kv & test & all & 1.030 & 1.042 \\
+matmul & heldout & F & 1.001 & 0.999 \\
+matmul & heldout & K & 0.971 & 1.108 \\
+matmul & heldout & K$\cup$K{+} & 0.927 & 1.108 \\
+matmul & heldout & all & 0.891 & 1.010 \\
+sort & val & F & 0.960 & 0.960 \\
+sort & val & K & 1.055 & 1.055 \\
+sort & val & K$\cup$K{+} & 1.036 & 1.036 \\
+sort & val & all & 0.964 & 0.962 \\
+sort & test & F & 0.954 & 0.954 \\
+sort & test & K & 1.050 & 1.050 \\
+sort & test & K$\cup$K{+} & 1.026 & 1.030 \\
+sort & test & all & 0.957 & 0.957 \\
+sort & heldout & F & 1.000 & 1.000 \\
+sort & heldout & K & 1.060 & 1.060 \\
+sort & heldout & K$\cup$K{+} & 1.022 & 1.027 \\
+sort & heldout & all & 1.005 & 1.007 \\
+\bottomrule
+\end{tabular}

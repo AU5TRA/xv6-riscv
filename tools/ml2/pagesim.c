@@ -78,6 +78,10 @@ struct model {
   // and bias terms are the same for every candidate, so they are dropped.
   int quant_w;              // 0 = float scoring
   int32_t qa[NF];
+  // Probation: a candidate loaded fewer than protect_age scans ago is not
+  // evicted while any older one exists (Clock's second chance for a new
+  // page, applied to a learned score). 0 = off.
+  int protect_age;
 };
 
 struct result {
@@ -100,6 +104,8 @@ struct recorder {
   float *hist;              // [cap][GRU_K] past intervals, oldest first
   int32_t *page;            // [cap] candidate dense page id
   int32_t *ctx;             // [cap][EMB_W] last EMB_W pages referenced
+  int n_recent;             // when subsampling, always keep this many of the
+                            // most recently accessed candidates too
 };
 
 // log1p of a non-negative integer count, from a table for small values.
@@ -320,8 +326,15 @@ static int choose(struct state *s, int policy, const struct model *m,
                  m->emb + (int64_t)(q < 0 ? s->n_pages : q) * m->emb_d, ctx_h);
       }
     }
-    for (int k = 0; k < s->count; k++)
+    int any_old = 0;
+    for (int k = 0; k < s->count; k++) {
       score[k] = score_one(s, m, s->res[k], t, ctx_h);
+      if (m->protect_age && s->scans - s->load_scan[s->res[k]] >= m->protect_age)
+        any_old = 1;
+    }
+    if (m->protect_age && any_old)
+      for (int k = 0; k < s->count; k++)
+        if (s->scans - s->load_scan[s->res[k]] < m->protect_age) score[k] = -INFINITY;
     return argmax_by(s, score);
   }
   }
@@ -351,8 +364,21 @@ static void record(struct state *s, struct recorder *r, struct result *o,
   int m = s->count;
   for (int k = 0; k < s->count; k++) pick[k] = k;
   if (r->max_cand > 0 && s->count > r->max_cand) {
+    // slot 0: Belady's choice; slots 1..n_recent: the most recently
+    // accessed candidates (a uniform sample almost never contains the page
+    // being streamed through, so a model never learns to keep it); the rest
+    // uniformly at random.
     pick[opt] = pick[0]; pick[0] = opt;
-    for (int j = 1; j < r->max_cand; j++) {
+    int fixed = 1;
+    for (int q = 0; q < r->n_recent && fixed < r->max_cand; q++) {
+      int best = -1;
+      for (int j = fixed; j < s->count; j++)
+        if (best < 0 || s->last_acc[s->res[pick[j]]] > s->last_acc[s->res[pick[best]]])
+          best = j;
+      int tmp = pick[fixed]; pick[fixed] = pick[best]; pick[best] = tmp;
+      fixed++;
+    }
+    for (int j = fixed; j < r->max_cand; j++) {
       int i = j + (int)(xs(rng) % (uint64_t)(s->count - j));
       int tmp = pick[j]; pick[j] = pick[i]; pick[i] = tmp;
     }

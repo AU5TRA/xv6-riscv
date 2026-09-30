@@ -35,3 +35,11 @@ docs/CHANGES-VS-STOCK-XV6.txt
 # tools/ml2 build output (compiled on first use by pagesim.py)
 tools/ml2/libpagesim.so
 __pycache__/
+# LaTeX build artifacts
+report/slides/*.aux
+report/slides/*.log
+report/slides/*.nav
+report/slides/*.out
+report/slides/*.snm
+report/slides/*.toc
+report/slides/*.vrb

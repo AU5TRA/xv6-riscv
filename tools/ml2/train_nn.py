@@ -146,7 +146,7 @@ def train_mlp(scope, features, seed=0):
     model = MLP(len(j))
     best, log = fit(model, lambda s, idx: (model(X[s][idx]), Y[s][idx]),
                     len(tr["label"]), len(va["label"]), tr["weight"], va["weight"])
-    spec = {"kind": "mlp", "features": list(features), "mean": mean.tolist(),
+    spec = {"kind": "mlp", "protect_age": M.PROTECT_AGE, "features": list(features), "mean": mean.tolist(),
             "std": std.tolist(), "layers": layers_of(model.net),
             "val_mse": best, "val_curve": log}
     # the C scorer must reproduce the trained network
@@ -171,7 +171,7 @@ def train_gru(scope, seed=0):
     model = GRUScorer()
     best, log = fit(model, lambda s, idx: (model(T[s][0][idx], T[s][1][idx]), T[s][2][idx]),
                     len(tr["label"]), len(va["label"]), tr["weight"], va["weight"])
-    spec = {"kind": "gru", "gru_h": 16, "gru_w": gru_flat(model.gru),
+    spec = {"kind": "gru", "protect_age": M.PROTECT_AGE, "gru_h": 16, "gru_w": gru_flat(model.gru),
             "head": layers_of(model.head), "mean": [rm], "std": [rs],
             "val_mse": best, "val_curve": log}
     with torch.no_grad():
@@ -205,7 +205,7 @@ def train_embed(scope, seed=0):
     best, log = fit(model, lambda s, idx: (model(T[s][0][idx], T[s][1][idx]), T[s][2][idx]),
                     len(tr["label"]), len(va["label"]), tr["weight"], va["weight"])
     E = model.emb.weight.detach().cpu().numpy()
-    spec = {"kind": "embed", "gru_h": 16, "emb_d": 16, "n_vpn": n_vpn,
+    spec = {"kind": "embed", "protect_age": M.PROTECT_AGE, "gru_h": 16, "emb_d": 16, "n_vpn": n_vpn,
             "gru_w": gru_flat(model.gru), "head": layers_of(model.head),
             "emb": E.tolist(), "seen": np.nonzero(seen)[0].tolist(),
             "val_mse": best, "val_curve": log}
@@ -217,6 +217,96 @@ def train_embed(scope, seed=0):
                                   for L in spec["head"]], emb_d=16, emb=E)
     got = ps.score_seq_rows(scored, np.zeros((n, ps.GRU_K), np.float32), np.zeros(n, np.float32),
                             T["va"][1][:n].cpu().numpy(), T["va"][0][:n].cpu().numpy())
+    spec["c_check_max_abs_err"] = float(np.abs(want - got).max())
+    assert spec["c_check_max_abs_err"] < 1e-3, spec["c_check_max_abs_err"]
+    return spec
+
+
+def grouped(d, j, mean, std):
+    """Rows -> padded decision tensors: X [G, C, F], target [G, C] (uniform
+    over the candidates Belady would evict), mask [G, C], weight [G]."""
+    g = d["group"]
+    starts = np.r_[0, np.flatnonzero(np.diff(g)) + 1]
+    sizes = np.diff(np.r_[starts, len(g)])
+    C = int(sizes.max())
+    G = len(starts)
+    idx = np.full((G, C), -1, np.int64)
+    pos = np.arange(C)
+    ok = pos[None, :] < sizes[:, None]
+    idx[ok] = (starts[:, None] + pos[None, :])[ok]
+    X = (d["feat"][:, j] - mean) / std
+    Xg = np.zeros((G, C, len(j)), np.float32)
+    Xg[ok] = X[idx[ok]]
+    lab = np.full((G, C), -np.inf, np.float32)
+    lab[ok] = d["label"][idx[ok]]
+    tgt = (lab >= lab.max(1, keepdims=True) - 1e-6) & ok
+    tgt = tgt / tgt.sum(1, keepdims=True)
+    t = lambda a, dt=torch.float32: torch.as_tensor(a, dtype=dt, device=DEV)
+    return t(Xg), t(tgt), t(ok, torch.bool), t(d["weight"][starts])
+
+
+def train_rank(scope, features, hidden, seed=0):
+    """Decision-level ranking: at each recorded eviction, a softmax over the
+    candidates' scores is trained to put its mass on the page(s) Belady
+    evicts (listwise cross-entropy). The kernel only needs the argmax, so
+    this optimises the decision itself rather than the exact distance."""
+    torch.manual_seed(seed)
+    tr, va = split_data(scope, ("feat", "label", "group", "is_opt"))
+    stats = M.LinearFitter(tr)
+    j = [ps.FEATURES.index(f) for f in features]
+    mean, std = stats.mean[j], stats.std[j]
+    T = {k: grouped(d, j, mean, std) for k, d in (("tr", tr), ("va", va))}
+    model = MLP(len(j), hidden) if hidden else nn.Sequential(nn.Linear(len(j), 1))
+    net = model.net if hidden else model
+    model.to(DEV)
+
+    def score(X):
+        return (model(X) if hidden else model(X).squeeze(-1))
+
+    def loss_of(k, idx):
+        X, tgt, ok, w = (a[idx] for a in T[k])
+        s = score(X).masked_fill(~ok, -1e9)
+        l = -(torch.log_softmax(s, -1) * tgt).sum(-1)
+        top = (s.argmax(-1, keepdim=True) == torch.arange(s.shape[1], device=DEV)) & (tgt > 0)
+        return (w * l).sum(), w.sum(), (w * top.any(-1)).sum()
+
+    opt = torch.optim.Adam(model.parameters(), lr=3e-3)
+    best, state, bad, log = float("inf"), None, 0, []
+    G = T["tr"][0].shape[0]
+    for ep in range(80):
+        model.train()
+        perm = torch.randperm(G, device=DEV)
+        for i in range(0, G, 1024):
+            l, w, _ = loss_of("tr", perm[i:i + 1024])
+            opt.zero_grad()
+            (l / w).backward()
+            opt.step()
+        model.eval()
+        with torch.no_grad():
+            tot = [0.0, 0.0, 0.0]
+            Gv = T["va"][0].shape[0]
+            for i in range(0, Gv, 8192):
+                r = loss_of("va", torch.arange(i, min(i + 8192, Gv), device=DEV))
+                tot = [a + float(b) for a, b in zip(tot, r)]
+        v = tot[0] / tot[1]
+        log.append([v, tot[2] / tot[1]])
+        if v < best - 1e-4:
+            best, bad = v, 0
+            state = {k: t.detach().clone() for k, t in model.state_dict().items()}
+        else:
+            bad += 1
+            if bad >= 5:
+                break
+    model.load_state_dict(state)
+    spec = {"kind": "mlp", "loss": "rank", "protect_age": M.PROTECT_AGE, "features": list(features),
+            "mean": mean.tolist(), "std": std.tolist(), "layers": layers_of(net),
+            "val_rank_loss": best, "val_top1": log[int(np.argmin([x[0] for x in log]))][1],
+            "val_curve": log}
+    # C scorer vs torch on validation rows
+    Xv = torch.as_tensor((va["feat"][:50000][:, j] - mean) / std, dtype=torch.float32, device=DEV)
+    with torch.no_grad():
+        want = score(Xv).cpu().numpy()
+    got = ps.score_rows(M.to_scored(spec), va["feat"][:50000])
     spec["c_check_max_abs_err"] = float(np.abs(want - got).max())
     assert spec["c_check_max_abs_err"] < 1e-3, spec["c_check_max_abs_err"]
     return spec
@@ -237,12 +327,13 @@ def embed_scored(spec, stream):
             for L in spec["head"]]
     return ps.ScoredModel("embed", gru_h=spec["gru_h"],
                           gru_w=np.asarray(spec["gru_w"], np.float32), head=head,
-                          emb_d=spec["emb_d"], emb=table)
+                          emb_d=spec["emb_d"], emb=table,
+                          protect_age=spec.get("protect_age", 0))
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("kind", choices=["mlp", "gru", "embed"])
+    ap.add_argument("kind", choices=["mlp", "gru", "embed", "rlin", "rmlp"])
     ap.add_argument("--scope", required=True)
     ap.add_argument("--features", default="")
     ap.add_argument("--name", default="")
@@ -250,6 +341,8 @@ def main():
     t0 = time.time()
     if a.kind == "mlp":
         spec = train_mlp(a.scope, a.features.split(","))
+    elif a.kind in ("rlin", "rmlp"):
+        spec = train_rank(a.scope, a.features.split(","), 0 if a.kind == "rlin" else 32)
     elif a.kind == "gru":
         spec = train_gru(a.scope)
     else:
@@ -258,7 +351,9 @@ def main():
     path = M.MODELS / "nn" / f"{name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     json.dump(spec, open(path, "w"))
-    print(f"{name}: val_mse={spec['val_mse']:.4f} epochs={len(spec['val_curve'])} "
+    vm = spec.get("val_mse", spec.get("val_rank_loss"))
+    extra = f" val_top1={spec['val_top1']:.3f}" if "val_top1" in spec else ""
+    print(f"{name}: val={vm:.4f}{extra} epochs={len(spec['val_curve'])} "
           f"C-vs-torch max err={spec['c_check_max_abs_err']:.1e} "
           f"({time.time() - t0:.0f}s) -> {path.relative_to(ps.ROOT)}", flush=True)
 

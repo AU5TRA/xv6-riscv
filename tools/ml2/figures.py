@@ -39,7 +39,8 @@ def save(fig, name):
 
 def classical():
     rows = read("summary_classical.csv")
-    d = {(r["policy"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"]) for r in rows}
+    d = {(r["policy"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"]) for r in rows
+         if r.get("fraction", "all") == "all"}
     pols = ["fifo", "aging", "lfu_kernel", "lru", "clock", "lfu_exact", "belady"]
     names = {"fifo": "FIFO", "aging": "Aging", "lfu_kernel": "decayed LFU (kernel)",
              "lru": "LRU", "clock": "Clock", "lfu_exact": "exact LFU (oracle)",
@@ -61,16 +62,21 @@ def classical():
     save(fig, "classical")
 
 
+def final_table():
+    """(scope, group, workload, split) -> geo ratio over all capacities."""
+    return {(r["scope"], r["group"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
+            for r in read("summary_final.csv") if r["fraction"] == "all"}
+
+
+def classical_all():
+    return {(r["policy"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
+            for r in read("summary_classical.csv") if r.get("fraction", "all") == "all"}
+
+
 def tiers(scope_kind):
     """scope_kind: 'workload' (per-workload models) or 'global'."""
-    sel = read("summary_selected.csv")
-    cls = {(r["policy"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
-           for r in read("summary_classical.csv")}
-    d = {}
-    for r in sel:
-        if (scope_kind == "global") != (r["scope"] == "global"):
-            continue
-        d[(r["group"], r["workload"], r["split"])] = float(r["geo_ratio_vs_clock"])
+    fin = final_table()
+    cls = classical_all()
     groups = ["F", "K", "K+K+", "F+K"]
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.2), sharey=True)
     for ax, split in zip(axes, ("test", "heldout")):
@@ -79,19 +85,20 @@ def tiers(scope_kind):
         w = 0.8 / len(bars)
         for i, g in enumerate(bars):
             if g == "clock":
-                vals = [1.0] * len(WL)
+                vals = [1.0 if (("clock", wl, split) in cls) else np.nan for wl in WL]
             elif g == "belady":
                 vals = [cls.get(("belady", wl, split), np.nan) for wl in WL]
             else:
-                vals = [d.get((g, wl, split), np.nan) for wl in WL]
+                vals = [fin.get((wl if scope_kind == "workload" else "global", g, wl, split),
+                                np.nan) for wl in WL]
             ax.bar(x + (i - len(bars) / 2 + .5) * w, [min(v, 2.0) for v in vals], w,
                    label=LABEL.get(g, g), color=COL[g])
         ax.axhline(1, color="k", lw=.6)
         ax.set_xticks(x, WL)
-        ax.set_title(f"{split} streams")
-        ax.set_ylim(0, 2.05)
-    axes[0].set_ylabel("faults / Clock (geo-mean)")
-    axes[1].legend(fontsize=7, frameon=False, loc="upper left")
+        ax.set_title(f"{split} streams" + (" (matmul has none)" if split == "test" else ""))
+        ax.set_ylim(0, 1.25)
+    axes[0].set_ylabel("faults / Clock (geo-mean, 5/10/20%)")
+    axes[1].legend(fontsize=7, frameon=False, loc="upper left", ncol=2)
     save(fig, f"tiers_{scope_kind}")
 
 
@@ -129,7 +136,7 @@ def f_heatmap():
 def kk_distribution():
     rows = read("summary_linear.csv")
     sel = {(r["scope"], r["group"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
-           for r in read("summary_selected.csv")}
+           for r in read("summary_final.csv") if r["fraction"] == "0.1"}
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.3), sharey=True)
     for ax, split in zip(axes, ("test", "heldout")):
         for j, wl in enumerate(WL):
@@ -159,7 +166,8 @@ def marginal():
     feats = ["ref", "aging", "sfreq", "idle", "age", "dirty", "refaults", "rdist"]
     M = np.full((len(feats), len(WL)), np.nan)
     for r in rows:
-        if r["scope"] == r["workload"] and r["split"] == "test":
+        want = "heldout" if r["workload"] == "matmul" else "test"
+        if r["scope"] == r["workload"] and r["split"] == want:
             M[feats.index(r["feature"]), WL.index(r["workload"])] = float(
                 r["mean_delta_log_ratio"])
     fig, ax = plt.subplots(figsize=(5.2, 3.4))
@@ -169,10 +177,10 @@ def marginal():
         for j in range(M.shape[1]):
             if not np.isnan(M[i, j]):
                 ax.text(j, i, f"{pct[i, j]:+.0f}%", ha="center", va="center", fontsize=7)
-    ax.set_xticks(range(len(WL)), WL)
+    ax.set_xticks(range(len(WL)), [w if w != "matmul" else "matmul*" for w in WL])
     ax.set_yticks(range(len(feats)), feats)
     ax.set_title("Average change in faults from adding a feature\n"
-                 "(over all kernel subsets lacking it; test; blue = helps)", fontsize=8)
+                 "(over all kernel subsets lacking it; test, *held-out; blue = helps)", fontsize=8)
     save(fig, "marginal")
 
 
@@ -199,42 +207,41 @@ def diagnostics():
 
 def nn_vs_linear():
     nn = read("summary_nn.csv")
-    sel = {(r["scope"], r["group"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
-           for r in read("summary_selected.csv")}
+    fin = {(r["scope"], r["group"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
+           for r in read("summary_final.csv") if r["fraction"] == "0.1"}
     cls = {(r["policy"], r["workload"], r["split"]): float(r["geo_ratio_vs_clock"])
-           for r in read("summary_classical.csv")}
-    groups = {"rec+freq+sd+wr": "MLP F", "ref+aging+sfreq+idle+age+dirty": "MLP K",
-              "ref+aging+sfreq+idle+age+dirty+refaults+rdist": "MLP K+K+",
-              "rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist": "MLP all"}
-    series = ["lin K+K+", "MLP K", "MLP K+K+", "lin F", "MLP F", "MLP all", "GRU", "embed",
-              "Belady"]
-    colors = ["#2e7d4f", "#2c6e8f", "#1b4f5c", "#b5540a", "#d98c3f", "#8e44ad", "#c0392b",
-              "#e67e22", "#222222"]
+           for r in read("summary_classical.csv") if r.get("fraction") == "0.1"}
+    groups = {"rec+freq+sd+wr": "F", "ref+aging+sfreq+idle+age+dirty": "K",
+              "ref+aging+sfreq+idle+age+dirty+refaults+rdist": "K+K+",
+              "rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist": "all"}
+    series = [("lin", "K+K+", "linear K+K+ (selected)", "#2e7d4f"),
+              ("mlp", "K+K+", "MLP K+K+", "#1b4f5c"), ("rmlp", "K+K+", "rank-MLP K+K+", "#6ea8c8"),
+              ("lin", "F", "linear F (selected)", "#b5540a"), ("mlp", "F", "MLP F", "#d98c3f"),
+              ("mlp", "all", "MLP all", "#8e44ad"), ("gru", None, "GRU (F)", "#c0392b"),
+              ("embed", None, "embedding (F)", "#e67e22"), ("belady", None, "Belady", "#222222")]
     for split in ("test", "heldout"):
         d = defaultdict(dict)
         for r in nn:
             if r["scope"] != r["workload"] or r["split"] != split:
                 continue
-            name = groups.get(r["features"]) if r["kind"] == "mlp" else r["kind"].replace(
-                "gru", "GRU")
-            if name:
-                d[name][r["workload"]] = float(r["geo_ratio_vs_clock"])
+            kind = r["model"].split("_")[0]
+            g = groups.get(r["features"]) if kind in ("mlp", "rmlp", "rlin") else None
+            d[(kind, g)][r["workload"]] = float(r["geo_ratio_vs_clock"])
         for wl in WL:
-            if (wl, "K+K+", wl, split) in sel:
-                d["lin K+K+"][wl] = sel[(wl, "K+K+", wl, split)]
-            if (wl, "F", wl, split) in sel:
-                d["lin F"][wl] = sel[(wl, "F", wl, split)]
-            d["Belady"][wl] = cls.get(("belady", wl, split), np.nan)
+            for g in ("K+K+", "F"):
+                if (wl, g, wl, split) in fin:
+                    d[("lin", g)][wl] = fin[(wl, g, wl, split)]
+            d[("belady", None)][wl] = cls.get(("belady", wl, split), np.nan)
         fig, ax = plt.subplots(figsize=(9, 3.2))
         x = np.arange(len(WL))
         w = .8 / len(series)
-        for i, (s, c) in enumerate(zip(series, colors)):
-            vals = [min(d[s].get(wl, np.nan), 2.0) for wl in WL]
-            ax.bar(x + (i - len(series) / 2 + .5) * w, vals, w, label=s, color=c)
+        for i, (kind, g, lab, c) in enumerate(series):
+            vals = [min(d[(kind, g)].get(wl, np.nan), 2.0) for wl in WL]
+            ax.bar(x + (i - len(series) / 2 + .5) * w, vals, w, label=lab, color=c)
         ax.axhline(1, color="k", lw=.6)
         ax.set_xticks(x, WL)
-        ax.set_ylim(0, 2.05)
-        ax.set_ylabel("faults / Clock (geo-mean)")
+        ax.set_ylim(0, 1.6)
+        ax.set_ylabel("faults / Clock (geo-mean, 10%)")
         ax.set_title(f"Linear vs neural scorers, per-workload models, {split} streams")
         ax.legend(fontsize=7, frameon=False, ncol=5, loc="upper left")
         save(fig, f"nn_{split}")

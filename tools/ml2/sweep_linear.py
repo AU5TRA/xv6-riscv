@@ -65,11 +65,28 @@ def tiers(fs):
     return "+".join(t)
 
 
+def clock_faults():
+    import csv as _csv
+    out = {}
+    for r in _csv.DictReader(open(ps.ROOT / "report" / "results2" / "classical.csv")):
+        if r["policy"] == "clock":
+            out[(r["stem"], r["fraction"])] = int(r["faults"])
+    return out
+
+
+CLOCK = clock_faults()
+ABORT_CLOCK_MULT = 3
+
+
 def job(args):
     stem, frac, jobs = args
     s = ps.load_stream(stem)
     cap = s.capacities[frac]
-    limit = 5 * ps.baselines()[(stem, frac)]["fifo"]
+    # stop a run once it is 3x worse than Clock (or 5x FIFO): past that it
+    # is catastrophic whatever the exact count, and thrashing runs dominate
+    # the sweep's cost
+    limit = min(5 * ps.baselines()[(stem, frac)]["fifo"],
+                ABORT_CLOCK_MULT * CLOCK[(stem, frac)])
     rows = []
     for scope, key, spec in jobs:
         r = ps.run(s, cap, "learned", M.to_scored(spec), max_faults=limit)
@@ -82,7 +99,12 @@ def job(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jobs", type=int, default=6)
+    ap.add_argument("--fracs", default=",".join(EVAL_FRACS))
+    ap.add_argument("--only-selected", action="store_true",
+                    help="evaluate only the validation-selected subsets and the "
+                         "fixed reference subsets (phase B)")
     a = ap.parse_args()
+    fracs = a.fracs.split(",")
     t0 = time.time()
     sets = feature_sets()
     print(f"{len(sets)} feature sets x {len(SCOPES)} scopes", flush=True)
@@ -100,14 +122,23 @@ def main():
             for r in csv.DictReader(f):
                 done.add((r["stem"], r["fraction"]))
     refs = {e["stem"]: e["refs"] for e in ps.index()["streams"]}
+    keep = {}
+    if a.only_selected:
+        import analyze
+        chosen = analyze.main()
+        fixed = ["+".join(F), "+".join(K), "+".join(KK), "+".join(F + KK),
+                 "rec", "freq", "rec+freq", "sfreq+rdist"]
+        for sc in SCOPES:
+            keep[sc] = set(fixed) | {f for (s2, _), f in chosen.items() if s2 == sc}
     tasks = []
     for stem in ps.stems(EVAL_SPLITS):
         wl = ps.index_entry(stem)["workload"]
-        for frac in EVAL_FRACS:
+        for frac in fracs:
             if (stem, frac) in done:
                 continue
             jobs = [(sc, key, spec) for sc in (wl, "global")
-                    for key, spec in specs[sc].items()]
+                    for key, spec in specs[sc].items()
+                    if not a.only_selected or key in keep.get(sc, ())]
             tasks.append((stem, frac, jobs))
     tasks.sort(key=lambda t: -refs[t[0]] * float(t[1]) ** 0)
     print(f"{len(tasks)} stream x capacity tasks to run "

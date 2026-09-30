@@ -28,6 +28,9 @@ CACHE = ps.ROOT / "traces2" / "ml2_cache"
 RESULTS = ps.ROOT / "report" / "results2"
 TRAIN_FRACS = ("0.05", "0.1", "0.2")
 MAX_CAND = 32
+N_RECENT = 4   # of the MAX_CAND slots, always the most recently accessed
+               # candidates: a uniform sample almost never contains the page
+               # being streamed through (v1 data did not; see ML_REPORT §7)
 ROWS = {"train": 40_000, "val": 20_000}
 BEHAVIOR = "lru"
 
@@ -43,7 +46,7 @@ def job(args):
     max_rows = int(ROWS[split] * 1.5) + 4 * per
     seed = hash((stem, frac)) & 0xFFFFFFFF
     r = ps.record(s, cap, BEHAVIOR, p=p, max_rows=max_rows, seed=seed,
-                  seq=True, max_cand=MAX_CAND)
+                  seq=True, max_cand=MAX_CAND, n_recent=N_RECENT)
     assert not r["overflow"], (stem, frac)
     assert r["faults"] == base["lru"], (stem, frac, r["faults"], base["lru"])
     vp = s.vpns

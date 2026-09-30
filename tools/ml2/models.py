@@ -23,6 +23,7 @@ CACHE = ps.ROOT / "traces2" / "ml2_cache"
 MODELS = ps.ROOT / "report" / "models2"
 WORKLOADS = ["btree", "graph", "kv", "matmul", "sort"]
 RIDGE = 1e-4
+PROTECT_AGE = 2   # probation for newly loaded pages, chosen on validation (§7)
 
 
 @lru_cache(maxsize=None)
@@ -68,24 +69,27 @@ class LinearFitter:
         A[1:, 1:] += RIDGE * self.M[0, 0] * np.eye(len(idx) - 1)
         theta = np.linalg.solve(A, self.r[idx])
         j = [ps.FEATURES.index(f) for f in features]
-        return {"kind": "linear", "features": list(features),
+        return {"kind": "linear", "features": list(features), "protect_age": PROTECT_AGE,
                 "mean": self.mean[j].tolist(), "std": self.std[j].tolist(),
                 "layers": [{"W": [theta[1:].tolist()], "b": [float(theta[0])]}]}
 
 
-def to_scored(spec):
-    """JSON model spec -> pagesim.ScoredModel."""
+def to_scored(spec, protect_age=None):
+    """JSON model spec -> pagesim.ScoredModel. protect_age overrides the
+    spec's own probation setting (spec["protect_age"], default 0)."""
+    pa = spec.get("protect_age", 0) if protect_age is None else protect_age
     if spec["kind"] in ("linear", "mlp"):
         layers = [(np.asarray(L["W"], np.float32), np.asarray(L["b"], np.float32))
                   for L in spec["layers"]]
         return ps.ScoredModel("mlp", features=spec["features"], mean=spec["mean"],
-                              std=spec["std"], layers=layers)
+                              std=spec["std"], layers=layers, protect_age=pa)
     head = [(np.asarray(L["W"], np.float32), np.asarray(L["b"], np.float32))
             for L in spec["head"]]
     if spec["kind"] == "gru":
         return ps.ScoredModel("gru", gru_h=spec["gru_h"],
                               gru_w=np.asarray(spec["gru_w"], np.float32),
-                              head=head, mean=spec["mean"], std=spec["std"])
+                              head=head, mean=spec["mean"], std=spec["std"],
+                              protect_age=pa)
     raise ValueError("embedding models need a per-stream table: use embed_scored")
 
 

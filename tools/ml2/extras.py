@@ -44,7 +44,8 @@ def run_models(args):
         sm = M.to_scored(spec) if not q else ps.ScoredModel(
             "mlp", features=spec["features"], mean=spec["mean"], std=spec["std"],
             layers=[(np.asarray(L["W"], np.float32), np.asarray(L["b"], np.float32))
-                    for L in spec["layers"]], quant_w=q)
+                    for L in spec["layers"]], quant_w=q,
+            protect_age=spec.get("protect_age", 0))
         r = ps.run(s, cap, "learned", sm, max_faults=limit)
         rows.append([kind, scope, key, stem, s.split, s.workload, s.variant, frac, cap,
                      r["faults"], r["writebacks"], int(r["aborted"])])
@@ -78,18 +79,27 @@ def selected():
     return {(sc, g): f for (sc, g), f in chosen.items() if g in ("F", "K", "K+K+", "any")}
 
 
+def final_models():
+    """scope x group -> spec of the model final.py chose on validation."""
+    out = {}
+    for k, spec in M.load_models("final_linear").items():
+        sc, g = k.split("|")
+        out[(sc, g)] = spec
+    return out
+
+
 def quant(jobs):
-    chosen = selected()
-    specs = {sc: M.load_models(f"linear_{sc}") for sc in M.WORKLOADS + ["global"]}
+    fm = final_models()
     tasks = []
     for stem in ps.stems(("test", "heldout")):
         wl = ps.index_entry(stem)["workload"]
         todo = []
-        for (sc, g), key in chosen.items():
-            if sc not in (wl, "global"):
+        for (sc, g), spec in fm.items():
+            if sc not in (wl, "global") or g == "any":
                 continue
+            key = "+".join(spec["features"])
             for q in (4, 8, 12):
-                todo.append((f"quant{q}", sc, key, specs[sc][key], q))
+                todo.append((f"quant{q}", sc, key, spec, q))
         for frac in EVAL_FRACS:
             tasks.append((stem, frac, todo))
     dispatch(tasks, jobs)
@@ -103,17 +113,18 @@ def dagger_record(args):
     per = min(B.MAX_CAND, cap)
     p = min(1.0, B.ROWS["train"] / (evictions * per))
     r = ps.record(s, cap, "learned", p=p, max_rows=int(B.ROWS["train"] * 3) + 4 * per,
-                  seed=7, model=M.to_scored(spec), max_cand=B.MAX_CAND)
+                  seed=7, model=M.to_scored(spec), max_cand=B.MAX_CAND,
+                  n_recent=B.N_RECENT)
     return r["feat"], r["label"]
 
 
 def dagger(jobs):
-    chosen = selected()
+    fm = final_models()
     new_specs = {}
-    for (sc, g), key in sorted(chosen.items()):
-        if sc == "global":
+    for (sc, g), spec in sorted(fm.items()):
+        if sc == "global" or g == "any":
             continue
-        spec = M.load_models(f"linear_{sc}")[key]
+        key = "+".join(spec["features"])
         args = [(stem, frac, spec) for stem in ps.stems("train", sc) for frac in B.TRAIN_FRACS]
         with Pool(jobs) as pool:
             parts = pool.map(dagger_record, args)
@@ -122,11 +133,12 @@ def dagger(jobs):
         label = np.concatenate([base["label"]] + [p[1] for p in parts])
         fitter = M.LinearFitter({"feat": feat, "label": label,
                                  "weight": np.ones(len(label))})
-        new_specs[(sc, key)] = fitter.fit(key.split("+"))
+        new_specs[(sc, key)] = dict(fitter.fit(key.split("+")),
+                                    protect_age=spec["protect_age"])
         print(f"  dagger {sc} {g}: {key} +{sum(len(p[1]) for p in parts):,} rows", flush=True)
     M.save_models("linear_dagger", {f"{sc}|{k}": v for (sc, k), v in new_specs.items()})
     tasks = []
-    for stem in ps.stems(("val", "test", "heldout")):
+    for stem in ps.stems(("test", "heldout")):
         wl = ps.index_entry(stem)["workload"]
         todo = [("dagger", sc, k, v, 0) for (sc, k), v in new_specs.items() if sc == wl]
         if todo:
@@ -135,13 +147,38 @@ def dagger(jobs):
     dispatch(tasks, jobs)
 
 
+FIXED = ["rec+freq+sd+wr", "ref+aging+sfreq+idle+age+dirty",
+         "ref+aging+sfreq+idle+age+dirty+refaults+rdist",
+         "rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist",
+         "rec", "freq", "sfreq+rdist"]
+
+
+def protect(jobs):
+    """Probation ablation, on validation (and matmul's training) streams at
+    10%: the fixed feature groups of every scope with 0/1/2/4 scans."""
+    specs = {sc: M.load_models(f"linear_{sc}") for sc in M.WORKLOADS + ["global"]}
+    tasks = []
+    stems = ps.stems("val") + ps.stems("train", "matmul")
+    for stem in stems:
+        wl = ps.index_entry(stem)["workload"]
+        todo = []
+        for sc in (wl, "global"):
+            for key in FIXED:
+                for pa in (0, 1, 2, 4):
+                    sp = dict(specs[sc][key], protect_age=pa)
+                    todo.append((f"protect{pa}", sc, key, sp, 0))
+        tasks.append((stem, "0.1", todo))
+    dispatch(tasks, jobs)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["matmul_train", "quant", "dagger"])
+    ap.add_argument("what", choices=["matmul_train", "quant", "dagger", "protect"])
     ap.add_argument("--jobs", type=int, default=6)
     a = ap.parse_args()
     t0 = time.time()
-    {"matmul_train": matmul_train, "quant": quant, "dagger": dagger}[a.what](a.jobs)
+    {"matmul_train": matmul_train, "quant": quant, "dagger": dagger,
+     "protect": protect}[a.what](a.jobs)
     print(f"{a.what} done in {time.time() - t0:.0f}s")
 
 
