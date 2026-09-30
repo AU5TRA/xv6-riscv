@@ -31,3 +31,7 @@ traces/sweep/*
 # Working write-ups, kept out of the repo by request.
 docs/CAMPAIGN2-CHANGES.txt
 docs/CHANGES-VS-STOCK-XV6.txt
+
+# tools/ml2 build output (compiled on first use by pagesim.py)
+tools/ml2/libpagesim.so
+__pycache__/
