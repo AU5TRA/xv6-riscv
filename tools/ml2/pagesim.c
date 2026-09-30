@@ -71,6 +71,13 @@ struct model {
   // embedding scorer (P_EMBED): E[n_pages+1][D]; GRU over window; head
   int emb_d;
   const float *emb;
+  // Integer-only linear scoring, as a kernel without floating point would do
+  // it: features in Q8 fixed point (round(f * 256), what an integer log1p
+  // table would hold), weights with the standardisation folded in and
+  // rounded to integers qa[j] = round(W[j] / std[j] * 2^quant_w). The mean
+  // and bias terms are the same for every candidate, so they are dropped.
+  int quant_w;              // 0 = float scoring
+  int32_t qa[NF];
 };
 
 struct result {
@@ -223,7 +230,7 @@ static void scan_all(struct state *s) {
   }
 }
 
-static int argmax_by(const struct state *s, const float *score) {
+static int argmax_by(const struct state *s, const double *score) {
   int best = 0;
   for (int k = 1; k < s->count; k++) {
     int p = s->res[k], q = s->res[best];
@@ -242,9 +249,15 @@ static void gru_refresh(struct state *s, const struct model *m, int p) {
   s->gru_dirty[p] = 0;
 }
 
-static float score_one(struct state *s, const struct model *m, int p,
-                       int64_t t, const float *ctx_h) {
+static double score_one(struct state *s, const struct model *m, int p,
+                        int64_t t, const float *ctx_h) {
   float x[NF + 64];
+  if (m->kind == 0 && m->quant_w > 0) {
+    int64_t acc = 0;
+    for (int j = 0; j < m->n_in; j++)
+      acc += (int64_t)m->qa[j] * lrintf(feature(s, p, t, m->feat[j]) * 256.0f);
+    return (double)acc;
+  }
   if (m->kind == 0) {
     for (int j = 0; j < m->n_in; j++) {
       int f = m->feat[j];
@@ -266,7 +279,7 @@ static float score_one(struct state *s, const struct model *m, int p,
 }
 
 static int choose(struct state *s, int policy, const struct model *m,
-                  int64_t t, float *score) {
+                  int64_t t, double *score) {
   switch (policy) {
   case P_FIFO: case P_AGING: case P_LFU_KERNEL: case P_LFU_EXACT:
   case P_LRU: case P_BELADY: case P_SD_OLD:
@@ -274,15 +287,15 @@ static int choose(struct state *s, int policy, const struct model *m,
       int p = s->res[k];
       switch (policy) {
       case P_FIFO: score[k] = 0; break;           // tie-break = oldest load
-      case P_AGING: score[k] = -(float)s->aging[p]; break;
-      case P_LFU_KERNEL: score[k] = -(float)s->kfreq[p]; break;
-      case P_LFU_EXACT: score[k] = -(float)s->freq[p]; break;
-      case P_LRU: score[k] = (float)(t - s->last_acc[p]); break;
+      case P_AGING: score[k] = -(double)s->aging[p]; break;
+      case P_LFU_KERNEL: score[k] = -(double)s->kfreq[p]; break;
+      case P_LFU_EXACT: score[k] = -(double)s->freq[p]; break;
+      case P_LRU: score[k] = (double)(t - s->last_acc[p]); break;
       case P_BELADY:
-        score[k] = s->nxt[p] == INF_T ? INFINITY : (float)(s->nxt[p] - t);
+        score[k] = s->nxt[p] == INF_T ? INFINITY : (double)(s->nxt[p] - t);
         break;
       case P_SD_OLD:  // the old tools/sim.py StackDistance, kept for the record
-        score[k] = (float)(s->distinct_seen - s->last_distinct[p]);
+        score[k] = (double)(s->distinct_seen - s->last_distinct[p]);
         break;
       }
     }
@@ -385,7 +398,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   int need_scan = policy == P_AGING || policy == P_LFU_KERNEL || learned ||
                   (r && r->p > 0);
   int need_bit = learned || (r && r->p > 0);
-  float *score = NULL;
+  double *score = NULL;
   int ok = ALLOC(s->pos, n_pages) && ALLOC(s->res, cap + 1) &&
            ALLOC(s->last_acc, n_pages) && ALLOC(s->load_seq, n_pages) &&
            ALLOC(s->nxt, n_pages) && ALLOC(s->load_scan, n_pages) &&
@@ -497,3 +510,50 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
 int pagesim_nf(void) { return NF; }
 int pagesim_gru_k(void) { return GRU_K; }
 int pagesim_emb_w(void) { return EMB_W; }
+
+// Score n raw feature rows ([n][NF]) with an MLP/linear model exactly as the
+// simulator does at an eviction -- used to check the C scorer against the
+// trained model.
+void score_rows(const struct model *m, const float *feat, int64_t n,
+                float *out) {
+  float x[NF];
+  for (int64_t i = 0; i < n; i++) {
+    if (m->quant_w > 0) {
+      int64_t acc = 0;
+      for (int j = 0; j < m->n_in; j++)
+        acc += (int64_t)m->qa[j] * lrintf(feat[i * NF + m->feat[j]] * 256.0f);
+      out[i] = (float)acc;
+      continue;
+    }
+    for (int j = 0; j < m->n_in; j++)
+      x[j] = (feat[i * NF + m->feat[j]] - m->mean[j]) / m->std[j];
+    out[i] = mlp_forward(m->n_layers, m->sizes, m->w, x);
+  }
+}
+
+// GRU / embedding scorer over recorded rows, exactly as score_one() computes
+// it at an eviction, for checking against the trained PyTorch model.
+//   kind 1: GRU over hist[i][GRU_K] from h = 0, head([h, (rec - mean)/std])
+//   kind 2: GRU over emb[ctx[i][j]], head([h, emb[page[i]]])
+void score_seq_rows(const struct model *m, const float *hist, const float *rec,
+                    const int32_t *page, const int32_t *ctx, int64_t n,
+                    float *out) {
+  float h[64], x[NF + 64];
+  for (int64_t i = 0; i < n; i++) {
+    memset(h, 0, sizeof(h));
+    if (m->kind == 1) {
+      for (int j = 0; j < GRU_K; j++)
+        gru_step(m->gru_h, 1, m->gru_w, &hist[i * GRU_K + j], h);
+      memcpy(x, h, sizeof(float) * m->gru_h);
+      x[m->gru_h] = (rec[i] - m->mean[0]) / m->std[0];
+    } else {
+      for (int j = 0; j < EMB_W; j++)
+        gru_step(m->gru_h, m->emb_d, m->gru_w,
+                 m->emb + (int64_t)ctx[i * EMB_W + j] * m->emb_d, h);
+      memcpy(x, h, sizeof(float) * m->gru_h);
+      memcpy(x + m->gru_h, m->emb + (int64_t)page[i] * m->emb_d,
+             sizeof(float) * m->emb_d);
+    }
+    out[i] = mlp_forward(m->head_layers, m->head_sizes, m->head_w, x);
+  }
+}

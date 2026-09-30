@@ -36,10 +36,15 @@ NEVER = 0xFFFFFFFF
 
 
 def _build():
+    # Compile to a temporary name and rename into place: processes that
+    # already have the old library mapped (a running sweep) keep their copy.
     if not LIB.exists() or LIB.stat().st_mtime < SRC.stat().st_mtime:
+        import os
+        tmp = LIB.with_suffix(f".{os.getpid()}.tmp")
         subprocess.run(["gcc", "-O3", "-march=native", "-shared", "-fPIC",
-                        "-Wall", "-Wextra", "-o", str(LIB), str(SRC), "-lm"],
+                        "-Wall", "-Wextra", "-o", str(tmp), str(SRC), "-lm"],
                        check=True)
+        os.replace(tmp, LIB)
     return C.CDLL(str(LIB))
 
 
@@ -51,7 +56,8 @@ class Model(C.Structure):
                 ("gru_h", C.c_int), ("gru_w", C.POINTER(C.c_float)),
                 ("head_w", C.POINTER(C.c_float)), ("head_layers", C.c_int),
                 ("head_sizes", C.c_int * (MAXL + 1)), ("emb_d", C.c_int),
-                ("emb", C.POINTER(C.c_float))]
+                ("emb", C.POINTER(C.c_float)), ("quant_w", C.c_int),
+                ("qa", C.c_int32 * NF)]
 
 
 class Result(C.Structure):
@@ -74,6 +80,9 @@ _lib.simulate.restype = C.c_int
 _lib.simulate.argtypes = [C.c_int64, C.c_int, C.c_int, C.c_void_p, C.c_void_p,
                           C.c_void_p, C.c_int, C.POINTER(Model),
                           C.POINTER(Recorder), C.c_int64, C.POINTER(Result)]
+_lib.score_rows.argtypes = [C.POINTER(Model), C.c_void_p, C.c_int64, C.c_void_p]
+_lib.score_seq_rows.argtypes = [C.POINTER(Model), C.c_void_p, C.c_void_p,
+                                C.c_void_p, C.c_void_p, C.c_int64, C.c_void_p]
 assert _lib.pagesim_nf() == NF, "feature list out of sync with pagesim.c"
 GRU_K = _lib.pagesim_gru_k()
 EMB_W = _lib.pagesim_emb_w()
@@ -208,6 +217,13 @@ class ScoredModel:
                 self.c.mean[j] = kw["mean"][j]
                 self.c.std[j] = kw["std"][j]
             self._set_mlp("w", "n_layers", "sizes", kw["layers"])
+            q = kw.get("quant_w", 0)
+            if q:
+                assert len(kw["layers"]) == 1, "integer scoring is for linear models"
+                W = kw["layers"][0][0].ravel().astype(np.float64)
+                for j in range(len(feats)):
+                    self.c.qa[j] = int(round(W[j] / kw["std"][j] * (1 << q)))
+                self.c.quant_w = q
         else:
             self.c.gru_h = kw["gru_h"]
             g = np.ascontiguousarray(kw["gru_w"], np.float32)
@@ -235,3 +251,29 @@ class ScoredModel:
         sizes[0] = layers[0][0].shape[1]
         for l, (W, _) in enumerate(layers):
             sizes[l + 1] = W.shape[0]
+
+
+def score_rows(model, feat):
+    """C scorer over raw feature rows [n][NF] (checks against the trainer)."""
+    feat = np.ascontiguousarray(feat, np.float32)
+    out = np.zeros(len(feat), np.float32)
+    _lib.score_rows(C.byref(model.c), feat.ctypes.data, len(feat), out.ctypes.data)
+    return out
+
+
+def index_entry(stem):
+    return next(e for e in index()["streams"] if e["stem"] == stem)
+
+
+def score_seq_rows(model, hist, rec, page, ctx):
+    """C GRU/embedding scorer over recorded rows: hist [n][GRU_K], raw rec
+    feature [n], page / ctx indices into the model's own embedding table."""
+    hist = np.ascontiguousarray(hist, np.float32)
+    rec = np.ascontiguousarray(rec, np.float32)
+    page = np.ascontiguousarray(page, np.int32)
+    ctx = np.ascontiguousarray(ctx, np.int32)
+    out = np.zeros(len(rec), np.float32)
+    _lib.score_seq_rows(C.byref(model.c), hist.ctypes.data, rec.ctypes.data,
+                        page.ctypes.data, ctx.ctypes.data, len(rec),
+                        out.ctypes.data)
+    return out
