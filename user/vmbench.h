@@ -196,6 +196,8 @@ struct vmbench_delta {
   long page_writes;
   long resident_count;
   long free_swap_slots;
+  long select_ticks;        // victim-selection time (r_time ticks)
+  long candidates_scanned;  // candidates examined by the policy
 };
 
 // Snapshot wrapper (exits the process with a message on failure --

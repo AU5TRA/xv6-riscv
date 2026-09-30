@@ -37,6 +37,13 @@ struct vm_page {
   int backing_slot;
   uint64 prefetch_request_id;
   int policy_index;
+  // VM_POLICY_ML bookkeeping, in the owner's eviction scans (vm.ml_scans)
+  uint64 ml_load_scan;      // scan count when this frame was loaded
+  uint64 ml_last_seen;      // last scan that found it accessed
+  uint64 ml_rdist;          // evictions between its last eviction and refault
+  uint32 ml_sfreq;          // scans that found it accessed since load
+  uint32 ml_refaults;       // times evicted and faulted back in
+  uint8 ml_seen;            // accessed bit at the latest scan
   // Intrusive doubly-linked list of this frame's owner's other owned
   // frames (struct vmstate.owned_head/owned_tail). Protected by
   // frame_table.lock, not p->vm.lock -- see vmpage.c.

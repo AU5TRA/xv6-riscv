@@ -123,6 +123,9 @@ vmbench_delta(const struct vmstats *before, const struct vmstats *after,
   out->page_writes = (long)after->page_writes - (long)before->page_writes;
   out->resident_count = (long)after->resident_count;
   out->free_swap_slots = (long)after->free_swap_slots;
+  out->select_ticks = (long)after->select_ticks - (long)before->select_ticks;
+  out->candidates_scanned =
+    (long)after->candidates_scanned - (long)before->candidates_scanned;
 }
 
 void
@@ -130,10 +133,10 @@ vmbench_print_delta(const char *label, const struct vmbench_delta *d)
 {
   printf("[%s] zero_faults=%ld swap_faults=%ld evictions=%ld "
          "page_reads=%ld page_writes=%ld resident_count=%ld "
-         "free_swap_slots=%ld\n",
+         "free_swap_slots=%ld select_ticks=%ld candidates_scanned=%ld\n",
          label, d->zero_faults, d->swap_faults, d->evictions,
          d->page_reads, d->page_writes, d->resident_count,
-         d->free_swap_slots);
+         d->free_swap_slots, d->select_ticks, d->candidates_scanned);
 }
 
 void
@@ -188,8 +191,8 @@ vmbench_zipf_sample(struct vmbench_rng *r)
   return (uint64)lo;
 }
 
-int
-vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
+static int
+burn(char *arena_base, int arena_pages, uint64 *settled_resident)
 {
   long arena_start_vpn = (long)arena_base / VMBENCH_PGSIZE;
   // Do not seize the trace ring if something else is already capturing
@@ -273,4 +276,25 @@ vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
   *settled_resident = settled.resident_count;
 
   return tracing;
+}
+
+// The burn sizes the process's baseline -- the settled resident count the
+// caller adds its margin to -- by evicting, so the result depends on which
+// policy chooses the victims: with vmrun selecting the policy, Clock settled
+// at 13 resident pages, Aging at 9 and a learned policy at 28 for the same
+// matmul run, which would hand each policy a different memory size. Run the
+// burn under FIFO (the default every trace was collected with) and restore
+// the process's own policy after, so every policy gets the same limit.
+int
+vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
+{
+  struct vmstats st;
+  vmbench_snapshot(&st);
+  int policy = (int)st.policy;
+  if(vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0)
+    return -1;
+  int r = burn(arena_base, arena_pages, settled_resident);
+  if(vmctl(VM_SET_POLICY, policy) < 0)
+    return -1;
+  return r;
 }

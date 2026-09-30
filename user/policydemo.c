@@ -171,6 +171,10 @@ policy_name(int policy)
     return "Clock";
   if(policy == VM_POLICY_AGING)
     return "Aging";
+  if(policy == VM_POLICY_LFU)
+    return "LFU";
+  if(policy == VM_POLICY_ML)
+    return "ML";
   return "unknown";
 }
 

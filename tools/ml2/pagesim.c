@@ -18,6 +18,7 @@
 // Build: see tools/ml2/pagesim.py (compiled on first use).
 #include <math.h>
 #include <stdint.h>
+#include "../../kernel/mlfeat.h"   // the kernel's own integer features
 #include <stdlib.h>
 #include <string.h>
 
@@ -256,13 +257,30 @@ static void gru_refresh(struct state *s, const struct model *m, int p) {
   s->gru_dirty[p] = 0;
 }
 
+// A feature in Q8 fixed point exactly as kernel/vmpage.c computes it
+// (kernel/mlfeat.h). Full-stream features have no kernel form; they are
+// rounded from the float value.
+static int64_t feature_q8(const struct state *s, int p, int64_t t, int f) {
+  switch (f) {
+  case K_REF: return s->seen_now[p] ? 256 : 0;
+  case K_AGING: return ml_aging_q8(s->aging[p]);
+  case K_SFREQ: return ml_log1p_q8(s->sfreq[p]);
+  case K_IDLE: return ml_log1p_q8((uint64_t)(s->scans - s->last_seen[p]));
+  case K_AGE: return ml_log1p_q8((uint64_t)(s->scans - s->load_scan[p]));
+  case K_DIRTY: return s->dbit[p] ? 256 : 0;
+  case K_REFAULTS: return ml_log1p_q8(s->refaults[p]);
+  case K_RDIST: return ml_log1p_q8((uint64_t)s->rdist[p]);
+  }
+  return lrintf(feature(s, p, t, f) * 256.0f);
+}
+
 static double score_one(struct state *s, const struct model *m, int p,
                         int64_t t, const float *ctx_h) {
   float x[NF + 64];
   if (m->kind == 0 && m->quant_w > 0) {
     int64_t acc = 0;
     for (int j = 0; j < m->n_in; j++)
-      acc += (int64_t)m->qa[j] * lrintf(feature(s, p, t, m->feat[j]) * 256.0f);
+      acc += (int64_t)m->qa[j] * feature_q8(s, p, t, m->feat[j]);
     return (double)acc;
   }
   if (m->kind == 0) {

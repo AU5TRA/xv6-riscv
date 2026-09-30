@@ -11,7 +11,7 @@
 #define LIST  4
 #define BACK  5
 
-#define MAXARGS 10
+#define MAXARGS 16  // was 10; vmrun <policy> <model> adds two words to a workload command
 
 struct cmd {
   int type;

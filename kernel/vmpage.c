@@ -9,8 +9,16 @@
 #include "fs.h"
 #include "swap.h"
 #include "vmtrace.h"
+#include "mlfeat.h"
 
 #define NPHYS_PAGES ((PHYSTOP - KERNBASE) / PGSIZE)
+
+// VM_POLICY_ML refault bookkeeping, per swap slot (what Linux's workingset
+// keeps in a shadow entry): the owner's scan count when the page was
+// written out, and how often it had been refaulted by then. Protected by
+// frame_table.lock.
+static uint64 slot_evict_scan[NSWAPSLOTS];
+static uint32 slot_refaults[NSWAPSLOTS];
 
 static struct {
   struct spinlock lock;
@@ -101,6 +109,10 @@ setup_page(struct vm_page *page, struct proc *p, pagetable_t pagetable,
   // would evict it again before it's ever sampled as accessed even once,
   // a real livelock under memory pressure (see AUSTRA_HANDOFF.md).
   page->frequency = 1;
+  // A fault sets PTE_A (kernel/vm.c), so the page counts as seen at the
+  // scan it is loaded in; refault fields are filled by vm_frame_set_backing()
+  // when it came back from swap.
+  page->ml_load_scan = page->ml_last_seen = p->vm.ml_scans;
   owned_list_insert(page);
 }
 
@@ -236,6 +248,73 @@ choose_lfu(struct vm_page **candidates, int count)
   return victim;
 }
 
+// VM_POLICY_ML: a learned linear score over kernel-observable features,
+// integers only (weights from tools/ml2/export_kernel.py; features from
+// mlfeat.h, shared with the host simulator so both score a page alike).
+// Like choose_aging it scans every candidate: read and clear the accessed
+// bit, update the aging counter and the sampled-access count. Then it evicts
+// the highest score -- the page predicted to be needed furthest in the
+// future -- oldest load first on a tie, skipping pages loaded fewer than
+// protect_age scans ago while an older candidate exists (probation: a fresh
+// page is otherwise the one a model is most likely to misjudge).
+static int
+ml_feature(struct proc *p, struct vm_page *page, int f)
+{
+  uint64 now = p->vm.ml_scans;
+  switch(f){
+  case ML_F_REF:      return page->ml_seen ? 256 : 0;
+  case ML_F_AGING:    return ml_aging_q8(page->aging_counter & 0xff);
+  case ML_F_SFREQ:    return ml_log1p_q8(page->ml_sfreq);
+  case ML_F_IDLE:     return ml_log1p_q8(now - page->ml_last_seen);
+  case ML_F_AGE:      return ml_log1p_q8(now - page->ml_load_scan);
+  case ML_F_DIRTY:    return page->dirty_sample ? 256 : 0;
+  case ML_F_REFAULTS: return ml_log1p_q8(page->ml_refaults);
+  case ML_F_RDIST:    return ml_log1p_q8(page->ml_rdist);
+  }
+  return 0;
+}
+
+static struct vm_page *
+choose_ml(struct proc *p, struct vm_page **candidates, int count)
+{
+  const struct vm_ml_weights *w = &p->vm.ml;
+  uint64 now = p->vm.ml_scans;
+  int cleared = 0;
+  int any_old = 0;
+  for(int i = 0; i < count; i++){
+    struct vm_page *page = candidates[i];
+    int accessed = sample_page(page, 1);
+    cleared |= accessed;
+    page->ml_seen = accessed;
+    page->aging_counter = ((page->aging_counter & 0xff) >> 1) | (accessed ? 0x80 : 0);
+    if(accessed){
+      page->ml_sfreq++;
+      page->ml_last_seen = now;
+    }
+    if(now - page->ml_load_scan >= (uint64)w->protect_age)
+      any_old = 1;
+  }
+  if(cleared)
+    sfence_vma();
+
+  struct vm_page *victim = 0;
+  long best = 0;
+  for(int i = 0; i < count; i++){
+    struct vm_page *page = candidates[i];
+    if(any_old && now - page->ml_load_scan < (uint64)w->protect_age)
+      continue;
+    long score = 0;
+    for(int j = 0; j < w->n; j++)
+      score += (long)w->qa[j] * ml_feature(p, page, w->feat[j]);
+    if(victim == 0 || score > best ||
+       (score == best && page->load_sequence < victim->load_sequence)){
+      victim = page;
+      best = score;
+    }
+  }
+  return victim;
+}
+
 static struct vm_page *
 choose_policy_victim(struct proc *p, int count, int *fallback)
 {
@@ -256,6 +335,8 @@ choose_policy_victim(struct proc *p, int count, int *fallback)
     victim = choose_aging(frame_table.candidates, count);
   else if(p->vm.policy == VM_POLICY_LFU)
     victim = choose_lfu(frame_table.candidates, count);
+  else if(p->vm.policy == VM_POLICY_ML)
+    victim = choose_ml(p, frame_table.candidates, count);
   else
     victim = 0;
 
@@ -292,7 +373,9 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     if(page_is_candidate(p, candidate))
       frame_table.candidates[candidate_count++] = candidate;
   }
+  uint64 select_start = r_time();
   victim = choose_policy_victim(p, candidate_count, &fallback);
+  uint64 select_ticks = r_time() - select_start;
   if(victim == 0){
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
@@ -397,6 +480,9 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     return VM_FRAME_ERROR;
   }
   *pte = SLOT2PTE(slot) | flags | PTE_SWAPPED;
+  slot_evict_scan[slot] = p->vm.ml_scans;
+  slot_refaults[slot] = victim->ml_refaults;
+  p->vm.ml_scans++;
   setup_page(victim, p, newpt, newva, purpose);
   release(&frame_table.lock);
   sfence_vma();
@@ -412,6 +498,8 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
 
   acquire(&p->vm.lock);
   p->vm.stats.evictions++;
+  p->vm.stats.select_ticks += select_ticks;
+  p->vm.stats.candidates_scanned += candidate_count;
   release(&p->vm.lock);
   *result = pa;
   return VM_FRAME_OK;
@@ -536,6 +624,10 @@ vm_frame_set_backing(uint64 pa, int slot)
     return -1;
   }
   page->backing_slot = slot;
+  // The page came back from swap: a refault, and how many of its owner's
+  // evictions ago it was written out.
+  page->ml_refaults = slot_refaults[slot] + 1;
+  page->ml_rdist = page->owner->vm.ml_scans - slot_evict_scan[slot];
   release(&frame_table.lock);
   return 0;
 }
