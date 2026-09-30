@@ -53,6 +53,7 @@ enum feature {
 #define MAXL 6      // max MLP layers
 #define GRU_K 8     // interval-history length for the GRU scorer
 #define EMB_W 16    // global context window for the embedding scorer
+#define MAXB 256    // candidates per block in the batched MLP scorer
 
 struct model {
   int kind;                 // 0 = MLP (linear is a 1-layer MLP)
@@ -327,6 +328,43 @@ static int choose(struct state *s, int policy, const struct model *m,
       }
     }
     int any_old = 0;
+    if (m->kind == 0 && m->n_layers > 1 && !m->quant_w) {
+      // MLP over all candidates at once, candidates innermost so the loop
+      // vectorises. Each candidate's sums are accumulated in the same order
+      // as mlp_forward(), so the scores are bit-identical to it.
+      static float A[MAXB * 64], Bv[MAXB * 64];
+      int n = s->count;
+      for (int k0 = 0; k0 < n; k0 += MAXB) {
+        int nb = n - k0 < MAXB ? n - k0 : MAXB;
+        for (int j = 0; j < m->n_in; j++)
+          for (int k = 0; k < nb; k++)
+            A[j * MAXB + k] = (feature(s, s->res[k0 + k], t, m->feat[j]) - m->mean[j]) /
+                              m->std[j];
+        const float *w = m->w;
+        float *a = A, *b = Bv;
+        for (int l = 0; l < m->n_layers; l++) {
+          int ni = m->sizes[l], no = m->sizes[l + 1];
+          const float *W = w, *B = w + no * ni;
+          for (int o = 0; o < no; o++) {
+            float *acc = b + o * MAXB;
+            for (int k = 0; k < nb; k++) acc[k] = B[o];
+            for (int i = 0; i < ni; i++) {
+              float wi = W[o * ni + i];
+              const float *ai = a + i * MAXB;
+              for (int k = 0; k < nb; k++) acc[k] += wi * ai[k];
+            }
+            if (l + 1 < m->n_layers)
+              for (int k = 0; k < nb; k++) acc[k] = acc[k] < 0 ? 0 : acc[k];
+          }
+          w = B + no;
+          float *tmp = a; a = b; b = tmp;
+        }
+        for (int k = 0; k < nb; k++) score[k0 + k] = a[k];
+      }
+      for (int k = 0; k < n; k++)
+        if (m->protect_age && s->scans - s->load_scan[s->res[k]] >= m->protect_age)
+          any_old = 1;
+    } else
     for (int k = 0; k < s->count; k++) {
       score[k] = score_one(s, m, s->res[k], t, ctx_h);
       if (m->protect_age && s->scans - s->load_scan[s->res[k]] >= m->protect_age)

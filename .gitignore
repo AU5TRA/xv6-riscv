@@ -43,3 +43,6 @@ report/slides/*.out
 report/slides/*.snm
 report/slides/*.toc
 report/slides/*.vrb
+# the study's presentation and the figure PDFs it is built from
+!report/slides/ml_results.pdf
+!report/figures2/*.pdf

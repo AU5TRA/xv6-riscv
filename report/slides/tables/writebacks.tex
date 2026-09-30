@@ -2,5 +2,14 @@
 \toprule
 workload & split & LRU & kernel{+}refault & oracle & Belady \\
 \midrule
+btree & test & 0.997 & 0.967 & 0.932 & 0.707 \\
+btree & heldout & 0.997 & 0.965 & 0.962 & 0.646 \\
+graph & test & 0.938 & 0.418 & 0.578 & 0.257 \\
+graph & heldout & 0.727 & 0.338 & 0.616 & 0.297 \\
+kv & test & 0.975 & 0.819 & 0.856 & 0.690 \\
+kv & heldout & 0.982 & 0.904 & 0.890 & 0.574 \\
+matmul & heldout & 1.008 & 0.658 & 1.008 & 0.863 \\
+sort & test & 1.016 & 0.987 & 1.015 & 0.868 \\
+sort & heldout & 1.000 & 0.935 & 1.000 & 0.932 \\
 \bottomrule
 \end{tabular}

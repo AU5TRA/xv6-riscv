@@ -74,7 +74,7 @@
     \node[right=of wl] (tr) {traced runs\\R/W per access\\(89 streams)};
     \node[right=of tr] (ds) {dataset\\Belady labels\\fixed splits};
     \node[right=of ds] (sim) {C simulator\\kernel A/D-bit\\semantics};
-    \node[below=of sim] (rec) {decision rows\\4.75M train};
+    \node[below=of sim] (rec) {decision rows\\4.73M train};
     \node[left=of rec] (tr2) {linear (closed form)\\MLP, GRU, embedding};
     \node[left=of tr2] (ev) {replay test \&\\held-out streams};
     \node[left=of ev] (int) {integer scoring\\$\to$ kernel};
@@ -212,29 +212,32 @@
   \small
   \begin{itemize}
     \item Replay every train/val stream at 5, 10, 20\% of its distinct pages under
-      LRU; at sampled evictions record up to 32 resident candidates (always
-      including Belady's choice) with all 12 features and
+      LRU; at sampled evictions record 32 resident candidates --- Belady's choice,
+      the 4 most recently used, and random others --- with all 12 features and
       $\log(1 + \text{distance to next use})$.
-    \item \textbf{4.75M rows over 357K eviction decisions}; 0.84M validation rows.
+    \item \textbf{4.73M rows over 357K eviction decisions}; 0.84M validation rows.
     \item Models: \textbf{linear} (closed form, any subset), \textbf{MLP} 2$\times$32,
-      \textbf{GRU} over the last 8 access intervals, \textbf{cross-page embedding}
-      (a vector per page + GRU over the last 16 pages referenced).
+      a \textbf{ranking loss} (softmax over one decision's candidates),
+      \textbf{GRU} over the last 8 access intervals, \textbf{cross-page embedding}.
     \item Scopes: one model per workload, and one \textbf{global} model --- the
       realistic one: a kernel does not know which program is running.
-    \item \textbf{Every combination}: 300 feature sets $\times$ 6 scopes,
-      $\approx$29K full replays at 10\%, selected subsets also at 5\% and 20\%.
-    \item Selection on validation only; reported on test and held-out.
+    \item \textbf{Every combination}: 300 feature sets $\times$ 6 scopes =
+      28,800 full replays at 10\%.
+    \item \textbf{Nested selection on validation}: top-5 subsets per tier $\times$
+      probation $\{0,1,2,4\}$ at 5/10/20\%; only the winner is run on test and held-out.
   \end{itemize}
 \end{frame}
 
 % ------------------------------------------------------------------ results
 \section{Results}
 
-\begin{frame}{What a kernel can already do: the classical policies}
+\begin{frame}{What xv6 can already do: the classical policies}
   \centering
-  \includegraphics[width=.95\textwidth]{classical.pdf}
+  \includegraphics[width=.92\textwidth]{classical.pdf}
 
-  \footnotesize Faults relative to Clock (xv6's best), geometric mean over streams $\times$ capacities.
+  \footnotesize Faults relative to Clock (xv6's best), geo-mean over streams $\times$ 5/10/20\%.
+  Aging $\approx$ FIFO; exact LFU wins on btree and is catastrophic elsewhere;
+  Belady needs 43--54\% fewer faults on btree/kv/graph.
 \end{frame}
 
 \begin{frame}{Which features carry signal --- within one eviction}
@@ -244,36 +247,28 @@
     \includegraphics[width=\textwidth]{diagnostics.pdf}
     \column{.48\textwidth}
     \small
-    %DIAG_TEXT%
+    Rank correlation with the true next use, \emph{among the candidates of one decision}.
+    \begin{itemize}
+      \item Sampled access count \texttt{sfreq} ($-0.45$) $\approx$ exact count \texttt{freq} ($-0.52$).
+      \item Refault distance \texttt{rdist} --- Linux already measures it --- is as strong.
+      \item Recency and true stack distance are identical within a decision.
+      \item Pooled correlation misleads: \texttt{rec} on sort is $+0.87$ pooled, $+0.05$ within decisions.
+    \end{itemize}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Headline: best linear model per tier (per-workload)}
+\begin{frame}{Every full-stream combination (15 subsets)}
   \centering
-  \includegraphics[width=.95\textwidth]{tiers_workload.pdf}
-\end{frame}
+  \includegraphics[width=.86\textwidth]{f_subsets_workload.pdf}
 
-\begin{frame}{Headline table, test streams}
-  \centering\tbl{headline_workload_test}
-
-  \medskip\tbl{headline_workload_heldout}
-\end{frame}
-
-\begin{frame}{One model for every program (global scope)}
-  \centering
-  \includegraphics[width=.95\textwidth]{tiers_global.pdf}
-\end{frame}
-
-\begin{frame}{Every full-stream combination}
-  \centering
-  \includegraphics[width=.9\textwidth]{f_subsets_workload.pdf}
+  \footnotesize One feature is never enough; \textbf{recency + frequency} is the pair that matters.
 \end{frame}
 
 \begin{frame}{All 255 kernel-observable combinations}
   \centering
-  \includegraphics[width=.9\textwidth]{kk_subsets.pdf}
+  \includegraphics[width=.8\textwidth]{kk_subsets.pdf}
 
-  \tbl{kksubsets_test}
+  \tbl{kksubsets_workload_test}
 \end{frame}
 
 \begin{frame}{What each kernel feature is worth}
@@ -283,42 +278,164 @@
     \includegraphics[width=\textwidth]{marginal.pdf}
     \column{.43\textwidth}
     \small
-    %MARGINAL_TEXT%
+    Median change in faults when a feature is added to a subset that lacks it.
+    \begin{itemize}
+      \item \texttt{idle} --- scans since last found accessed --- dominates:
+        \good{$-71\%$ graph, $-29\%$ btree, $-20\%$ kv}.
+      \item That is exactly what Linux's MGLRU generations and DAMON age track.
+      \item Refault count helps btree/kv/sort.
+    \end{itemize}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Neural scorers vs.\ linear}
-  \centering
-  \includegraphics[width=.95\textwidth]{nn_test.pdf}
+\begin{frame}{What went wrong first: evicting the page being streamed}
+  \small
+  v1 recorded Belady's choice + 31 \emph{uniform} candidates per decision.
+  On PageRank almost every model was \warn{$\geq 3\times$ Clock} --- even one
+  trained on PageRank alone; three DAgger rounds did not help.
+  \begin{itemize}
+    \item At its own decisions: \warn{97\% of victims loaded at the previous fault},
+      next use a median \textbf{16 references} away (Belady's choice: $\sim$300 refs stale).
+    \item Uniform samples of a 167-page resident set almost never contain the
+      page just touched --- no model ever saw ``just used, keep it''.
+    \item Same pathology as the kernel LFU livelock, by a different route.
+  \end{itemize}
+  \medskip
+  \textbf{Fixes, both chosen on validation:} record the 4 most recently used
+  candidates too; \textbf{probation} --- a page loaded $<p$ scans ago is not
+  evicted while an older one exists (Clock's second chance). Graph: $0.81 \to 0.61$;
+  matmul prefers $p=0$ (5 frames), so $p$ is chosen per scope.
+\end{frame}
 
-  \includegraphics[width=.95\textwidth]{nn_heldout.pdf}
+\begin{frame}{Headline: validation-selected models, per workload}
+  \centering
+  \includegraphics[width=.92\textwidth]{tiers_workload.pdf}
+
+  \footnotesize Subset and probation chosen on validation only; geo-mean over 5/10/20\%.
+\end{frame}
+
+\begin{frame}{Headline numbers}
+  \centering\tbl{headline_workload_test}
+
+  \medskip\tbl{headline_workload_heldout}
+
+  \medskip\scriptsize faults / Clock (share of the Clock$\to$Belady gap closed)
+\end{frame}
+
+\begin{frame}{The kernel's own signals are enough}
+  \small
+  \begin{itemize}
+    \item With only accessed/dirty-bit scan history + refault bookkeeping, the
+      selected policy \good{beats Clock on every workload}, on unseen seeds
+      \emph{and} unseen variants:\\
+      btree $-17/-14\%$, graph $-15/-20\%$, kv $-10/-10\%$, matmul $-32\%$, sort $-2/-7\%$
+      (test / held-out).
+    \item The oracle features are within $\pm1.5\%$ of it on btree/graph/kv and
+      behind on matmul and sort: \textbf{what a kernel cannot see is not what
+      limits a learned policy here.}
+    \item Refault bookkeeping helps in all 9 workload $\times$ split cells.
+    \item Held-out variants generalise as well as unseen seeds.
+    \item \textbf{One global model} (the deployable case) still beats Clock in 8 of 9 cells,
+      keeping most of the gain on btree/graph/kv.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Fewer disk writes, not just fewer faults}
+  \centering\tbl{writebacks}
+
+  \medskip\small
+  The selected models use the dirty bit: graph needs \good{58--66\% fewer page
+  writes} than Clock (Belady, which ignores writes: 70--74\%).
+\end{frame}
+
+\begin{frame}{Where it does not help: capacity dependence}
+  \centering\tbl{bycap_KpKp}
+
+  \medskip\small
+  Graph's gain is concentrated at 10\%; at 5\% and 20\% no linear model gets below
+  0.93 even though Belady has large headroom --- including models trained only on
+  that capacity.
+\end{frame}
+
+\begin{frame}{Neural, sequence and ranking models}
+  \centering
+  \includegraphics[width=.92\textwidth]{nn_heldout.pdf}
+
+  \small
+  A linear score is competitive with everything: MLP gains on kv and held-out graph only;
+  the oracle GRU adds nothing; the cross-page embedding is catastrophic on
+  btree/graph but best on held-out kv; the ranking loss did not help.
 \end{frame}
 
 \begin{frame}{Can it run without floating point?}
-  \centering\tbl{quant}
+  \centering\tbl{quant_compact}
 
   \medskip
-  \small %QUANT_TEXT%
+  \small With 8-bit weights and Q8 features every selected model is
+  \good{within $\pm0.002$ of float} (most identical); 4-bit stays within $\sim$2\%.
+  The policy runs in xv6 as trained --- no floating point.
 \end{frame}
 
 \begin{frame}{Does the training distribution matter? (one DAgger round)}
-  \centering\tbl{dagger}
+  \centering\tbl{dagger_compact}
 
   \medskip
-  \small %DAGGER_TEXT%
+  \small Re-recording under the model's own decisions and refitting does
+  \warn{not} help: most selected models are unchanged or slightly worse. With
+  stratified recording and probation, LRU-recorded decisions already cover
+  the states these policies meet.
 \end{frame}
 
 % ------------------------------------------------------------------ close
 \section{Conclusions}
 
+\begin{frame}{Relation to Linux}
+  \scriptsize
+  \begin{tabular}{ll}
+    \toprule
+    Feature that won here & Linux already has \\
+    \midrule
+    \texttt{idle} (scans since last found accessed) & MGLRU generations; DAMON region age \\
+    \texttt{sfreq} (scans found accessed) & DAMON \texttt{nr\_accesses}; MGLRU tiers \\
+    \texttt{dirty} & \texttt{PG\_dirty} \\
+    \texttt{refaults}, \texttt{rdist} & workingset shadow entries (\texttt{mm/workingset.c}) \\
+    \texttt{rec}, \texttt{freq}, \texttt{sd} (oracle) & nothing without per-access instrumentation \\
+    \bottomrule
+  \end{tabular}
+
+  \medskip\small
+  The winning signals are ones Linux maintains; the score is a few integer
+  multiply-adds per candidate in a scan the kernel already does.
+\end{frame}
+
 \begin{frame}{Takeaways}
   \small
-  %TAKEAWAYS%
+  \begin{enumerate}
+    \item On verified reference streams, a \textbf{linear score over 4--5
+      kernel-observable features} beats xv6's best policy on all five workloads,
+      on unseen seeds and unseen variants --- 2--32\% fewer faults (10--32\% on
+      btree, graph, kv, matmul), up to 66\% fewer disk writes.
+    \item \textbf{Oracle information buys almost nothing} over those features;
+      \texttt{idle} (the kernel's own recency) carries most of the value.
+    \item \textbf{Bigger models do not pay}: MLP, GRU, cross-page embedding, ranking loss
+      are no better than linear except MLPs on kv and held-out graph.
+    \item \textbf{Failure modes are real}: many feature sets are catastrophic, and the first
+      training set taught models to evict the page being streamed. Validation-based
+      selection and probation are part of the method, not details.
+    \item The earlier graph and lzw results were measured on broken traces and are withdrawn.
+  \end{enumerate}
 \end{frame}
 
 \begin{frame}{Next steps}
   \small
-  %NEXT%
+  \begin{enumerate}
+    \item Implement the selected kernel+refault model as \texttt{VM\_POLICY\_ML} in
+      \texttt{kernel/vmpage.c} with the integer path; pass the regression suite; measure
+      faults, writes and eviction latency in xv6 itself.
+    \item Choose weights per program or phase (the global model keeps less of the gain on matmul).
+    \item Capacity-aware models for graph at 5\% and 20\%.
+    \item Port the feature set to Linux MGLRU/DAMON signals.
+  \end{enumerate}
 \end{frame}
 
 \end{document}

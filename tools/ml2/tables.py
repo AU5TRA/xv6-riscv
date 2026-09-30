@@ -301,6 +301,17 @@ def main():
                     t.add([wl, split, name, fmt(v[0], v[4]), fmt(*e)])
     T["dagger"] = t
 
+    # compact versions for the slides: the kernel+refault tier only
+    for name in ("quant", "dagger"):
+        full = T[name]
+        c = Table(full.title.replace("the selected linear models", "the selected kernel+refault model"),
+                  [h for h in full.header if h != "tier"], full.note)
+        ti = full.header.index("tier")
+        for r in full.rows:
+            if r[ti].startswith("kernel+refault"):
+                c.add([x for i, x in enumerate(r) if i != ti])
+        T[name + "_compact"] = c
+
     with open(R / "tables.md", "w") as f:
         for name, t in T.items():
             f.write(f"<!-- {name} -->\n" + t.md() + "\n")

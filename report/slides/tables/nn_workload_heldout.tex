@@ -2,5 +2,10 @@
 \toprule
 workload & linear K$\cup$K{+} (sel.) & MLP F & rank-MLP F & MLP K$\cup$K{+} & rank-MLP K$\cup$K{+} & rank-linear K$\cup$K{+} & MLP all & GRU (F) & embedding (F) \\
 \midrule
+btree & 0.854 & 0.864 & 0.833 & 0.884 & 0.932 & 0.928 & 0.832 & 0.831 & 1.483 \\
+graph & 0.560 & 0.473 & 0.625 & 0.495 & 1.109 & 0.491 & 0.480 & 0.484 & $\geq$3.000 \\
+kv & 0.907 & 0.906 & 0.960 & 0.850 & 0.858 & 0.934 & 0.868 & 0.982 & 0.817 \\
+matmul & 0.913 & 0.999 & $\geq$1.680 & 0.966 & 0.923 & 1.496 & 0.964 & 0.969 & $\geq$1.792 \\
+sort & 0.951 & 1.001 & 1.044 & 0.998 & 1.244 & 1.268 & 0.977 & 1.000 & 1.171 \\
 \bottomrule
 \end{tabular}

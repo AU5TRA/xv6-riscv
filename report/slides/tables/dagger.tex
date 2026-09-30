@@ -2,5 +2,41 @@
 \toprule
 workload & split & tier & trained under LRU & after DAgger \\
 \midrule
+btree & test & oracle (F) & 0.861 & 0.858 \\
+btree & test & kernel (K) & 0.852 & 0.848 \\
+btree & test & kernel{+}refault (K$\cup$K{+}) & 0.833 & 0.844 \\
+btree & test & oracle{+}kernel & 0.845 & 0.847 \\
+btree & heldout & oracle (F) & 0.861 & 0.862 \\
+btree & heldout & kernel (K) & 0.893 & 0.905 \\
+btree & heldout & kernel{+}refault (K$\cup$K{+}) & 0.863 & 0.898 \\
+btree & heldout & oracle{+}kernel & 0.864 & 0.879 \\
+graph & test & oracle (F) & 0.855 & 0.854 \\
+graph & test & kernel (K) & 0.871 & 0.898 \\
+graph & test & kernel{+}refault (K$\cup$K{+}) & 0.845 & 0.889 \\
+graph & test & oracle{+}kernel & 0.855 & 0.858 \\
+graph & heldout & oracle (F) & 0.786 & 0.790 \\
+graph & heldout & kernel (K) & 0.805 & 0.794 \\
+graph & heldout & kernel{+}refault (K$\cup$K{+}) & 0.798 & 0.804 \\
+graph & heldout & oracle{+}kernel & 0.767 & 0.770 \\
+kv & test & oracle (F) & 0.910 & 0.909 \\
+kv & test & kernel (K) & 0.917 & 0.919 \\
+kv & test & kernel{+}refault (K$\cup$K{+}) & 0.905 & 0.905 \\
+kv & test & oracle{+}kernel & 0.937 & 0.915 \\
+kv & heldout & oracle (F) & 0.890 & 0.891 \\
+kv & heldout & kernel (K) & 0.916 & 0.918 \\
+kv & heldout & kernel{+}refault (K$\cup$K{+}) & 0.905 & 0.905 \\
+kv & heldout & oracle{+}kernel & 0.922 & 0.896 \\
+matmul & heldout & oracle (F) & 0.823 & 0.823 \\
+matmul & heldout & kernel (K) & 0.789 & 0.928 \\
+matmul & heldout & kernel{+}refault (K$\cup$K{+}) & 0.681 & 0.701 \\
+matmul & heldout & oracle{+}kernel & 0.751 & 0.822 \\
+sort & test & oracle (F) & 1.011 & 1.011 \\
+sort & test & kernel (K) & 1.011 & 1.011 \\
+sort & test & kernel{+}refault (K$\cup$K{+}) & 0.983 & 0.998 \\
+sort & test & oracle{+}kernel & 0.947 & 1.012 \\
+sort & heldout & oracle (F) & 0.999 & 0.999 \\
+sort & heldout & kernel (K) & 0.999 & 0.999 \\
+sort & heldout & kernel{+}refault (K$\cup$K{+}) & 0.933 & 0.951 \\
+sort & heldout & oracle{+}kernel & 1.001 & 1.001 \\
 \bottomrule
 \end{tabular}

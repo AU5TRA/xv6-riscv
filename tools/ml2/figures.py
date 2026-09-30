@@ -29,9 +29,9 @@ def read(name):
     return list(csv.DictReader(open(p))) if p.exists() else []
 
 
-def save(fig, name):
+def save(fig, name, bottom=0.0):
     FIG.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, bottom, 1, 1))
     fig.savefig(FIG / f"{name}.png")
     fig.savefig(FIG / f"{name}.pdf")
     plt.close(fig)
@@ -58,8 +58,9 @@ def classical():
         ax.set_title(f"{split} streams")
         ax.set_ylim(0, 3.05)
     axes[0].set_ylabel("faults / Clock (geo-mean, capped at 3)")
-    axes[1].legend(fontsize=7, frameon=False, loc="upper left", ncol=2)
-    save(fig, "classical")
+    h, l = axes[1].get_legend_handles_labels()
+    fig.legend(h, l, fontsize=7, frameon=False, loc="lower center", ncol=7)
+    save(fig, "classical", bottom=0.08)
 
 
 def final_table():
@@ -98,8 +99,9 @@ def tiers(scope_kind):
         ax.set_title(f"{split} streams" + (" (matmul has none)" if split == "test" else ""))
         ax.set_ylim(0, 1.25)
     axes[0].set_ylabel("faults / Clock (geo-mean, 5/10/20%)")
-    axes[1].legend(fontsize=7, frameon=False, loc="upper left", ncol=2)
-    save(fig, f"tiers_{scope_kind}")
+    h, l = axes[1].get_legend_handles_labels()
+    fig.legend(h, l, fontsize=7, frameon=False, loc="lower center", ncol=6)
+    save(fig, f"tiers_{scope_kind}", bottom=0.08)
 
 
 def f_heatmap():
@@ -243,8 +245,9 @@ def nn_vs_linear():
         ax.set_ylim(0, 1.6)
         ax.set_ylabel("faults / Clock (geo-mean, 10%)")
         ax.set_title(f"Linear vs neural scorers, per-workload models, {split} streams")
-        ax.legend(fontsize=7, frameon=False, ncol=5, loc="upper left")
-        save(fig, f"nn_{split}")
+        h, l = ax.get_legend_handles_labels()
+        fig.legend(h, l, fontsize=7, frameon=False, loc="lower center", ncol=5)
+        save(fig, f"nn_{split}", bottom=0.14)
 
 
 def main():

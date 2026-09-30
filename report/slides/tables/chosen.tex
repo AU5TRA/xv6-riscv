@@ -2,11 +2,11 @@
 \toprule
 scope & oracle (F) & kernel (K) & kernel{+}refault (K$\cup$K{+}) & oracle{+}kernel \\
 \midrule
-btree & -- & -- & -- & -- \\
-graph & -- & -- & -- & -- \\
-kv & -- & -- & -- & -- \\
-matmul & -- & -- & -- & -- \\
-sort & -- & -- & -- & -- \\
-global & -- & -- & -- & -- \\
+btree & rec {+} freq {+} wr (0) & ref {+} idle {+} age {+} dirty (0) & aging {+} idle {+} age {+} dirty {+} refaults (0) & rec {+} ref {+} aging {+} sfreq {+} idle {+} age {+} dirty (1) \\
+graph & rec {+} freq (4) & sfreq {+} idle {+} dirty (4) & sfreq {+} idle {+} dirty {+} rdist (4) & rec {+} ref {+} aging {+} sfreq {+} idle {+} age {+} dirty (4) \\
+kv & rec {+} freq {+} sd {+} wr (2) & ref {+} aging {+} idle {+} age (4) & aging {+} idle {+} dirty {+} refaults {+} rdist (2) & freq {+} wr {+} ref {+} aging {+} sfreq {+} idle {+} age {+} dirty (2) \\
+matmul & rec {+} wr (0) & ref {+} aging {+} idle {+} dirty (0) & aging {+} idle {+} dirty {+} refaults {+} rdist (0) & sd {+} ref {+} aging {+} sfreq {+} idle {+} age {+} dirty (0) \\
+sort & rec {+} freq {+} sd (2) & aging (0) & ref {+} dirty {+} refaults {+} rdist (4) & rec {+} sd {+} ref {+} aging {+} sfreq {+} idle {+} age {+} dirty {+} refaults {+} rdist (2) \\
+global & rec {+} freq {+} sd {+} wr (0) & aging {+} idle {+} age (0) & idle {+} dirty {+} refaults {+} rdist (4) & rec {+} ref {+} aging {+} sfreq {+} idle {+} age {+} dirty (0) \\
 \bottomrule
 \end{tabular}

@@ -28,6 +28,10 @@
 
 | workload | LRU | oracle (F) | kernel (K) | kernel+refault (K∪K+) | oracle+kernel | Belady |
 |---|---|---|---|---|---|---|
+| btree | 0.994 | 0.861 (+32%) | 0.852 (+33%) | 0.833 (+38%) | 0.845 (+35%) | 0.550 |
+| graph | 0.990 | 0.855 (+22%) | 0.871 (+21%) | 0.845 (+26%) | 0.855 (+22%) | 0.456 |
+| kv | 0.986 | 0.910 (+21%) | 0.917 (+19%) | 0.905 (+22%) | 0.937 (+15%) | 0.571 |
+| sort | 1.012 | 1.011 (+12%) | 1.011 (+11%) | 0.983 (+30%) | 0.947 (+30%) | 0.830 |
 
 *Feature subset and probation chosen on validation only (matmul: its training streams).*
 
@@ -36,6 +40,11 @@
 
 | workload | LRU | oracle (F) | kernel (K) | kernel+refault (K∪K+) | oracle+kernel | Belady |
 |---|---|---|---|---|---|---|
+| btree | 0.997 | 0.861 (+38%) | 0.893 (+29%) | 0.863 (+37%) | 0.864 (+37%) | 0.615 |
+| graph | 0.992 | 0.786 (+31%) | 0.805 (+29%) | 0.798 (+30%) | 0.767 (+34%) | 0.482 |
+| kv | 0.982 | 0.890 (+27%) | 0.916 (+21%) | 0.905 (+23%) | 0.922 (+19%) | 0.577 |
+| matmul | 0.879 | 0.823 (+26%) | 0.789 (+39%) | 0.681 (+73%) | 0.751 (+44%) | 0.617 |
+| sort | 0.999 | 0.999 (+4%) | 0.999 (+4%) | 0.933 (+51%) | 1.001 (+0%) | 0.896 |
 
 *Feature subset and probation chosen on validation only (matmul: its training streams).*
 
@@ -44,6 +53,10 @@
 
 | workload | LRU | oracle (F) | kernel (K) | kernel+refault (K∪K+) | oracle+kernel | Belady |
 |---|---|---|---|---|---|---|
+| btree | 0.994 | 0.900 (+23%) | 0.887 (+25%) | 0.864 (+31%) | 0.891 (+24%) | 0.550 |
+| graph | 0.990 | 0.873 (+20%) | 0.851 (+22%) | 0.874 (+11%) | 0.892 (+18%) | 0.456 |
+| kv | 0.986 | 0.920 (+19%) | 0.920 (+18%) | 0.908 (+22%) | 0.944 (+13%) | 0.571 |
+| sort | 1.012 | 0.967 (+25%) | 1.019 (+6%) | 1.005 (+13%) | 0.933 (+34%) | 0.830 |
 
 *Feature subset and probation chosen on validation only (matmul: its training streams).*
 
@@ -52,6 +65,11 @@
 
 | workload | LRU | oracle (F) | kernel (K) | kernel+refault (K∪K+) | oracle+kernel | Belady |
 |---|---|---|---|---|---|---|
+| btree | 0.997 | 0.922 (+21%) | 0.924 (+20%) | 0.898 (+28%) | 0.927 (+19%) | 0.615 |
+| graph | 0.992 | 0.855 (+23%) | 0.815 (+27%) | 0.792 (+29%) | 0.948 (+6%) | 0.482 |
+| kv | 0.982 | 0.903 (+24%) | 0.919 (+20%) | 0.901 (+24%) | 0.933 (+16%) | 0.577 |
+| matmul | 0.879 | 0.872 (+18%) | 0.814 (+27%) | 0.967 (-60%) | 0.817 (+27%) | 0.617 |
+| sort | 0.999 | 0.998 (+5%) | 0.999 (+4%) | 0.966 (+24%) | 0.999 (+4%) | 0.896 |
 
 *Feature subset and probation chosen on validation only (matmul: its training streams).*
 
@@ -60,30 +78,57 @@
 
 | workload | split | 5% | 10% | 20% | Belady 5% | Belady 10% | Belady 20% |
 |---|---|---|---|---|---|---|---|
+| btree | test | 0.804 | 0.803 | 0.895 | 0.608 | 0.550 | 0.498 |
+| btree | heldout | 0.853 | 0.854 | 0.882 | 0.686 | 0.627 | 0.541 |
+| graph | test | 0.979 | 0.624 | 0.986 | 0.412 | 0.337 | 0.682 |
+| graph | heldout | 0.931 | 0.560 | 0.976 | 0.477 | 0.377 | 0.623 |
+| kv | test | 0.867 | 0.890 | 0.960 | 0.629 | 0.573 | 0.516 |
+| kv | heldout | 0.841 | 0.907 | 0.970 | 0.617 | 0.588 | 0.530 |
+| matmul | heldout | 0.500 | 0.913 | 0.692 | 0.500 | 0.839 | 0.560 |
+| sort | test | 1.099 | 0.950 | 0.912 | 0.758 | 0.897 | 0.842 |
+| sort | heldout | 0.994 | 0.951 | 0.859 | 0.959 | 0.918 | 0.818 |
 
 <!-- bycap_F -->
 **By capacity: the selected oracle (F) model (per-workload) — faults / Clock**
 
 | workload | split | 5% | 10% | 20% | Belady 5% | Belady 10% | Belady 20% |
 |---|---|---|---|---|---|---|---|
+| btree | test | 0.832 | 0.833 | 0.921 | 0.608 | 0.550 | 0.498 |
+| btree | heldout | 0.855 | 0.848 | 0.880 | 0.686 | 0.627 | 0.541 |
+| graph | test | 1.006 | 0.623 | 0.998 | 0.412 | 0.337 | 0.682 |
+| graph | heldout | 0.938 | 0.528 | 0.981 | 0.477 | 0.377 | 0.623 |
+| kv | test | 0.871 | 0.911 | 0.952 | 0.629 | 0.573 | 0.516 |
+| kv | heldout | 0.835 | 0.906 | 0.933 | 0.617 | 0.588 | 0.530 |
+| matmul | heldout | 0.516 | 1.001 | 1.078 | 0.500 | 0.839 | 0.560 |
+| sort | test | 1.085 | 0.954 | 1.000 | 0.758 | 0.897 | 0.842 |
+| sort | heldout | 0.994 | 1.000 | 1.001 | 0.959 | 0.918 | 0.818 |
 
 <!-- chosen -->
 **Models chosen on validation: feature subset (probation, in scans)**
 
 | scope | oracle (F) | kernel (K) | kernel+refault (K∪K+) | oracle+kernel |
 |---|---|---|---|---|
-| btree | — | — | — | — |
-| graph | — | — | — | — |
-| kv | — | — | — | — |
-| matmul | — | — | — | — |
-| sort | — | — | — | — |
-| global | — | — | — | — |
+| btree | rec + freq + wr (0) | ref + idle + age + dirty (0) | aging + idle + age + dirty + refaults (0) | rec + ref + aging + sfreq + idle + age + dirty (1) |
+| graph | rec + freq (4) | sfreq + idle + dirty (4) | sfreq + idle + dirty + rdist (4) | rec + ref + aging + sfreq + idle + age + dirty (4) |
+| kv | rec + freq + sd + wr (2) | ref + aging + idle + age (4) | aging + idle + dirty + refaults + rdist (2) | freq + wr + ref + aging + sfreq + idle + age + dirty (2) |
+| matmul | rec + wr (0) | ref + aging + idle + dirty (0) | aging + idle + dirty + refaults + rdist (0) | sd + ref + aging + sfreq + idle + age + dirty (0) |
+| sort | rec + freq + sd (2) | aging (0) | ref + dirty + refaults + rdist (4) | rec + sd + ref + aging + sfreq + idle + age + dirty + refaults + rdist (2) |
+| global | rec + freq + sd + wr (0) | aging + idle + age (0) | idle + dirty + refaults + rdist (4) | rec + ref + aging + sfreq + idle + age + dirty (0) |
 
 <!-- writebacks -->
 **Page writes (disk writebacks) relative to Clock, geo-mean over 5/10/20%**
 
 | workload | split | LRU | kernel+refault | oracle | Belady |
 |---|---|---|---|---|---|
+| btree | test | 0.997 | 0.967 | 0.932 | 0.707 |
+| btree | heldout | 0.997 | 0.965 | 0.962 | 0.646 |
+| graph | test | 0.938 | 0.418 | 0.578 | 0.257 |
+| graph | heldout | 0.727 | 0.338 | 0.616 | 0.297 |
+| kv | test | 0.975 | 0.819 | 0.856 | 0.690 |
+| kv | heldout | 0.982 | 0.904 | 0.890 | 0.574 |
+| matmul | heldout | 1.008 | 0.658 | 1.008 | 0.863 |
+| sort | test | 1.016 | 0.987 | 1.015 | 0.868 |
+| sort | heldout | 1.000 | 0.935 | 1.000 | 0.932 |
 
 *Below 1: fewer writes than Clock. Belady minimises faults, not writes.*
 
@@ -232,6 +277,10 @@
 
 | workload | linear K∪K+ (sel.) | MLP F | rank-MLP F | MLP K∪K+ | rank-MLP K∪K+ | rank-linear K∪K+ | MLP all | GRU (F) | embedding (F) |
 |---|---|---|---|---|---|---|---|---|---|
+| btree | 0.803 | 0.798 | 0.800 | 0.786 | 1.014 | 1.006 | 0.792 | 0.784 | ≥2.456 |
+| graph | 0.624 | 0.627 | 0.643 | 0.622 | ≥1.699 | 0.669 | 0.641 | 0.632 | ≥3.000 |
+| kv | 0.890 | 0.899 | 0.976 | 0.852 | 0.887 | 0.943 | 0.835 | 0.854 | 0.847 |
+| sort | 0.950 | 0.955 | 1.016 | 0.965 | 1.192 | 1.234 | 0.939 | 0.957 | 1.103 |
 
 *Probation (0 or 2 scans) chosen per model on validation.*
 
@@ -240,6 +289,11 @@
 
 | workload | linear K∪K+ (sel.) | MLP F | rank-MLP F | MLP K∪K+ | rank-MLP K∪K+ | rank-linear K∪K+ | MLP all | GRU (F) | embedding (F) |
 |---|---|---|---|---|---|---|---|---|---|
+| btree | 0.854 | 0.864 | 0.833 | 0.884 | 0.932 | 0.928 | 0.832 | 0.831 | 1.483 |
+| graph | 0.560 | 0.473 | 0.625 | 0.495 | 1.109 | 0.491 | 0.480 | 0.484 | ≥3.000 |
+| kv | 0.907 | 0.906 | 0.960 | 0.850 | 0.858 | 0.934 | 0.868 | 0.982 | 0.817 |
+| matmul | 0.913 | 0.999 | ≥1.680 | 0.966 | 0.923 | 1.496 | 0.964 | 0.969 | ≥1.792 |
+| sort | 0.951 | 1.001 | 1.044 | 0.998 | 1.244 | 1.268 | 0.977 | 1.000 | 1.171 |
 
 *Probation (0 or 2 scans) chosen per model on validation.*
 
@@ -248,6 +302,10 @@
 
 | workload | linear K∪K+ (sel.) | MLP F | rank-MLP F | MLP K∪K+ | rank-MLP K∪K+ | rank-linear K∪K+ | MLP all | GRU (F) | embedding (F) |
 |---|---|---|---|---|---|---|---|---|---|
+| btree | 0.841 | 0.829 | 0.804 | 0.798 | 0.889 | 0.801 | 0.800 | 0.796 | 2.223 |
+| graph | 0.660 | 0.615 | 0.777 | 0.635 | 0.896 | 1.049 | 0.786 | 0.596 | ≥3.000 |
+| kv | 0.892 | 0.938 | 1.028 | 0.950 | 1.009 | 1.175 | 0.899 | 0.895 | 1.011 |
+| sort | 0.967 | 0.945 | 0.999 | 1.048 | 1.127 | 1.221 | 0.919 | 0.956 | 0.973 |
 
 *Probation (0 or 2 scans) chosen per model on validation.*
 
@@ -256,6 +314,11 @@
 
 | workload | linear K∪K+ (sel.) | MLP F | rank-MLP F | MLP K∪K+ | rank-MLP K∪K+ | rank-linear K∪K+ | MLP all | GRU (F) | embedding (F) |
 |---|---|---|---|---|---|---|---|---|---|
+| btree | 0.894 | 0.867 | 0.866 | 0.867 | 0.885 | 0.856 | 0.830 | 0.846 | 1.218 |
+| graph | 0.515 | 0.467 | 0.564 | 0.659 | 0.574 | 0.914 | 0.461 | 0.449 | 2.927 |
+| kv | 0.900 | 1.046 | 1.157 | 0.992 | 1.004 | 0.994 | 0.907 | 1.133 | 0.955 |
+| matmul | 1.338 | 0.999 | 1.355 | 0.906 | 1.201 | 1.430 | 0.936 | 0.969 | 1.628 |
+| sort | 0.985 | 0.985 | 1.064 | 1.371 | 1.142 | 1.345 | 0.956 | 1.005 | ≥3.000 |
 
 *Probation (0 or 2 scans) chosen per model on validation.*
 
@@ -264,6 +327,26 @@
 
 | workload | features | 0 | 1 | 2 | 4 |
 |---|---|---|---|---|---|
+| btree | F | 0.853 | 0.853 | 0.853 | 0.853 |
+| btree | K | 0.821 | 0.821 | 0.821 | 0.821 |
+| btree | K∪K+ | 0.838 | 0.838 | 0.839 | 0.839 |
+| btree | all | 1.007 | 1.011 | 1.005 | 1.008 |
+| graph | F | 0.812 | 0.671 | 0.644 | 0.625 |
+| graph | K | 0.794 | 0.732 | 0.706 | 0.673 |
+| graph | K∪K+ | ≥1.105 | ≥1.101 | 1.029 | 1.008 |
+| graph | all | 0.810 | 0.628 | 0.618 | 0.613 |
+| kv | F | 0.914 | 0.913 | 0.912 | 0.912 |
+| kv | K | 0.956 | 0.955 | 0.955 | 0.955 |
+| kv | K∪K+ | 0.976 | 0.958 | 0.959 | 0.959 |
+| kv | all | 0.993 | 0.982 | 0.978 | 0.980 |
+| matmul | F | 0.738 | 0.861 | 0.938 | 0.845 |
+| matmul | K | 0.639 | 0.835 | 0.975 | 0.704 |
+| matmul | K∪K+ | 0.626 | 0.829 | 0.974 | 0.841 |
+| matmul | all | ≥0.905 | 0.857 | 0.879 | 0.780 |
+| sort | F | 0.960 | 0.960 | 0.960 | 0.965 |
+| sort | K | 1.055 | 1.055 | 1.055 | 1.014 |
+| sort | K∪K+ | 1.036 | 1.036 | 1.036 | 1.008 |
+| sort | all | 0.964 | 0.964 | 0.962 | 0.969 |
 
 <!-- v1v2 -->
 **Effect of the two fixes on the same linear models (per-workload, 10%) — faults / Clock; v1: uniform candidate sampling, no probation; v2: recency-stratified sampling + probation 2**
@@ -327,6 +410,42 @@
 
 | workload | split | tier | float | int, 4-bit | int, 8-bit | int, 12-bit |
 |---|---|---|---|---|---|---|
+| btree | test | oracle (F) | 0.861 | 0.861 | 0.861 | 0.861 |
+| btree | test | kernel (K) | 0.852 | 0.868 | 0.851 | 0.851 |
+| btree | test | kernel+refault (K∪K+) | 0.833 | 0.835 | 0.833 | 0.833 |
+| btree | test | oracle+kernel | 0.845 | 0.840 | 0.845 | 0.846 |
+| btree | heldout | oracle (F) | 0.861 | 0.861 | 0.861 | 0.861 |
+| btree | heldout | kernel (K) | 0.893 | 0.874 | 0.891 | 0.893 |
+| btree | heldout | kernel+refault (K∪K+) | 0.863 | 0.875 | 0.862 | 0.863 |
+| btree | heldout | oracle+kernel | 0.864 | 0.870 | 0.864 | 0.864 |
+| graph | test | oracle (F) | 0.855 | 0.856 | 0.855 | 0.855 |
+| graph | test | kernel (K) | 0.871 | 0.867 | 0.871 | 0.871 |
+| graph | test | kernel+refault (K∪K+) | 0.845 | 0.848 | 0.845 | 0.845 |
+| graph | test | oracle+kernel | 0.855 | 0.856 | 0.856 | 0.855 |
+| graph | heldout | oracle (F) | 0.786 | 0.786 | 0.786 | 0.786 |
+| graph | heldout | kernel (K) | 0.805 | 0.800 | 0.805 | 0.805 |
+| graph | heldout | kernel+refault (K∪K+) | 0.798 | 0.812 | 0.799 | 0.798 |
+| graph | heldout | oracle+kernel | 0.767 | 0.766 | 0.767 | 0.767 |
+| kv | test | oracle (F) | 0.910 | 0.911 | 0.910 | 0.910 |
+| kv | test | kernel (K) | 0.917 | 0.918 | 0.917 | 0.917 |
+| kv | test | kernel+refault (K∪K+) | 0.905 | 0.905 | 0.905 | 0.905 |
+| kv | test | oracle+kernel | 0.937 | 0.930 | 0.937 | 0.937 |
+| kv | heldout | oracle (F) | 0.890 | 0.890 | 0.890 | 0.890 |
+| kv | heldout | kernel (K) | 0.916 | 0.916 | 0.916 | 0.916 |
+| kv | heldout | kernel+refault (K∪K+) | 0.905 | 0.904 | 0.904 | 0.904 |
+| kv | heldout | oracle+kernel | 0.922 | 0.915 | 0.922 | 0.922 |
+| matmul | heldout | oracle (F) | 0.823 | 0.823 | 0.823 | 0.823 |
+| matmul | heldout | kernel (K) | 0.789 | 0.789 | 0.789 | 0.789 |
+| matmul | heldout | kernel+refault (K∪K+) | 0.681 | 0.681 | 0.681 | 0.681 |
+| matmul | heldout | oracle+kernel | 0.751 | 0.751 | 0.751 | 0.751 |
+| sort | test | oracle (F) | 1.011 | 1.011 | 1.011 | 1.011 |
+| sort | test | kernel (K) | 1.011 | 1.011 | 1.011 | 1.011 |
+| sort | test | kernel+refault (K∪K+) | 0.983 | 0.983 | 0.983 | 0.983 |
+| sort | test | oracle+kernel | 0.947 | 0.947 | 0.947 | 0.948 |
+| sort | heldout | oracle (F) | 0.999 | 0.999 | 0.999 | 0.999 |
+| sort | heldout | kernel (K) | 0.999 | 0.999 | 0.999 | 0.999 |
+| sort | heldout | kernel+refault (K∪K+) | 0.933 | 0.932 | 0.933 | 0.933 |
+| sort | heldout | oracle+kernel | 1.001 | 1.001 | 1.001 | 1.001 |
 
 *Features in Q8 fixed point; weights with the standardisation folded in, rounded to b fractional bits.*
 
@@ -335,4 +454,72 @@
 
 | workload | split | tier | trained under LRU | after DAgger |
 |---|---|---|---|---|
+| btree | test | oracle (F) | 0.861 | 0.858 |
+| btree | test | kernel (K) | 0.852 | 0.848 |
+| btree | test | kernel+refault (K∪K+) | 0.833 | 0.844 |
+| btree | test | oracle+kernel | 0.845 | 0.847 |
+| btree | heldout | oracle (F) | 0.861 | 0.862 |
+| btree | heldout | kernel (K) | 0.893 | 0.905 |
+| btree | heldout | kernel+refault (K∪K+) | 0.863 | 0.898 |
+| btree | heldout | oracle+kernel | 0.864 | 0.879 |
+| graph | test | oracle (F) | 0.855 | 0.854 |
+| graph | test | kernel (K) | 0.871 | 0.898 |
+| graph | test | kernel+refault (K∪K+) | 0.845 | 0.889 |
+| graph | test | oracle+kernel | 0.855 | 0.858 |
+| graph | heldout | oracle (F) | 0.786 | 0.790 |
+| graph | heldout | kernel (K) | 0.805 | 0.794 |
+| graph | heldout | kernel+refault (K∪K+) | 0.798 | 0.804 |
+| graph | heldout | oracle+kernel | 0.767 | 0.770 |
+| kv | test | oracle (F) | 0.910 | 0.909 |
+| kv | test | kernel (K) | 0.917 | 0.919 |
+| kv | test | kernel+refault (K∪K+) | 0.905 | 0.905 |
+| kv | test | oracle+kernel | 0.937 | 0.915 |
+| kv | heldout | oracle (F) | 0.890 | 0.891 |
+| kv | heldout | kernel (K) | 0.916 | 0.918 |
+| kv | heldout | kernel+refault (K∪K+) | 0.905 | 0.905 |
+| kv | heldout | oracle+kernel | 0.922 | 0.896 |
+| matmul | heldout | oracle (F) | 0.823 | 0.823 |
+| matmul | heldout | kernel (K) | 0.789 | 0.928 |
+| matmul | heldout | kernel+refault (K∪K+) | 0.681 | 0.701 |
+| matmul | heldout | oracle+kernel | 0.751 | 0.822 |
+| sort | test | oracle (F) | 1.011 | 1.011 |
+| sort | test | kernel (K) | 1.011 | 1.011 |
+| sort | test | kernel+refault (K∪K+) | 0.983 | 0.998 |
+| sort | test | oracle+kernel | 0.947 | 1.012 |
+| sort | heldout | oracle (F) | 0.999 | 0.999 |
+| sort | heldout | kernel (K) | 0.999 | 0.999 |
+| sort | heldout | kernel+refault (K∪K+) | 0.933 | 0.951 |
+| sort | heldout | oracle+kernel | 1.001 | 1.001 |
+
+<!-- quant_compact -->
+**Integer-only scoring of the selected kernel+refault model (per-workload) — faults / Clock**
+
+| workload | split | float | int, 4-bit | int, 8-bit | int, 12-bit |
+|---|---|---|---|---|---|
+| btree | test | 0.833 | 0.835 | 0.833 | 0.833 |
+| btree | heldout | 0.863 | 0.875 | 0.862 | 0.863 |
+| graph | test | 0.845 | 0.848 | 0.845 | 0.845 |
+| graph | heldout | 0.798 | 0.812 | 0.799 | 0.798 |
+| kv | test | 0.905 | 0.905 | 0.905 | 0.905 |
+| kv | heldout | 0.905 | 0.904 | 0.904 | 0.904 |
+| matmul | heldout | 0.681 | 0.681 | 0.681 | 0.681 |
+| sort | test | 0.983 | 0.983 | 0.983 | 0.983 |
+| sort | heldout | 0.933 | 0.932 | 0.933 | 0.933 |
+
+*Features in Q8 fixed point; weights with the standardisation folded in, rounded to b fractional bits.*
+
+<!-- dagger_compact -->
+**One DAgger round (per-workload linear models) — faults / Clock, geo-mean 5/10/20%**
+
+| workload | split | trained under LRU | after DAgger |
+|---|---|---|---|
+| btree | test | 0.833 | 0.844 |
+| btree | heldout | 0.863 | 0.898 |
+| graph | test | 0.845 | 0.889 |
+| graph | heldout | 0.798 | 0.804 |
+| kv | test | 0.905 | 0.905 |
+| kv | heldout | 0.905 | 0.905 |
+| matmul | heldout | 0.681 | 0.701 |
+| sort | test | 0.983 | 0.998 |
+| sort | heldout | 0.933 | 0.951 |
 
