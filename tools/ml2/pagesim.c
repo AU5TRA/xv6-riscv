@@ -76,11 +76,14 @@ struct model {
 struct result {
   int64_t faults, evictions, writebacks;
   int64_t rows, overflow;
+  int64_t aborted;          // stopped early: faults exceeded max_faults
 };
 
 struct recorder {
   double p;                 // probability an eviction is recorded
   uint64_t rng;
+  int max_cand;             // record at most this many candidates per eviction
+                            // (Belady's choice + a random subset); 0 = all
   int64_t cap;              // row capacity of the buffers
   float *feat;              // [cap][NF]
   float *label;             // [cap]  log1p(next-use distance), capped
@@ -91,6 +94,19 @@ struct recorder {
   int32_t *page;            // [cap] candidate dense page id
   int32_t *ctx;             // [cap][EMB_W] last EMB_W pages referenced
 };
+
+// log1p of a non-negative integer count, from a table for small values.
+#define LUT_N (1 << 16)
+static float lut[LUT_N];
+static int lut_ready;
+static void lut_init(void) {
+  if (lut_ready) return;
+  for (int i = 0; i < LUT_N; i++) lut[i] = log1pf((float)i);
+  lut_ready = 1;
+}
+static inline float lg(int64_t v) {
+  return v < LUT_N ? lut[v] : log1pf((float)v);
+}
 
 static uint64_t xs(uint64_t *s) {
   uint64_t x = *s;
@@ -161,6 +177,7 @@ struct state {
   float *gru_cache;     // [n_pages][H] GRU state over hist (P_GRU)
   uint8_t *gru_dirty;
   int32_t *bit;
+  int64_t bit_now;      // bit_sum(t - 1) at the current eviction
   int64_t seq, scans, distinct_seen;
   int32_t *order; int order_n; int64_t hand;   // Clock candidate list
   int32_t ring[EMB_W]; int ring_i;             // last EMB_W pages referenced
@@ -168,21 +185,21 @@ struct state {
 
 static float feature(const struct state *s, int p, int64_t t, int f) {
   switch (f) {
-  case F_REC: return log1pf((float)(t - s->last_acc[p]));
-  case F_FREQ: return log1pf((float)s->freq[p]);
+  case F_REC: return lg(t - s->last_acc[p]);
+  case F_FREQ: return lg(s->freq[p]);
   case F_SD: {
-    int64_t d = bit_sum(s->bit, t - 1) - bit_sum(s->bit, s->last_acc[p]);
-    return log1pf((float)d);
+    int64_t d = s->bit_now - bit_sum(s->bit, s->last_acc[p]);
+    return lg(d);
   }
   case F_WR: return s->freq[p] ? (float)s->writes[p] / s->freq[p] : 0;
   case K_REF: return s->seen_now[p];
   case K_AGING: return s->aging[p] / 255.0f;
-  case K_SFREQ: return log1pf((float)s->sfreq[p]);
-  case K_IDLE: return log1pf((float)(s->scans - s->last_seen[p]));
-  case K_AGE: return log1pf((float)(s->scans - s->load_scan[p]));
+  case K_SFREQ: return lg(s->sfreq[p]);
+  case K_IDLE: return lg(s->scans - s->last_seen[p]);
+  case K_AGE: return lg(s->scans - s->load_scan[p]);
   case K_DIRTY: return s->dbit[p];
-  case K_REFAULTS: return log1pf((float)s->refaults[p]);
-  case K_RDIST: return log1pf((float)s->rdist[p]);
+  case K_REFAULTS: return lg(s->refaults[p]);
+  case K_RDIST: return lg(s->rdist[p]);
   }
   return 0;
 }
@@ -312,12 +329,25 @@ static int clock_choose(struct state *s) {
 
 // Append every current candidate as one training row each.
 static void record(struct state *s, struct recorder *r, struct result *o,
-                   int64_t t, int32_t group) {
-  if (o->rows + s->count > r->cap) { o->overflow = 1; return; }
+                   int64_t t, int32_t group, uint64_t *rng, int32_t *pick) {
   int opt = 0;
   for (int k = 1; k < s->count; k++)
     if (s->nxt[s->res[k]] > s->nxt[s->res[opt]]) opt = k;
-  for (int k = 0; k < s->count; k++) {
+  // Candidates to record: all, or Belady's choice plus a random subset
+  // (partial Fisher-Yates over the remaining indices).
+  int m = s->count;
+  for (int k = 0; k < s->count; k++) pick[k] = k;
+  if (r->max_cand > 0 && s->count > r->max_cand) {
+    pick[opt] = pick[0]; pick[0] = opt;
+    for (int j = 1; j < r->max_cand; j++) {
+      int i = j + (int)(xs(rng) % (uint64_t)(s->count - j));
+      int tmp = pick[j]; pick[j] = pick[i]; pick[i] = tmp;
+    }
+    m = r->max_cand;
+  }
+  if (o->rows + m > r->cap) { o->overflow = 1; return; }
+  for (int j = 0; j < m; j++) {
+    int k = pick[j];
     int p = s->res[k];
     int64_t row = o->rows++;
     for (int f = 0; f < NF; f++) r->feat[row * NF + f] = feature(s, p, t, f);
@@ -343,8 +373,11 @@ static void record(struct state *s, struct recorder *r, struct result *o,
 // Returns 0 on success, -1 on allocation failure.
 int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
              const uint8_t *wr, const uint32_t *nu, int policy,
-             const struct model *m, struct recorder *r, struct result *o) {
+             const struct model *m, struct recorder *r, int64_t max_faults,
+             struct result *o) {
   struct state S = {0}, *s = &S;
+  int32_t *pick = NULL;
+  lut_init();
   memset(o, 0, sizeof(*o));
   s->n = n; s->n_pages = n_pages; s->cap = cap;
   s->pg = pg; s->wr = wr; s->nu = nu;
@@ -364,7 +397,8 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
            ALLOC(s->dbit, n_pages) && ALLOC(s->aging, n_pages) &&
            ALLOC(s->has_copy, n_pages) && ALLOC(s->seen_now, n_pages) &&
            ALLOC(s->hist, (int64_t)n_pages * GRU_K) &&
-           ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1);
+           ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1) &&
+           ALLOC(pick, cap + 1);
   if (ok && need_bit) ok = ALLOC(s->bit, n + 1) != NULL;
   if (ok && policy == P_GRU)
     ok = ALLOC(s->gru_cache, (int64_t)n_pages * m->gru_h) &&
@@ -383,10 +417,12 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
     int w = wr[t];
     if (s->pos[p] < 0) {                      // ---- fault ----
       o->faults++;
+      if (max_faults > 0 && o->faults > max_faults) { o->aborted = 1; break; }
       if (s->count >= cap) {                  // ---- evict ----
         if (need_scan) scan_all(s);
+        if (need_bit) s->bit_now = bit_sum(s->bit, t - 1);
         if (r && r->p > 0 && (double)(xs(&rng) >> 11) / 9007199254740992.0 < r->p)
-          record(s, r, o, t, group++);
+          record(s, r, o, t, group++, &rng, pick);
         int k;
         if (policy == P_CLOCK) {
           int idx = clock_choose(s);
@@ -430,7 +466,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
     if (s->last_acc[p] >= 0) {
       float *h = s->hist + (int64_t)p * GRU_K;
       memmove(h, h + 1, sizeof(float) * (GRU_K - 1));
-      h[GRU_K - 1] = log1pf((float)(t - s->last_acc[p]));
+      h[GRU_K - 1] = lg(t - s->last_acc[p]);
       if (s->gru_dirty) s->gru_dirty[p] = 1;
     } else {
       s->distinct_seen++;                     // first touch (old SD metric)
@@ -453,7 +489,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   free(s->rdist); free(s->last_distinct); free(s->freq); free(s->writes);
   free(s->sfreq); free(s->kfreq); free(s->refaults); free(s->abit);
   free(s->dbit); free(s->aging); free(s->has_copy); free(s->seen_now);
-  free(s->hist); free(s->order); free(score); free(s->bit);
+  free(s->hist); free(s->order); free(score); free(s->bit); free(pick);
   free(s->gru_cache); free(s->gru_dirty);
   return 0;
 }

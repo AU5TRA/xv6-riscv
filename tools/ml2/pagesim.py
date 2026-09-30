@@ -57,11 +57,12 @@ class Model(C.Structure):
 class Result(C.Structure):
     _fields_ = [("faults", C.c_int64), ("evictions", C.c_int64),
                 ("writebacks", C.c_int64), ("rows", C.c_int64),
-                ("overflow", C.c_int64)]
+                ("overflow", C.c_int64), ("aborted", C.c_int64)]
 
 
 class Recorder(C.Structure):
-    _fields_ = [("p", C.c_double), ("rng", C.c_uint64), ("cap", C.c_int64),
+    _fields_ = [("p", C.c_double), ("rng", C.c_uint64), ("max_cand", C.c_int),
+                ("cap", C.c_int64),
                 ("feat", C.POINTER(C.c_float)), ("label", C.POINTER(C.c_float)),
                 ("group", C.POINTER(C.c_int32)), ("is_opt", C.POINTER(C.c_uint8)),
                 ("hist", C.POINTER(C.c_float)), ("page", C.POINTER(C.c_int32)),
@@ -72,7 +73,7 @@ _lib = _build()
 _lib.simulate.restype = C.c_int
 _lib.simulate.argtypes = [C.c_int64, C.c_int, C.c_int, C.c_void_p, C.c_void_p,
                           C.c_void_p, C.c_int, C.POINTER(Model),
-                          C.POINTER(Recorder), C.POINTER(Result)]
+                          C.POINTER(Recorder), C.c_int64, C.POINTER(Result)]
 assert _lib.pagesim_nf() == NF, "feature list out of sync with pagesim.c"
 GRU_K = _lib.pagesim_gru_k()
 EMB_W = _lib.pagesim_emb_w()
@@ -97,6 +98,7 @@ class Stream:
         self.write = np.ascontiguousarray(z["write"].astype(np.uint8))
         self.next_use = np.ascontiguousarray(z["next_use"].astype(np.uint32))
         self.n_pages = len(uniq)
+        self.vpns = uniq.astype(np.int64)   # dense id -> absolute vpn
         self.n = len(vpn)
 
     def __repr__(self):
@@ -134,28 +136,33 @@ def baselines():
     return out
 
 
-def _call(s, cap, policy, model=None, rec=None):
+def _call(s, cap, policy, model=None, rec=None, max_faults=0):
     res = Result()
     m = C.byref(model) if model is not None else None
     r = C.byref(rec) if rec is not None else None
     rc = _lib.simulate(s.n, s.n_pages, cap, s.page.ctypes.data,
                        s.write.ctypes.data, s.next_use.ctypes.data,
-                       POLICIES.index(policy), m, r, C.byref(res))
+                       POLICIES.index(policy), m, r, int(max_faults),
+                       C.byref(res))
     if rc != 0:
         raise MemoryError("pagesim: allocation failed")
     return res
 
 
-def run(s, cap, policy, model=None):
-    """Simulate `policy` (one of POLICIES) at `cap` frames from empty memory."""
+def run(s, cap, policy, model=None, max_faults=0):
+    """Simulate `policy` (one of POLICIES) at `cap` frames from empty memory.
+    With max_faults > 0 the run stops once it exceeds that many faults and
+    reports aborted=True (counts are then lower bounds)."""
     if policy in ("learned", "gru", "embed") and model is None:
         raise ValueError("learned policies need a model")
-    res = _call(s, cap, policy, model.c if model is not None else None)
+    res = _call(s, cap, policy, model.c if model is not None else None,
+                max_faults=max_faults)
     return {"faults": res.faults, "evictions": res.evictions,
-            "writebacks": res.writebacks}
+            "writebacks": res.writebacks, "aborted": bool(res.aborted)}
 
 
-def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False):
+def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False,
+           max_cand=0):
     """Replay under `behavior` and record every candidate at a random fraction
     `p` of evictions. Returns dict of arrays (features for all NF features)."""
     feat = np.zeros((max_rows, NF), np.float32)
@@ -166,6 +173,7 @@ def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False):
     page = np.zeros(max_rows, np.int32) if seq else None
     ctx = np.zeros((max_rows, EMB_W), np.int32) if seq else None
     rec = Recorder(p=p, rng=seed * 0x9E3779B97F4A7C15 % (1 << 64) or 1,
+                   max_cand=max_cand,
                    cap=max_rows, feat=_fptr(feat), label=_fptr(label),
                    group=group.ctypes.data_as(C.POINTER(C.c_int32)),
                    is_opt=is_opt.ctypes.data_as(C.POINTER(C.c_uint8)),
