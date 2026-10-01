@@ -51,3 +51,5 @@ report/ML_REPORT.toc
 !report/slides/ml_results.pdf
 !report/figures2/*.pdf
 !report/ML_REPORT.pdf
+# local backlog of deferred work
+/backlog.md
