@@ -126,7 +126,7 @@ outweigh the slower decisions in total program run time.
 \caption{Results at a glance: the per-workload \textbf{linear} model running
 inside xv6 at 10\% memory, compared with Clock on the same runs. Test: new
 runs of a known program; held-out: program variants never seen in training
-(matmul has held-out traces only). Decision time: test traces (matmul:
+(matmul has no test traces: its seed does not change which pages it touches, so each variant was recorded once; n = 64 and 96 are used for training and n = 128 is held out). Decision time: test traces (matmul:
 held-out), 10\,MHz kernel timer.}
 \label{tab:glance}
 \end{table}
@@ -214,8 +214,13 @@ A kernel does not see individual memory accesses: the hardware handles them.
 It only sees page faults, and two bits per page that the hardware sets: the
 \emph{accessed} bit (the page was used) and the \emph{dirty} bit (it was
 written). The kernel can read and clear these bits whenever it scans memory,
-which it does at each eviction. We therefore define features in three tiers
-(Table~\ref{tab:features}).
+which it does at each eviction. These two bits are the kernel's only raw
+signal about how a page is used, but by recording them at every scan, together
+with its own events (when it loaded, evicted and reloaded a page), the kernel
+can build richer features at run time: for example how many scans a page has
+gone unused, or how often it was found in use. We define features in three
+tiers (Table~\ref{tab:features}); the kernel computes all of tiers K and K+
+itself while the program runs.
 
 \begin{table}[!htbp]
 \centering\small
@@ -290,6 +295,43 @@ page has the highest score and are dropped.
 feature.
 \end{itemize}
 
+Table~\ref{tab:bits} shows what the precision means for one weight, and
+Table~\ref{tab:quant} shows that 8 bits lose nothing: every selected model's
+result stays within $\pm$\val{q8-maxdiff} of the float version.
+
+\begin{table}[!htbp]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Setting} & \textbf{Multiply by} & \textbf{Rounding step} & \textbf{0.4567 becomes} & \textbf{Stands for (error)} \\
+\midrule
+4-bit  & 16    & 1/16 = 0.0625      & 7     & 0.4375 (0.0192) \\
+8-bit  & 256   & 1/256 $\approx$ 0.0039   & 117   & 0.45703 (0.0003) \\
+12-bit & 4,096 & 1/4096 $\approx$ 0.00024 & 1,871 & 0.45679 (0.00009) \\
+\bottomrule
+\end{tabular}
+\caption{Integer weight precision. Since the xv6 kernel does not use
+floating point, each trained weight $w$ (already divided by its feature's
+training standard deviation) is stored as the integer
+$\mathrm{round}(w \cdot 2^b)$, where $b$ is the number of fractional bits. A
+larger $b$ gives a finer rounding step and a closer match to the trained model.
+Features always use 8 fractional bits (they are scaled by 256). The kernel uses
+$b = 8$; the graph model's weights, for example, include 159 and $-347$. The
+table shows the rounding of an example weight, 0.4567, at each precision.}
+\label{tab:bits}
+\end{table}
+
+\begin{table}[!htbp]
+\centering\small
+\input{tables/quant}
+\caption{Float vs.\ integer scoring (faults relative to Clock, simulation,
+averaged over 5/10/20\% memory). Compare each integer column with the float
+column on the same row: the closer, the less the rounding (Table~\ref{tab:bits})
+lost. Differences of about $\pm$0.001 are noise: rounding flips a few close
+eviction choices, sometimes for the better.}
+\label{tab:quant}
+\end{table}
+
 The policy, \code{VM\_POLICY\_ML}, is the function \code{choose\_ml()} in
 \code{kernel/vmpage.c}. At each eviction it scans every candidate (reads and
 clears its accessed bit, updates its counters), scores it, and evicts the
@@ -314,7 +356,37 @@ child processes inherit it. The default is the global model. The program
 As an example, the selected graph model is
 $159\cdot\text{idle} - 347\cdot\text{dirty} - 2\cdot\text{sfreq} + 24\cdot\text{rdist}$
 (probation 4 scans): evict pages that have been idle longest, and strongly
-prefer to keep dirty pages, which would cost a disk write.
+prefer to keep dirty pages, which would cost a disk write. Figure~\ref{fig:scoring} works through three pages.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[font=\footnotesize,
+  hd/.style={font=\footnotesize\bfseries, align=center},
+  cell/.style={draw=black!35, rounded corners=1.5pt, minimum width=31mm, minimum height=6.5mm, align=center, inner sep=2pt},
+  win/.style={cell, draw=good, line width=1pt, fill=good!8}]
+\node[hd] at (0,0) {page A}; \node[hd] at (3.6,0) {page B}; \node[hd] at (7.2,0) {page C};
+\node[anchor=east, hd] at (-1.9,-0.7) {kernel counters};
+\node[cell] at (0,-0.7)   {idle 12, sfreq 3, clean};
+\node[cell] at (3.6,-0.7) {idle 1, sfreq 9, dirty, rdist 40};
+\node[cell] at (7.2,-0.7) {idle 6, sfreq 1, dirty};
+\node[anchor=east, hd] at (-1.9,-1.55) {features ($\times$256)};
+\node[cell] at (0,-1.55)   {657, 355, 0, 0};
+\node[cell] at (3.6,-1.55) {177, 589, 256, 951};
+\node[cell] at (7.2,-1.55) {498, 177, 256, 0};
+\node[anchor=east, hd] at (-1.9,-2.4) {score $\sum_j q_j X_j$};
+\node[win]  at (0,-2.4)   {\textbf{103,753} $\rightarrow$ evict};
+\node[cell] at (3.6,-2.4) {$-$39,043};
+\node[cell] at (7.2,-2.4) {$-$10,004};
+\end{tikzpicture}
+\caption{How the kernel scores pages, with the graph model's integer weights
+($q$: idle 159, dirty $-347$, sfreq $-2$, rdist 24). Features are listed as
+idle, sfreq, dirty, rdist; each is $\mathrm{round}(256\cdot\log(1+\text{count}))$,
+or 0/256 for the dirty bit. Page A has gone 12 scans unused and is clean, so it
+gets the highest score and is evicted. Page C has also been idle, but it is
+dirty, and the large negative dirty weight keeps it in memory. Page B was used
+recently.}
+\label{fig:scoring}
+\end{figure}
 
 % ===================================================================
 \section{Training, validation and evaluation}
@@ -339,16 +411,17 @@ variant, so its models are chosen on its training traces.)
 
 \subsection{Simulator}
 
-Training and most evaluation use a simulator (\code{tools/ml2/pagesim.c}). It
-replays a trace with a fixed number of memory frames and counts page faults,
+Training and most evaluation use a simulator (\code{tools/ml2/pagesim.c}), a
+program that runs on the host computer, not in xv6. It replays a trace with a fixed number of memory frames and counts page faults,
 evictions and disk writes. It implements every xv6 policy (FIFO, Clock,
 Aging, LFU), LRU, and Belady's optimal policy. It was checked against
 independent code and against the kernel: FIFO, LRU and Belady agree exactly
 on all 534 trace $\times$ memory-size cases, and Clock, Aging and LFU match a
 direct copy of the kernel's logic.
 
-Memory sizes are 5\%, 10\% and 20\% of the pages each trace touches, which
-gives low to high memory pressure.
+Memory sizes are 5\%, 10\% and 20\% of the pages each trace touches: the
+smaller the memory, the higher the pressure, so 5\% is the hardest case. The
+selected models were then also run inside xv6 itself (Section~3.5).
 
 \subsection{Training data}
 
@@ -516,8 +589,7 @@ page.
 
 \textbf{Integers lose nothing.} With 8-bit integer weights and fixed-point
 features, every selected model's result is within $\pm$\val{q8-maxdiff} of the float
-version; with 4-bit weights, within \val{q4-maxrel}\% (Table~\ref{tab:quant} in the
-appendix).
+version; with 4-bit weights, within \val{q4-maxrel}\% (Table~\ref{tab:quant}, Section~2.4).
 
 \subsection{Inside the xv6 kernel}
 
@@ -619,14 +691,6 @@ touches; memory sizes are 5/10/20\% of it.}
 \caption{The selected kernel+refault models, chosen on validation. These are
 the weights the kernel runs.}
 \label{tab:chosen}
-\end{table}
-
-\begin{table}[!htbp]
-\centering\small
-\input{tables/quant}
-\caption{Float vs.\ integer scoring (faults relative to Clock, simulation,
-averaged over 5/10/20\% memory).}
-\label{tab:quant}
 \end{table}
 
 \begin{table}[!htbp]
