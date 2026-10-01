@@ -43,13 +43,16 @@ report/slides/*.out
 report/slides/*.snm
 report/slides/*.toc
 report/slides/*.vrb
-report/ML_REPORT.aux
-report/ML_REPORT.log
-report/ML_REPORT.out
-report/ML_REPORT.toc
 # the study's presentation and the figure PDFs it is built from
 !report/slides/ml_results.pdf
 !report/figures2/*.pdf
-!report/ML_REPORT.pdf
 # local backlog of deferred work
 /backlog.md
+# local walk-through of the whole project
+/EXPLANATION.md
+# week-14 report build artifacts
+report/week_14_update/*.aux
+report/week_14_update/*.log
+report/week_14_update/*.out
+!report/week_14_update_report.pdf
+!report/week_14_update/figs/*.pdf

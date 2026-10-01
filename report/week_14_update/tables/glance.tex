@@ -1,0 +1,12 @@
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& \textbf{Page faults vs Clock} & \textbf{Disk writes vs Clock} & \textbf{Decision time per eviction} \\
+\textbf{Benchmark} & test / held-out & test / held-out & ML vs Clock \\
+\midrule
+btree & \best{$-$17.7\%} / \best{$-$14.6\%} & $+$2.2\% / \best{$-$3.4\%} & 101.2\,\textmu s vs 3.2\,\textmu s \\
+graph & \best{$-$38.6\%} / \best{$-$45.9\%} & \best{$-$95.5\%} / \best{$-$86.2\%} & 59.4\,\textmu s vs 5.6\,\textmu s \\
+kv & \best{$-$12.9\%} / \best{$-$12.5\%} & \best{$-$31.8\%} / \best{$-$12.5\%} & 27.5\,\textmu s vs 2.8\,\textmu s \\
+matmul & -- / \best{$-$2.7\%} & -- / \best{$-$96.5\%} & 9.2\,\textmu s vs 3.8\,\textmu s \\
+sort & \best{$-$4.0\%} / \best{$-$6.7\%} & \best{$-$5.6\%} / \best{$-$7.5\%} & 8.8\,\textmu s vs 3.5\,\textmu s \\
+\bottomrule
+\end{tabular}

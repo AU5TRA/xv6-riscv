@@ -4,7 +4,7 @@
 %
 % Every number here comes from report/results2/ (tables/*.tex are generated
 % by tools/ml2/tables.py, figures by tools/ml2/figures.py); the prose is in
-% report/ML_REPORT.md.
+% report/week_14_update_report.pdf.
 
 \documentclass[10pt,aspectratio=169]{beamer}
 
@@ -18,7 +18,7 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
 
-\metroset{sectionpage=progressbar, numbering=fraction, progressbar=frametitle}
+\metroset{sectionpage=none, numbering=fraction, progressbar=frametitle}
 
 \definecolor{accent}{HTML}{2C6E8F}
 \definecolor{warn}{HTML}{B5540A}
@@ -35,7 +35,7 @@
 
 \title{Learned Page Replacement for xv6}
 \subtitle{Training on verified reference streams, and what a kernel can actually use}
-\date{\texttt{traces2} study --- report/ML\_REPORT.md}
+\date{\texttt{traces2} study --- report/week\_14\_update\_report.pdf}
 
 \begin{document}
 
@@ -120,22 +120,6 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Why the older traces were dropped}
-  \small
-  Two of the six old captures were wrong (found by AU5TRA, commit \texttt{9d36525}):
-  \begin{itemize}
-    \item \textbf{graphbench} traced only the edge array --- BFS \texttt{visited[]}
-      and PageRank \texttt{rank[]} were never recorded: \warn{57\% of references,
-      667 of 2000 pages missing}.
-    \item \textbf{lzwbench}'s trace hit xv6's maximum file size and
-      \warn{silently lost $\sim$42\% of the run} while still printing PASS.
-  \end{itemize}
-  \medskip
-  The earlier report's two headline wins (graph $-4.3\%$, lzw $-24\%$ vs.\ Clock)
-  were on these two traces. \textbf{They should not be cited.} Everything here
-  uses the new streams.
-\end{frame}
-
 \begin{frame}{The dataset and its splits}
   \small
   \begin{columns}[T]
@@ -191,24 +175,6 @@
   \end{tabular}
 \end{frame}
 
-\begin{frame}{Simulator, validated before use}
-  \small
-  \texttt{tools/ml2/pagesim.c}: replays a stream from empty memory; FIFO, Clock, Aging,
-  LRU, exact/decayed LFU, Belady, and any learned scorer. Accessed/dirty bits follow
-  the kernel (a fault sets \texttt{PTE\_A}, and \texttt{PTE\_D} on a write).
-  \begin{itemize}
-    \item FIFO, LRU, Belady equal AU5TRA's independent \texttt{baselines.tsv} on
-      \good{all 534 stream $\times$ capacity cells}.
-    \item Clock/Aging/decayed LFU match a naive Python re-implementation in faults
-      and writebacks; all kernel features match on 11,792 evictions $\times$ 53 candidates.
-    \item The C scorer reproduces every trained model (max error $\le 3\times10^{-5}$).
-  \end{itemize}
-  \medskip
-  Two corrections to the earlier study: its ``stack distance'' counted first-ever
-  touches, not distinct pages (true stack distance orders pages exactly like LRU);
-  and pooled correlation misled --- what matters is ranking \emph{within} a decision.
-\end{frame}
-
 \begin{frame}{Training on decisions}
   \small
   \begin{itemize}
@@ -241,37 +207,6 @@
   Belady needs 43--54\% fewer faults on btree/kv/graph.
 \end{frame}
 
-\begin{frame}{Which features carry signal --- within one eviction}
-  \begin{columns}[c]
-    \column{.5\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{diagnostics.pdf}
-    \column{.48\textwidth}
-    \small
-    Rank correlation with the true next use, \emph{among the candidates of one decision}.
-    \begin{itemize}
-      \item Sampled access count \texttt{sfreq} ($-0.45$) $\approx$ exact count \texttt{freq} ($-0.52$).
-      \item Refault distance \texttt{rdist} --- Linux already measures it --- is as strong.
-      \item Recency and true stack distance are identical within a decision.
-      \item Pooled correlation misleads: \texttt{rec} on sort is $+0.87$ pooled, $+0.05$ within decisions.
-    \end{itemize}
-  \end{columns}
-\end{frame}
-
-\begin{frame}{Every full-stream combination (15 subsets)}
-  \centering
-  \includegraphics[width=.86\textwidth]{f_subsets_workload.pdf}
-
-  \footnotesize One feature is never enough; \textbf{recency + frequency} is the pair that matters.
-\end{frame}
-
-\begin{frame}{All 255 kernel-observable combinations}
-  \centering
-  \includegraphics[width=.8\textwidth]{kk_subsets.pdf}
-
-  \tbl{kksubsets_workload_test}
-\end{frame}
-
 \begin{frame}{What each kernel feature is worth}
   \begin{columns}[c]
     \column{.55\textwidth}
@@ -287,40 +222,6 @@
       \item Refault count helps btree/kv/sort.
     \end{itemize}
   \end{columns}
-\end{frame}
-
-\begin{frame}{What went wrong first: evicting the page being streamed}
-  \small
-  v1 recorded Belady's choice + 31 \emph{uniform} candidates per decision.
-  On PageRank almost every model was \warn{$\geq 3\times$ Clock} --- even one
-  trained on PageRank alone; three DAgger rounds did not help.
-  \begin{itemize}
-    \item At its own decisions: \warn{97\% of victims loaded at the previous fault},
-      next use a median \textbf{16 references} away (Belady's choice: $\sim$300 refs stale).
-    \item Uniform samples of a 167-page resident set almost never contain the
-      page just touched --- no model ever saw ``just used, keep it''.
-    \item Same pathology as the kernel LFU livelock, by a different route.
-  \end{itemize}
-  \medskip
-  \textbf{Fixes, both chosen on validation:} record the 4 most recently used
-  candidates too; \textbf{probation} --- a page loaded $<p$ scans ago is not
-  evicted while an older one exists (Clock's second chance). Graph: $0.81 \to 0.61$;
-  matmul prefers $p=0$ (5 frames), so $p$ is chosen per scope.
-\end{frame}
-
-\begin{frame}{Headline: validation-selected models, per workload}
-  \centering
-  \includegraphics[width=.92\textwidth]{tiers_workload.pdf}
-
-  \footnotesize Subset and probation chosen on validation only; geo-mean over 5/10/20\%.
-\end{frame}
-
-\begin{frame}{Headline numbers}
-  \centering\tbl{headline_workload_test}
-
-  \medskip\tbl{headline_workload_heldout}
-
-  \medskip\scriptsize faults / Clock (share of the Clock$\to$Belady gap closed)
 \end{frame}
 
 \begin{frame}{The kernel's own signals are enough}
@@ -341,23 +242,6 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Fewer disk writes, not just fewer faults}
-  \centering\tbl{writebacks}
-
-  \medskip\small
-  The selected models use the dirty bit: graph needs \good{58--66\% fewer page
-  writes} than Clock (Belady, which ignores writes: 70--74\%).
-\end{frame}
-
-\begin{frame}{Where it does not help: capacity dependence}
-  \centering\tbl{bycap_KpKp}
-
-  \medskip\small
-  Graph's gain is concentrated at 10\%; at 5\% and 20\% no linear model gets below
-  0.93 even though Belady has large headroom --- including models trained only on
-  that capacity.
-\end{frame}
-
 \begin{frame}{Neural, sequence and ranking models}
   \centering
   \includegraphics[width=.92\textwidth]{nn_heldout.pdf}
@@ -375,16 +259,6 @@
   \small With 8-bit weights and Q8 features every selected model is
   \good{within $\pm0.002$ of float} (most identical); 4-bit stays within $\sim$2\%.
   The policy runs in xv6 as trained --- no floating point.
-\end{frame}
-
-\begin{frame}{Does the training distribution matter? (one DAgger round)}
-  \centering\tbl{dagger_compact}
-
-  \medskip
-  \small Re-recording under the model's own decisions and refitting does
-  \warn{not} help: most selected models are unchanged or slightly worse. With
-  stratified recording and probation, LRU-recorded decisions already cover
-  the states these policies meet.
 \end{frame}
 
 % ------------------------------------------------------------------ kernel
@@ -416,9 +290,9 @@
   \textbf{\small Held-out (unseen variants)}\\[2pt]\wtbl{kernel_heldout}
 
   \medskip
-  \small Per-workload weights \good{beat Clock on every workload}: btree $-$18/$-$15\%,
-  graph $-$39/$-$46\%, kv $-$13\%, sort $-$4/$-$7\%, matmul $-$3\%. The global
-  model \warn{loses on matmul} (+12\%).
+  \small Per-workload weights \good{beat Clock on every workload}: btree $-$17.7/$-$14.6\%,
+  graph $-$38.6/$-$45.9\%, kv $-$12.9/$-$12.5\%, sort $-$4.0/$-$6.7\%, matmul $-$2.7\%. The global
+  model \warn{loses on matmul} (+11.5\%).
 \end{frame}
 
 \begin{frame}{In xv6: page writes relative to Clock}
@@ -429,58 +303,30 @@
   \textbf{\small Held-out}\\[2pt]\wtbl{kernel_writes_heldout}
 
   \medskip
-  \small Graph \good{95\% / 86\% fewer writes}, matmul 96\%, kv 32\% (test) ---
+  \small Graph \good{95.5\% / 86.2\% fewer writes}, matmul 96.5\%, kv 31.8\% (test) ---
   the dirty bit at work.
 \end{frame}
 
 \begin{frame}{Did the simulator predict the kernel?}
-  \centering\wtbl{kernel_pred}
+  \centering\resizebox{.72\textwidth}{!}{\scriptsize\input{tables/kernel_pred.tex}}
 
   \medskip
-  \small Kernel $\to$ simulator, faults/Clock for the same runs: \good{agreement to a
-  few hundredths} for the ML models. FIFO is worse in the kernel (it also evicts hot
-  code/stack pages the traces lack). Graph test differs because of one stream \ldots
-\end{frame}
-
-\begin{frame}{\ldots that sits on a capacity cliff}
-  \centering\wtbl{kernel_cliff}
-
-  \medskip
-  \small The kernel gives this PageRank stream $\approx$2 extra frames; at +2 the simulator
-  matches every classical policy within 3\%. Per-workload ML still beats Clock there;
-  the global model \warn{does not} (cause not established).
+  \small Kernel $\to$ simulator, faults/Clock: \good{agreement to a few hundredths} for
+  the ML models. FIFO is worse in the kernel (it also evicts code/stack pages).
+  Graph test: one PageRank stream sits where 2 extra frames halve the faults.
 \end{frame}
 
 \begin{frame}{The price: victim-selection time}
   \centering\tbl{kernel_cost}
 
   \medskip
-  \small ML visits every resident page on each eviction: \warn{11--13$\times$ Clock},
-  $\approx$2$\times$ Aging ($\approx$40\,\textmu s emulated). Small next to a disk read
+  \small ML scores every resident page on each eviction: $\approx$43 ticks + 3.9 per page,
+  8.8--101.2\,\textmu s, \warn{2.4--32.4$\times$ Clock}, 1.8--2.5$\times$ Aging (means above are over all runs). Small next to a disk read
   in xv6; a real kernel would score a sample or batch (as MGLRU does).
 \end{frame}
 
 % ------------------------------------------------------------------ close
 \section{Conclusions}
-
-\begin{frame}{Relation to Linux}
-  \scriptsize
-  \begin{tabular}{ll}
-    \toprule
-    Feature that won here & Linux already has \\
-    \midrule
-    \texttt{idle} (scans since last found accessed) & MGLRU generations; DAMON region age \\
-    \texttt{sfreq} (scans found accessed) & DAMON \texttt{nr\_accesses}; MGLRU tiers \\
-    \texttt{dirty} & \texttt{PG\_dirty} \\
-    \texttt{refaults}, \texttt{rdist} & workingset shadow entries (\texttt{mm/workingset.c}) \\
-    \texttt{rec}, \texttt{freq}, \texttt{sd} (oracle) & nothing without per-access instrumentation \\
-    \bottomrule
-  \end{tabular}
-
-  \medskip\small
-  The winning signals are ones Linux maintains; the score is a few integer
-  multiply-adds per candidate in a scan the kernel already does.
-\end{frame}
 
 \begin{frame}{Takeaways}
   \small
@@ -493,13 +339,9 @@
       \texttt{idle} (the kernel's own recency) carries most of the value.
     \item \textbf{Bigger models do not pay}: MLP, GRU, cross-page embedding, ranking loss
       are no better than linear except MLPs on kv and held-out graph.
-    \item \textbf{Failure modes are real}: many feature sets are catastrophic, and the first
-      training set taught models to evict the page being streamed. Validation-based
-      selection and probation are part of the method, not details.
     \item \textbf{It works in the kernel}: integer-only \texttt{VM\_POLICY\_ML} beats Clock
-      in xv6 on all five workloads (3--46\% fewer faults, up to 96\% fewer writes), as the
-      simulator predicted; selection costs 11--13$\times$ Clock.
-    \item The earlier graph and lzw results were measured on broken traces and are withdrawn.
+      in xv6 on all five workloads (2.7--45.9\% fewer faults, up to 96.5\% fewer writes), as the
+      simulator predicted; selection costs 2.4--32.4$\times$ Clock.
   \end{enumerate}
 \end{frame}
 
@@ -510,7 +352,7 @@
     \item In-kernel runs at 5\% and 20\% memory (mechanical; hours of QEMU time).
     \item Pick weights automatically per program or phase (the global model loses on matmul).
     \item Capacity-aware models for graph at 5\% and 20\%.
-    \item Port to Linux: the same features from MGLRU / DAMON / workingset (plan in the report, \S9.1).
+    \item Port to Linux: \texttt{idle}, \texttt{sfreq}, \texttt{dirty}, \texttt{refaults}, \texttt{rdist} map to MGLRU, DAMON and workingset signals Linux already keeps.
   \end{enumerate}
 \end{frame}
 

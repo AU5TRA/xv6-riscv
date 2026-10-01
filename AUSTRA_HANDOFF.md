@@ -3,21 +3,23 @@
 **Written for**: AU5TRA, picking up after GawwyG's work of 2026-09-28 to
 2026-10-01. This file covers what was built, where every result lives, what
 changed in the kernel and user programs you work in, what was tested, and
-what is still open. The full write-up is `report/ML_REPORT.md` (also as
-LaTeX/PDF). This file is the map to it.
+what is still open. The final report is `report/week_14_update_report.pdf`;
+every generated table behind it is in `report/results2/tables.md`. This file
+is the map to them.
 
 **The short version.** On your `traces2` streams, a learned linear score
 over 4–5 kernel-observable features beats Clock on all five workloads, on
 unseen seeds and on unseen variants. It now runs inside xv6 as
 `VM_POLICY_ML`, integer-only, and beats Clock there too. Its per-workload
-weights give 3–46% fewer faults and up to 96% fewer page writes. The old
+weights give 2.7–45.9% fewer faults and up to 96.5% fewer page writes. The old
 `traces/` study is superseded (Appendix A summarises it); two of its
 headline results came from broken traces and must not be cited.
 
 **Read first**:
-* `report/ML_REPORT.md` — Summary, then §8b (in-kernel results).
-* `report/slides/ml_results.pdf` — the 39-page deck. The kernel section is
-  slides 24–29.
+* `report/week_14_update_report.pdf` — the final report (11 pages): Summary,
+  then §4.5 (in-kernel results).
+* `report/slides/ml_results.pdf` — the 20-page deck. The kernel section is
+  slides 14–18.
 
 ---
 
@@ -57,7 +59,7 @@ confirmed it.
   the in-kernel evaluation.
 
 Status against this plan: the xv6 part is done (§3–6). Linux is a written
-plan only (report §9.1). The open items are in §8.
+plan only (§8, item 6). The open items are in §8.
 
 ### 0.2 Questions to ask AU5TRA
 
@@ -96,7 +98,7 @@ plan only (report §9.1). The open items are in §8.
 | `160e238` | GawwyG | **kernel: LFU livelock fixed** (decayed frequency, cherry-picked from GawwyDev `d1d247f`), debug probe removed |
 | `a60faaa` | GawwyG | **kernel: `VM_POLICY_ML`**, the learned policy, integers only |
 | `4f3761a`, `f02ead3` | GawwyG | in-kernel evaluation (231 runs), comparison with the simulator, report §8b, slides |
-| `94c503d` | GawwyG | LaTeX/PDF version of the report (`tools/ml2/md2tex.py`) |
+| `94c503d` | GawwyG | LaTeX/PDF version of the long report (since replaced by `report/week_14_update_report.pdf`) |
 
 All of this is on `riscv`. If `origin/riscv` doesn't have these commits
 yet, GawwyG still has to push them.
@@ -105,10 +107,10 @@ yet, GawwyG still has to push them.
 
 | Path | What | In git? |
 |---|---|---|
-| `report/ML_REPORT.md` | **the report**: method, every result table, failures, kernel work, Linux plan | yes |
-| `report/ML_REPORT.tex`, `report/ML_REPORT.pdf` | the same report as LaTeX/PDF (28 pp.), generated from the `.md` | yes |
-| `report/slides/ml_results.tex`, `.pdf` | the presentation (39 slides); `slides/tables/*.tex` are generated tables | yes |
-| `report/results2/` | **every raw result** as CSV, plus summaries and `tables.md` (every table in the report) | yes |
+| `report/week_14_update_report.pdf` | **the final report** (11 pages) | yes |
+| `report/week_14_update/` | its LaTeX source and figures (`figs/`, made by `tools/ml2/report_figs.py`) | yes |
+| `report/slides/ml_results.tex`, `.pdf` | the presentation (20 slides); `slides/tables/*.tex` are generated tables | yes |
+| `report/results2/` | **every raw result** as CSV, plus summaries and `tables.md`: every generated table, including ones the report leaves out (probation ablation, DAgger, v1 vs v2 data, all feature subsets) | yes |
 | `report/models2/` | every trained model: `linear_<scope>.json` (300 feature sets per scope), `final_linear.json` (**the selected models**), `nn/` (84 neural/ranking models), `linear_dagger.json`, `v1/` (first version) | yes |
 | `report/figures2/` | figures, PNG and PDF | yes |
 | `tools/ml2/` | all the code (§7 lists each script) | yes |
@@ -118,9 +120,13 @@ yet, GawwyG still has to push them.
 | `test-logs/kernel_eval/` | the 231 in-kernel transcripts, referenced from `kernel_eval.csv` | **no**: only on GawwyG's machine |
 | `report/ML_TESTING_REPORT.md`, `report/models/`, `report/*.csv` | the earlier `traces/` study | yes, **superseded** |
 
-Report §12 lists every CSV in `report/results2/`.
+The main CSVs in `report/results2/`: `classical.csv` (classical policies),
+`linear_sweep.csv` (the 28,800 linear runs), `final_val.csv`/`final_test.csv`
+(selected models), `nn_eval.csv` (neural models), `extras.csv` (DAgger,
+quantisation, probation), `kernel_eval.csv` (231 in-kernel runs),
+`kernel_vs_sim.csv`, `kernel_cliff.csv`, and the `summary_*.csv` aggregates.
 
-## 3. The `traces2` study (details: report §2–7)
+## 3. The `traces2` study (details: week-14 report §1–4)
 
 * **Data.** Your 89 streams (123M R/W-marked references). Splits come
   from your `SPLITS.tsv`: held-out means unseen variants; test and
@@ -145,7 +151,7 @@ Report §12 lists every CSV in `report/results2/`.
   touched" page, so the models evicted the page being streamed. On
   PageRank, 97% of their victims had been loaded at the previous fault.
   Fixed by recency-stratified recording plus probation (new pages are
-  protected for *p* scans). Report §7.
+  protected for *p* scans). Tables `v1v2` and `protect` in `results2/tables.md`.
 * **Results** (simulated; selected kernel+refault model vs Clock; test /
   held-out):
 
@@ -211,7 +217,7 @@ These affect anything you run in xv6, the benchmarks included:
   unaffected. Any **non-FIFO benchmark numbers measured before this fix**
   are not comparable to new ones.
 
-## 5. In-kernel evaluation (details: report §8b)
+## 5. In-kernel evaluation (details: week-14 report §2.4, §4.5)
 
 **Setup.** All 33 test and held-out streams were run in xv6 at 10%
 memory, under 7 policies:
@@ -229,22 +235,21 @@ and is resumable.
 
 | Workload | Test | Held-out |
 |---|---|---|
-| btree | −18% | −15% |
-| graph | −39% | −46% |
-| kv | −13% | −13% |
-| sort | −4% | −7% |
-| matmul | — | −3% |
+| btree | −17.7% | −14.6% |
+| graph | −38.6% | −45.9% |
+| kv | −12.9% | −12.5% |
+| sort | −4.0% | −6.7% |
+| matmul | — | −2.7% |
 
-* **Page writes**: graph −95% / −86%, matmul −96%.
-* **Global model**: it beats Clock except on matmul (+12% faults).
+* **Page writes**: graph −95.5% / −86.2%, matmul −96.5%.
+* **Global model**: it beats Clock except on matmul (+11.5% faults).
 * **The simulator predicts the kernel.** Median kernel/simulator ratio is
   0.94–1.07, with two exceptions:
   * **FIFO** is worse in the kernel. It probably evicts the hot code and
     stack pages that the traces don't contain; not verified.
   * **One PageRank stream sits on a capacity cliff.** The kernel gives it
     about 2 extra frames (`kernel_cliff.csv`).
-* **Cost.** ML takes about 400–450 timer ticks per eviction vs Clock's 35,
-  because it scores all ~106 pages. That's the main weakness.
+* **Cost.** ML takes about 4 timer ticks per page in memory, because every resident page is scored: 88 ticks (9 µs) on sort with ~10 pages up to ~1,000 ticks (100 µs) on btree with ~250 pages, i.e. 2.5–32× Clock and ~2× Aging. That's the main weakness.
 * **Lanes run QEMU disks with `cache=unsafe`.** This is host-side only:
   counters are identical and runs are about 1.5× faster. The real
   `Makefile` is untouched.
@@ -292,13 +297,19 @@ python3 sweep_linear.py --fracs 0.1                  # all 300 feature sets (~75
 python3 export_kernel.py                             # kernel/mlweights.h, user/mlmodels.h
 python3 kernel_eval.py --lanes 6 --fracs 0.1         # in-kernel runs (resumable; 5.5 h lane time)
 python3 kernel_vs_sim.py                             # same runs in the simulator + cliff check
-python3 analyze.py && python3 tables.py && python3 figures.py && python3 fill_report.py
-python3 md2tex.py --pdf                              # report/ML_REPORT.tex and .pdf
-cd ../../report/slides && pdflatex ml_results.tex && pdflatex ml_results.tex
+python3 analyze.py && python3 tables.py && python3 figures.py   # summaries, tables.md, slide tables
+python3 report_figs.py && python3 report_tables.py   # final report: figures, tables, quoted numbers
+cd ../../report/week_14_update && pdflatex week_14_update_report.tex && pdflatex week_14_update_report.tex
+cp week_14_update_report.pdf ../week_14_update_report.pdf
+cd ../slides && pdflatex ml_results.tex && pdflatex ml_results.tex
 ```
 
-**Never hand-edit numbers in the report.** `analyze.py` → `tables.py` →
-`fill_report.py` regenerate every table at its `<!-- T:name -->` marker.
+**Numbers are never typed by hand.** `analyze.py` → `tables.py` regenerate
+`results2/tables.md` and the slide tables. For the final report,
+`report_figs.py` makes the figures and `report_tables.py` makes every results
+table plus `tables/numbers.tex`, which holds every number the text quotes
+(used as `\val{key}`). Percentages and times carry one decimal, computed from
+the 4-decimal summaries.
 
 ## 8. What is still open (suggested next steps)
 
@@ -317,9 +328,23 @@ cd ../../report/slides && pdflatex ml_results.tex && pdflatex ml_results.tex
 5. **Explain the two kernel/simulator gaps**:
    * FIFO: count per-VPN faults for non-arena pages.
    * The global model on the PageRank cliff stream.
-6. **Linux port**: a plan only, in report §9.1. It maps `idle`, `sfreq`,
-   `dirty`, `refaults` and `rdist` to MGLRU, DAMON and `mm/workingset.c`
-   signals.
+6. **Linux port** (a plan only; nothing was run):
+   * **Features from state Linux already keeps.** `idle` → the folio's MGLRU
+     generation relative to the youngest (generations age by page-table
+     walks, as xv6's scans do); `sfreq` → MGLRU's per-folio reference tier;
+     `dirty` → `PG_dirty`; `refaults`, `rdist` → the eviction timestamp that
+     `mm/workingset.c` stores in a shadow entry and the refault distance it
+     computes on refault. All are integers already.
+   * **Where to score.** MGLRU evicts folios in batches from the oldest
+     generation; the learned score would rank the folios of a batch with the
+     same integer dot product and probation rule, falling back to the stock
+     order when no weights are loaded.
+   * **Training data.** A reference string per workload (PEBS/IBS sampling
+     or binary instrumentation), replayed in the same simulator with
+     Linux-faithful aging.
+   * **Evaluation.** Against stock MGLRU and the classic active/inactive LRU
+     under the same memory-cgroup limits: refaults, writeback, and reclaim
+     CPU time.
 7. **Not covered**:
    * lzw (its trace exceeds xv6's maximum file size);
    * kvbench's TTL mode;

@@ -30,7 +30,7 @@ TRAIN_FRACS = ("0.05", "0.1", "0.2")
 MAX_CAND = 32
 N_RECENT = 4   # of the MAX_CAND slots, always the most recently accessed
                # candidates: a uniform sample almost never contains the page
-               # being streamed through (v1 data did not; see ML_REPORT §7)
+               # being streamed through (v1 data did not; see results2/tables.md, v1v2)
 ROWS = {"train": 40_000, "val": 20_000}
 BEHAVIOR = "lru"
 

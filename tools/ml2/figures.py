@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Figures for report/ML_REPORT.md and the slides, from the summaries that
+"""Figures for the slides, from the summaries that
 analyze.py writes. Output: report/figures2/*.png (and .pdf for LaTeX)."""
 import csv
 from collections import defaultdict

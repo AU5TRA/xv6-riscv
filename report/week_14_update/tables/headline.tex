@@ -1,0 +1,13 @@
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{per-workload model}} & \multicolumn{2}{c}{\textbf{one global model}} & \textbf{optimum} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+\textbf{Workload} & test & held-out & test & held-out & Belady (test) \\
+\midrule
+btree & \best{0.833} & \best{0.863} & 0.864 & 0.898 & 0.550 \\
+graph & \best{0.845} & \best{0.798} & 0.874 & 0.792 & 0.456 \\
+kv & \best{0.905} & \best{0.905} & 0.908 & 0.901 & 0.571 \\
+matmul & -- & \best{0.681} & -- & 0.967 & 0.617$^\dagger$ \\
+sort & \best{0.983} & \best{0.933} & 1.005 & 0.966 & 0.830 \\
+\bottomrule
+\end{tabular}

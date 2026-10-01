@@ -1,0 +1,22 @@
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+\textbf{Workload} & \textbf{Variant} & \textbf{Traces} & \textbf{Accesses (mean)} & \textbf{Pages} & \textbf{Split} \\
+\midrule
+btree & insert, lookup, mixed, mixed+WAL & 5 each & 210K--328K & 1.8K--4.1K & train/val/test \\
+ & scan & 5 & 413K & 2.2K & held-out \\
+\midrule
+graph & BFS+PageRank 1000$\times$3 & 3 & 6.2M & 999 & train/val/test \\
+ & BFS+PageRank 2000$\times$1 & 5 & 6.3M & 2.0K & train/val/test \\
+ & PageRank 2000$\times$2 & 3 & 6.1M & 1.7K & train/val/test \\
+ & BFS 2000 & 3 & 3.2M & 1.7K & held-out \\
+\midrule
+kv & A, A+rehash, A+value sizes, B, C, D & 5 each & 100K--479K & 527--749 & train/val/test \\
+ & F & 5 & 321K & 528 & held-out \\
+\midrule
+matmul & naive / blocked, n = 64, 96 & 1 each & 528K--2.0M & 12--27 & train \\
+ & naive / blocked, n = 128 & 1 each & 4.2M--4.7M & 48 & held-out \\
+\midrule
+sort & n = 20,000, 40,000 & 3 each & 867K--1.9M & 40--79 & train/val/test \\
+ & n = 60,000 & 3 & 2.8M & 118 & held-out \\
+\bottomrule
+\end{tabular}

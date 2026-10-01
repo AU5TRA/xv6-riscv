@@ -1,0 +1,12 @@
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Model} & \textbf{Features (probation in scans)} \\
+\midrule
+btree & aging + idle + age + dirty + refaults (0) \\
+graph & sfreq + idle + dirty + rdist (4) \\
+kv & aging + idle + dirty + refaults + rdist (2) \\
+matmul & aging + idle + dirty + refaults + rdist (0) \\
+sort & ref + dirty + refaults + rdist (4) \\
+global & idle + dirty + refaults + rdist (4) \\
+\bottomrule
+\end{tabular}
