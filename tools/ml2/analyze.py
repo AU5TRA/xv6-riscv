@@ -279,6 +279,25 @@ def main():
                                             "min", "max"],
               [[k[0], k[1], len(v), f4(float(np.median(v))), f4(min(v)), f4(max(v))]
                for k, v in sorted(agg_.items())])
+        # the simulator's prediction for the same runs, both relative to Clock
+        by = defaultdict(dict)
+        for r in kvs:
+            m, wl = r["model"], r["workload"]
+            label = r["policy"] if not m else "ml/" + (
+                "global" if m == "global" else "workload-k" if m == wl + "-k" else "workload")
+            by[(r["stem"], r["split"], wl)][label] = (int(r["kernel_faults"]), int(r["sim_faults"]))
+        pred = defaultdict(list)
+        for (stem, split, wl), d in by.items():
+            if "clock" not in d:
+                continue
+            ck, cs = d["clock"]
+            for label, (k, s_) in d.items():
+                pred[(label, wl, split)].append((k / ck, s_ / cs))
+        write("summary_kernel_pred.csv", ["policy", "workload", "split", "streams",
+                                          "kernel_vs_clock", "sim_vs_clock"],
+              [[k[0], k[1], k[2], len(v)] + [f4(float(np.exp(np.log(np.array(v)[:, i]).mean())))
+                                             for i in (0, 1)]
+               for k, v in sorted(pred.items())])
     print("summaries written")
 
 

@@ -1,0 +1,15 @@
+\begin{tabular}{lrrrr}
+\toprule
+workload & split & FIFO & ML global & ML per-workload \\
+\midrule
+btree & test & 1.143 $\to$ 1.121 & 0.843 $\to$ 0.841 & 0.823 $\to$ 0.804 \\
+btree & heldout & 1.087 $\to$ 1.068 & 0.893 $\to$ 0.893 & 0.854 $\to$ 0.853 \\
+graph & test & 2.096 $\to$ 1.632 & 0.989 $\to$ 0.659 & 0.614 $\to$ 0.625 \\
+graph & heldout & 1.289 $\to$ 1.262 & 0.535 $\to$ 0.515 & 0.541 $\to$ 0.561 \\
+kv & test & 1.284 $\to$ 1.159 & 0.875 $\to$ 0.891 & 0.871 $\to$ 0.889 \\
+kv & heldout & 1.312 $\to$ 1.174 & 0.878 $\to$ 0.901 & 0.875 $\to$ 0.905 \\
+matmul & heldout & 1.820 $\to$ 1.338 & 1.115 $\to$ 1.338 & 0.973 $\to$ 0.913 \\
+sort & test & 1.331 $\to$ 0.976 & 0.980 $\to$ 0.967 & 0.960 $\to$ 0.950 \\
+sort & heldout & 1.190 $\to$ 1.000 & 0.977 $\to$ 0.986 & 0.933 $\to$ 0.951 \\
+\bottomrule
+\end{tabular}

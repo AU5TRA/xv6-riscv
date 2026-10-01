@@ -10,7 +10,7 @@ The kernel's resident limit also holds the process's code and stack pages
 (3-9 frames, not in the trace), so small differences are expected; what
 matters is whether the two agree on how policies compare.
 
-    python3 kernel_vs_sim.py   -> report/results2/kernel_vs_sim.csv
+    python3 kernel_vs_sim.py   -> report/results2/kernel_vs_sim.csv, kernel_cliff.csv
 """
 import csv
 from multiprocessing import Pool
@@ -36,28 +36,42 @@ def final_models():
 FM = final_models()
 
 
+def simulate(s, frames, r):
+    if r["policy"] == "ml":
+        spec = FM[r["model"]]
+        sm = ps.ScoredModel("mlp", features=spec["features"], mean=spec["mean"],
+                            std=spec["std"],
+                            layers=[(np.asarray(L["W"], np.float32),
+                                     np.asarray(L["b"], np.float32))
+                                    for L in spec["layers"]],
+                            quant_w=8, protect_age=spec.get("protect_age", 0))
+        return ps.run(s, frames, "learned", sm)
+    return ps.run(s, frames, SIMPOL[r["policy"]])
+
+
 def job(args):
     stem, rows = args
     s = ps.load_stream(stem)
     out = []
     for r in rows:
         frames = int(r["frames"])
-        if r["policy"] == "ml":
-            spec = FM[r["model"]]
-            sm = ps.ScoredModel("mlp", features=spec["features"], mean=spec["mean"],
-                                std=spec["std"],
-                                layers=[(np.asarray(L["W"], np.float32),
-                                         np.asarray(L["b"], np.float32))
-                                        for L in spec["layers"]],
-                                quant_w=8, protect_age=spec.get("protect_age", 0))
-            sim = ps.run(s, frames, "learned", sm)
-        else:
-            sim = ps.run(s, frames, SIMPOL[r["policy"]])
+        sim = simulate(s, frames, r)
         kern = int(r["swap_faults"]) + int(r["zero_faults"])
         out.append([stem, r["split"], r["workload"], r["fraction"], frames, r["policy"],
                     r["model"], kern, sim["faults"], f"{kern / sim['faults']:.4f}",
                     r["page_writes"], sim["writebacks"]])
     return out
+
+
+CLIFF = range(5)    # extra frames tried for the stream the kernel disagrees on most
+
+
+def cliff(args):
+    stem, rows = args
+    s = ps.load_stream(stem)
+    return [[stem, r["policy"], r["model"], r["frames"],
+             int(r["swap_faults"]) + int(r["zero_faults"])]
+            + [simulate(s, int(r["frames"]) + d, r)["faults"] for d in CLIFF] for r in rows]
 
 
 def main():
@@ -73,6 +87,17 @@ def main():
         for out in pool.imap_unordered(job, by.items()):
             w.writerows(out)
     print("written", R / "kernel_vs_sim.csv")
+    # The stream the kernel disagrees on most: is it sitting on a capacity cliff,
+    # where the frame or two of difference in the kernel's limit dominates?
+    res = list(csv.DictReader(open(R / "kernel_vs_sim.csv")))
+    worst = min(res, key=lambda r: float(r["kernel_over_sim"]))["stem"]
+    with Pool(6) as pool, open(R / "kernel_cliff.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["stem", "policy", "model", "frames", "kernel_faults"]
+                    + [f"sim_plus{d}" for d in CLIFF])
+        for out in pool.imap_unordered(cliff, [(worst, [r]) for r in by[worst]]):
+            w.writerows(out)
+    print("written", R / "kernel_cliff.csv", "for", worst)
 
 
 if __name__ == "__main__":

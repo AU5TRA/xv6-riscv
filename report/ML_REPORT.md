@@ -48,10 +48,19 @@ validation only.
    models to evict the page being streamed through — diagnosed from the
    policies' own decisions and fixed by recency-stratified recording and a
    probation for new pages, both chosen on validation (§7).
-6. **Limitations.** Graph's gain is concentrated at 10% of its pages (§6.5);
-   one global model keeps most of the gain on btree/graph/kv but little on
-   matmul; all results are simulations validated against the kernel, not yet
-   in-kernel runs (§10).
+6. **It works inside xv6.** The model runs as `VM_POLICY_ML` in the
+   kernel (integer-only, weights per process via `vmctl`). It passes the
+   data-invariance suite, and in 231 in-kernel runs at 10% memory it beats
+   Clock on every workload, on unseen seeds and on unseen variants: btree
+   −18% / −15% faults (test / held-out), graph −39% / −46%, kv −13% / −13%,
+   sort −4% / −7%, matmul −3% (held-out). Page writes drop by up to 96%. The
+   simulator predicted these runs closely, except one PageRank stream that
+   sits on a capacity cliff. The price is victim selection, at 11–13× Clock's
+   cost per eviction (§8b).
+7. **Limitations.** Graph's gain in the simulator is concentrated at 10% of
+   its pages (§6.5), and the in-kernel runs cover only 10%. One global model
+   keeps most of the gain on btree/graph/kv but loses to Clock on matmul,
+   in the kernel too. Selection scans the whole resident set (§10).
 
 **Corrections to the earlier report.** Its graphbench and lzwbench results
 were measured on broken traces (§2.4); its "stack distance" was not stack
@@ -1200,7 +1209,237 @@ under FIFO, the policy every trace was collected with, and restores the
 process's own policy afterwards; every policy then settles at the same
 resident set.
 
-<!-- KERNEL_RESULTS -->
+### 8b.1 Results in xv6
+
+**Setup.** Every test and held-out stream was run in xv6 itself (QEMU,
+one hart) at the 10% capacity: the stream's own workload command, with
+tracing off and the memory margin set to the same frame count the simulator
+used, launched as `vmrun <policy> [model] <command>`. There are seven policies
+per stream: FIFO, Clock, Aging, decayed LFU, and `VM_POLICY_ML` with three
+weight sets: the global kernel+refault model (the kernel default), the
+workload's own kernel+refault model, and its kernel-only (K) model. That is
+33 streams × 7 = 231 runs, all completed
+(`tools/ml2/kernel_eval.py` → `report/results2/kernel_eval.csv`). The
+numbers are the kernel's own counters for the workload phase. Runs went in
+six parallel lanes, each with a private copy of the tree and disk image; the
+lanes' QEMU disks use `cache=unsafe`. That setting is host-side only: xv6
+does not negotiate virtio's flush feature, so by default QEMU fsyncs every
+guest write on the host. Skipping those syncs changes no guest-visible
+behaviour, and a repeated run gave identical counters.
+
+<!-- T:kernel_test -->
+**In xv6 itself: faults relative to Clock, test streams, 10% (kernel counters; geo-mean over streams)**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+| btree | 1.143 | 1.116 | 1.127 | 0.843 | 0.823 | 0.824 |
+| graph | 2.096 | 1.585 | 2.027 | 0.989 | 0.614 | 0.630 |
+| kv | 1.284 | 1.107 | 1.175 | 0.875 | 0.871 | 0.908 |
+| sort | 1.331 | 0.988 | 0.991 | 0.980 | 0.960 | 0.988 |
+
+*Every policy runs the same workload command with the same resident limit; faults = zero-fill + swap faults.*
+<!-- /T:kernel_test -->
+
+<!-- T:kernel_heldout -->
+**In xv6 itself: faults relative to Clock, heldout streams, 10% (kernel counters; geo-mean over streams)**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+| btree | 1.087 | 1.063 | 1.073 | 0.893 | 0.854 | 0.893 |
+| graph | 1.289 | 1.264 | 1.274 | 0.535 | 0.541 | 0.550 |
+| kv | 1.312 | 1.133 | 1.187 | 0.878 | 0.875 | 0.924 |
+| matmul | 1.820 | 0.999 | 0.999 | 1.115 | 0.973 | 0.999 |
+| sort | 1.190 | 0.998 | 1.006 | 0.977 | 0.933 | 0.998 |
+
+*Every policy runs the same workload command with the same resident limit; faults = zero-fill + swap faults.*
+<!-- /T:kernel_heldout -->
+
+**The learned policy beats Clock inside the kernel on every workload, on
+unseen seeds and unseen variants**, with the per-workload kernel+refault
+weights:
+
+* btree: −18% test, −15% held-out
+* graph: −39% / −46%
+* kv: −13% / −13%
+* sort: −4% / −7%
+* matmul: −3% held-out
+
+The single global model, which is the kernel default and gets no
+per-program information, beats Clock on btree, graph and kv in both splits
+and on sort. It loses on matmul (+12%), as the simulator predicted (§6.5).
+Every classical alternative to Clock is worse than or equal to Clock almost
+everywhere.
+
+<!-- T:kernel_writes_test -->
+**In xv6 itself: page writes relative to Clock, test streams, 10%**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+| btree | 1.058 | 1.026 | 1.028 | 0.952 | 1.022 | 1.043 |
+| graph | 2.533 | 1.750 | 2.301 | 0.515 | 0.045 | 0.045 |
+| kv | 1.992 | 1.462 | 1.645 | 0.737 | 0.682 | 0.715 |
+| sort | 1.148 | 0.982 | 0.987 | 0.965 | 0.944 | 0.982 |
+<!-- /T:kernel_writes_test -->
+
+<!-- T:kernel_writes_heldout -->
+**In xv6 itself: page writes relative to Clock, heldout streams, 10%**
+
+| workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
+|---|---|---|---|---|---|---|
+| btree | 1.069 | 1.018 | 1.019 | 0.984 | 0.966 | 0.981 |
+| graph | 1.375 | 1.323 | 1.332 | 0.395 | 0.138 | 0.130 |
+| kv | 1.221 | 1.133 | 1.171 | 0.878 | 0.875 | 0.924 |
+| matmul | 13.002 | 0.987 | 0.987 | 3.889 | 0.035 | 0.987 |
+| sort | 1.097 | 0.995 | 1.010 | 0.971 | 0.925 | 0.995 |
+<!-- /T:kernel_writes_heldout -->
+
+**Disk writes fall more than faults** where the dirty bit matters:
+
+* graph: 95% fewer page writes than Clock on test, 86% fewer held-out
+* matmul: 96% fewer
+* kv: 32% fewer on test
+
+The global model's matmul loss is also a write loss: 3.9× Clock's writes.
+
+**Does the simulator predict the kernel?** For each run, the same stream
+was replayed in the simulator at the same frame count with the same policy
+(for ML, the same integer weights and probation; `kernel/mlfeat.h` is
+shared). The comparison is in `tools/ml2/kernel_vs_sim.py`.
+
+<!-- T:kernel_pred -->
+**Kernel measurement vs simulator prediction for the same runs: faults / Clock, 10% (kernel → simulated)**
+
+| workload | split | FIFO | ML global | ML per-workload |
+|---|---|---|---|---|
+| btree | test | 1.143 → 1.121 | 0.843 → 0.841 | 0.823 → 0.804 |
+| btree | heldout | 1.087 → 1.068 | 0.893 → 0.893 | 0.854 → 0.853 |
+| graph | test | 2.096 → 1.632 | 0.989 → 0.659 | 0.614 → 0.625 |
+| graph | heldout | 1.289 → 1.262 | 0.535 → 0.515 | 0.541 → 0.561 |
+| kv | test | 1.284 → 1.159 | 0.875 → 0.891 | 0.871 → 0.889 |
+| kv | heldout | 1.312 → 1.174 | 0.878 → 0.901 | 0.875 → 0.905 |
+| matmul | heldout | 1.820 → 1.338 | 1.115 → 1.338 | 0.973 → 0.913 |
+| sort | test | 1.331 → 0.976 | 0.980 → 0.967 | 0.960 → 0.950 |
+| sort | heldout | 1.190 → 1.000 | 0.977 → 0.986 | 0.933 → 0.951 |
+<!-- /T:kernel_pred -->
+
+<!-- T:kernel_vs_sim -->
+**Kernel vs simulator: kernel faults / simulated faults for the same stream, frames and policy (median over runs)**
+
+| policy | workload | runs | median | min | max |
+|---|---|---|---|---|---|
+| aging | btree | 9 | 1.0000 | 1.0000 | 1.0000 |
+| aging | graph | 6 | 0.9871 | 0.4531 | 0.9889 |
+| aging | kv | 11 | 1.0226 | 1.0098 | 1.0601 |
+| aging | matmul | 2 | 1.0002 | 1.0000 | 1.0005 |
+| aging | sort | 5 | 1.0074 | 1.0074 | 1.0180 |
+| clock | btree | 9 | 0.9996 | 0.9964 | 1.0004 |
+| clock | graph | 6 | 0.9777 | 0.4257 | 0.9799 |
+| clock | kv | 11 | 1.0235 | 1.0085 | 1.0391 |
+| clock | matmul | 2 | 1.0000 | 1.0000 | 1.0000 |
+| clock | sort | 5 | 1.0090 | 0.9520 | 1.0142 |
+| fifo | btree | 9 | 1.0183 | 1.0097 | 1.0225 |
+| fifo | graph | 6 | 0.9982 | 0.8544 | 0.9995 |
+| fifo | kv | 11 | 1.1440 | 1.0996 | 1.1490 |
+| fifo | matmul | 2 | 1.3607 | 1.3324 | 1.3889 |
+| fifo | sort | 5 | 1.2006 | 1.2006 | 1.4114 |
+| lfu | btree | 9 | 1.0045 | 1.0023 | 1.0055 |
+| lfu | graph | 6 | 0.9871 | 0.8323 | 0.9885 |
+| lfu | kv | 11 | 1.0394 | 1.0280 | 1.0834 |
+| lfu | matmul | 2 | 1.0002 | 1.0000 | 1.0005 |
+| lfu | sort | 5 | 1.0153 | 1.0153 | 1.0181 |
+| ml/global | btree | 9 | 1.0001 | 0.9973 | 1.0026 |
+| ml/global | graph | 6 | 1.0299 | 1.0150 | 1.2339 |
+| ml/global | kv | 11 | 1.0009 | 0.9924 | 1.0209 |
+| ml/global | matmul | 2 | 0.8335 | 0.8146 | 0.8524 |
+| ml/global | sort | 5 | 1.0000 | 0.9904 | 1.0024 |
+| ml/workload | btree | 9 | 1.0006 | 1.0000 | 1.0441 |
+| ml/workload | graph | 6 | 0.9442 | 0.3805 | 0.9987 |
+| ml/workload | kv | 11 | 0.9938 | 0.9851 | 1.0187 |
+| ml/workload | matmul | 2 | 1.0659 | 1.0650 | 1.0668 |
+| ml/workload | sort | 5 | 0.9886 | 0.9883 | 0.9984 |
+| ml/workload-k | btree | 9 | 1.0019 | 1.0012 | 1.0472 |
+| ml/workload-k | graph | 6 | 0.9449 | 0.3670 | 0.9985 |
+| ml/workload-k | kv | 11 | 1.0218 | 1.0076 | 1.0288 |
+| ml/workload-k | matmul | 2 | 1.0002 | 1.0000 | 1.0005 |
+| ml/workload-k | sort | 5 | 1.0074 | 1.0074 | 1.0180 |
+<!-- /T:kernel_vs_sim -->
+
+For Clock, Aging, LFU and all three ML weight sets, the median
+kernel/simulator ratio is between 0.94 and 1.07 on every workload, except
+the global model on matmul (0.83). The comparisons against Clock agree to a
+few hundredths in most cells. There are two systematic exceptions.
+
+* **FIFO is 10–41% worse in the kernel** on kv, sort and matmul (medians
+  1.14–1.36). On kv this is not a capacity offset: three fewer frames raise
+  the simulator's FIFO count by only 2%. The likely cause is that the kernel's resident
+  limit also holds the program's code and stack pages, which the traces do
+  not contain. Every other policy keeps those pages resident through their
+  constantly set accessed bits, but FIFO evicts them in turn. This is a
+  hypothesis; per-page fault counts were not recorded. It does not change
+  any conclusion, because FIFO only looks worse.
+* **One graph stream, `graph-pr2000x2-s3` (PageRank), sits on a capacity
+  cliff.**
+
+<!-- T:kernel_cliff -->
+**The outlier stream graph-pr2000x2-s3: kernel faults at 167 frames vs the simulator at that many frames and a few more**
+
+| policy | kernel | sim +0 | sim +1 | sim +2 | sim +3 | sim +4 |
+|---|---|---|---|---|---|---|
+| Clock | 23390 | 54948 | 39982 | 23609 | 12041 | 6758 |
+| FIFO | 86130 | 100806 | 92613 | 85126 | 78665 | 72553 |
+| Aging | 41625 | 91873 | 73061 | 42768 | 13805 | 4742 |
+| LFU (decayed) | 84009 | 100942 | 92095 | 84006 | 76674 | 69405 |
+| ML global | 65576 | 53145 | 36474 | 20121 | 9525 | 6577 |
+| ML per-workload | 18309 | 48118 | 32800 | 16382 | 7436 | 5327 |
+| ML per-workload, K only | 19842 | 54067 | 36946 | 17081 | 7351 | 5245 |
+
+*The simulator at +2 frames reproduces every classical policy's kernel count within 3%: the stream sits on a capacity cliff.*
+<!-- /T:kernel_cliff -->
+
+  In the simulator, adding 2 frames to this stream cuts Clock's faults from
+  54,948 to 23,609. At +2 frames, the simulator reproduces all four
+  classical policies' kernel counts within 3%. The kernel therefore gives
+  this workload about two more usable frames than its nominal limit
+  (plausibly arena pages already resident when `vmbench` measured the
+  baseline). Elsewhere this offset is invisible; here it dominates. At the
+  matching +2 frames, the per-workload models do 12–16% worse in the kernel
+  than in the simulator, but still beat Clock (18,309 vs 23,390 faults). The
+  global model does not: 65,576 in the kernel against 20,121 in the
+  simulator, worse even than the simulator gives it at the nominal 167
+  frames (53,145). The cause is not established. On every other stream the
+  global model's kernel/simulator ratio is between 0.99 and 1.05 (matmul:
+  0.81–0.85, better in the kernel), so the
+  likeliest explanation is a small difference in its state, amplified by
+  the cliff. This one stream is why graph's test row differs:
+  without it, the per-workload model is at 0.544 of Clock in the kernel vs
+  0.528 in the simulator, and the global model at 0.588 vs 0.544.
+
+**The price is selection time.**
+
+<!-- T:kernel_cost -->
+**Victim-selection cost in xv6: timer ticks (10 MHz, emulated) and candidates per eviction, mean over all runs**
+
+| policy | ticks / eviction | candidates / eviction |
+|---|---|---|
+| Clock | 35.3 | 106.0 |
+| FIFO | 12.6 | 106.0 |
+| Aging | 199.6 | 106.0 |
+| LFU (decayed) | 199.4 | 106.0 |
+| ML global | 411.0 | 106.0 |
+| ML per-workload | 451.7 | 106.0 |
+| ML per-workload, K only | 400.6 | 106.0 |
+<!-- /T:kernel_cost -->
+
+Choosing a victim with the learned score costs about 400–450 timer ticks
+per eviction (10 MHz emulated timer, so roughly 40–45 µs of emulated time),
+11–13× Clock and about 2× Aging. Like Aging and LFU, it visits every one of the ~106
+eligible resident pages on each eviction, and it adds one to five
+multiply-adds per page (the selected models use 1–5 features). (The candidates column is the eligible list's size;
+Clock stops early and examines fewer.) In xv6 this is still small next to
+the fault it avoids: one fault means a disk read, and often a write. A
+production kernel would score a sample or a batch, as Linux's MGLRU already
+does for its generations, rather than the whole resident set on every
+eviction (§9.1).
 
 ## 9. Relation to Linux
 
@@ -1221,24 +1460,57 @@ oracle tier — is what makes a Linux version plausible: the signals the learned
 policy needs are ones Linux already maintains, and the score is a short
 integer dot product per candidate.
 
+### 9.1 A concrete path to Linux (plan, not done)
+
+The xv6 implementation fixes what a Linux version needs; nothing below was
+run.
+
+1. **Features from existing state, not new tracking.** Map each kernel
+   feature to what Linux already keeps per folio or per eviction:
+   `idle` → the folio's MGLRU generation relative to the lruvec's youngest
+   (`lru_gen` fields; generations age by page-table walks, as xv6's scans do);
+   `sfreq` → MGLRU's per-folio reference tier / refs counter; `dirty` →
+   `PG_dirty`; `refaults`, `rdist` → the eviction timestamp that
+   `mm/workingset.c` stores in a shadow entry and the refault distance it
+   already computes on refault. All are integers already.
+2. **Scoring site.** MGLRU evicts folios in batches from the oldest
+   generation; a learned score would rank the folios of a batch (the analogue
+   of xv6's candidate scan) with the same integer dot product and probation
+   rule, falling back to the stock order when weights are absent.
+3. **Training data.** The xv6 pipeline traces every access through workload
+   instrumentation. On Linux the equivalent for evaluation is a reference
+   string per workload (PEBS/IBS sampling or binary instrumentation), replayed
+   in the same simulator with Linux-faithful aging; the features above are
+   computable in that replay exactly as here.
+4. **Evaluation.** Compare against stock MGLRU and the classic active/inactive
+   LRU on the same memory-cgroup limits, reporting refaults, writeback and
+   reclaim CPU time — the same three axes as §8b.
+
+The xv6 result that makes this worth trying is §6.4–6.5: the features that
+carried the gain are the ones Linux already maintains.
+
 ## 10. Limitations and next steps
 
-* **Simulation, not the kernel.** Every number here is a replay in a
-  simulator validated against the kernel's own policies and counters, from
-  empty memory, over the traced arena only (code and stack pages are not in
-  the streams; the kernel holds 3–9 of them). The next step is to implement
-  the selected kernel+refault model as `VM_POLICY_ML` in `kernel/vmpage.c`
-  with the integer path of §8, pass the regression suite with it, and measure
-  faults, page writes and eviction latency in xv6 itself at the same memory
-  limits.
+* **In-kernel runs at one capacity.** §6–7 are simulator replays over the
+  traced arena only; §8b measures the kernel itself, but only at 10% memory
+  and in QEMU (selection cost is in emulated timer ticks, not real
+  hardware). Running the kernel evaluation at 5% and 20%
+  (`kernel_eval.py --fracs 0.05,0.2`) is mechanical, but takes several
+  hours of host time.
+* **Selection cost.** `VM_POLICY_ML` scores every resident page on every
+  eviction, about 2× Aging and 11–13× Clock. Scoring a sample or a batch
+  of pages (as MGLRU ages generations) is the obvious fix, and it has not
+  been tried.
 * **One capacity grid.** Models were trained on 5/10/20% and evaluated there.
   On graph the gain is concentrated at 10% (§6.5).
 * **Workloads.** Five synthetic workloads with verified traces; lzw is absent
   (its trace exceeds xv6's maximum file size). The real Redis/SQLite traces in
   `traces/old/` were not part of this study.
-* **One global model is weaker than per-workload models** on matmul; a kernel
-  would need either a single robust model or a cheap way to pick weights per
-  program or phase.
+* **One global model is weaker than per-workload models** on matmul (and
+  on the PageRank cliff stream in the kernel). The kernel already supports
+  per-program weights (`vmrun ml <model> …`, inherited across fork/exec).
+  What is missing is a way to pick the weights automatically, per program
+  or per phase.
 * **Selection matters.** Many feature subsets are worse than Clock, and some
   catastrophic; any deployment needs validation on held-out behaviour, as
   here.
@@ -1254,10 +1526,14 @@ All of it runs on the host from `tools/ml2/` with the venv in
     python3 sweep_linear.py --fracs 0.1                  # every feature combination
     ./train_all_nn.sh                                    # neural and ranking models (GPU)
     ./run_phase_b.sh                                     # selection, test, neural eval, extras
+    python3 export_kernel.py                             # kernel/mlweights.h, user/mlmodels.h
+    python3 kernel_eval.py --lanes 6 --fracs 0.1         # in-kernel runs (QEMU lanes, resumable)
+    python3 kernel_vs_sim.py                             # same runs in the simulator
     python3 analyze.py && python3 tables.py && python3 figures.py && python3 fill_report.py
 
 On a Ryzen 5 5600 (6 threads to WSL) with an RTX 3060 Ti: datasets 3 min,
-sweep 75 min, neural training 25 min, phase B ~1.5 h.
+sweep 75 min, neural training 25 min, phase B ~1.5 h; the 231 in-kernel runs
+take 5.5 h of lane time, spread over six parallel lanes.
 
 ## 12. Files
 
@@ -1267,11 +1543,16 @@ sweep 75 min, neural training 25 min, phase B ~1.5 h.
   — training data and models.
 * `tools/ml2/classical.py`, `sweep_linear.py`, `final.py`, `eval_nn.py`,
   `extras.py`, `run_phase_b.sh` — experiments.
+* `tools/ml2/export_kernel.py`, `kernel_eval.py`, `kernel_vs_sim.py` — the
+  kernel headers, the in-kernel runs and their simulator replay (§8b).
+* `kernel/vmpage.c` (`choose_ml`), `kernel/mlfeat.h`, `kernel/mlweights.h`,
+  `user/vmrun.c`, `user/mlmodels.h` — `VM_POLICY_ML`.
 * `tools/ml2/analyze.py`, `tables.py`, `figures.py`, `fill_report.py` — every
   table and figure in this report, from the CSVs.
 * `report/results2/` — every raw result (`classical.csv`, `linear_sweep.csv`,
   `linear_sweep_v1.csv`, `final_val.csv`, `final_test.csv`, `nn_eval.csv`,
-  `extras.csv`, `extras_v1.csv`), the summaries, and `tables.md`.
+  `extras.csv`, `extras_v1.csv`, `kernel_eval.csv`, `kernel_vs_sim.csv`,
+  `kernel_cliff.csv`), the summaries, and `tables.md`.
 * `report/models2/` — every trained model: `linear_<scope>.json` (all 300
   feature sets per scope), `final_linear.json` (the selected models, with
   probation), `nn/` (84 neural and ranking models), `linear_dagger.json`,

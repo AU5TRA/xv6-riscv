@@ -30,6 +30,7 @@
 \newcommand{\good}[1]{\textcolor{good}{#1}}
 \newcommand{\warn}[1]{\textcolor{warn}{#1}}
 \newcommand{\tbl}[1]{{\scriptsize\input{tables/#1.tex}}}
+\newcommand{\wtbl}[1]{\resizebox{\textwidth}{!}{\scriptsize\input{tables/#1.tex}}}
 \graphicspath{{../figures2/}}
 
 \title{Learned Page Replacement for xv6}
@@ -386,6 +387,79 @@
   the states these policies meet.
 \end{frame}
 
+% ------------------------------------------------------------------ kernel
+\section{In xv6 itself}
+
+\begin{frame}{\texttt{VM\_POLICY\_ML}: the learned policy in the kernel}
+  \small
+  \begin{itemize}
+    \item \texttt{choose\_ml()} in \texttt{kernel/vmpage.c}: scan candidates (read/clear
+      \texttt{PTE\_A}), integer score $\sum_j q_j X_j$, evict the highest; probation for new pages.
+    \item Features from \texttt{kernel/mlfeat.h}, \textbf{shared with the simulator}: table
+      \texttt{log1p}, Q8, no floating point, no libgcc.
+    \item Refault bookkeeping per swap slot (Linux's shadow entry): eviction scan + refault count.
+    \item Weights \textbf{per process} (\texttt{vmctl(VM\_SET\_ML\_WEIGHTS)}, inherited on
+      fork/exec); \texttt{vmrun ml kv kvbench\ldots}
+    \item Passes \texttt{data-invariance} with all five policies (byte-identical data).
+    \item Fixed on the way: LFU livelock (decayed counter); benchmark burn phase gave
+      each policy a different memory size (now always FIFO).
+  \end{itemize}
+  \medskip\small
+  231 runs: 33 test/held-out streams $\times$ 7 policies, 10\% memory, kernel counters.
+\end{frame}
+
+\begin{frame}{In xv6: faults relative to Clock}
+  \centering
+  \textbf{\small Test (unseen seeds)}\\[2pt]\wtbl{kernel_test}
+
+  \medskip
+  \textbf{\small Held-out (unseen variants)}\\[2pt]\wtbl{kernel_heldout}
+
+  \medskip
+  \small Per-workload weights \good{beat Clock on every workload}: btree $-$18/$-$15\%,
+  graph $-$39/$-$46\%, kv $-$13\%, sort $-$4/$-$7\%, matmul $-$3\%. The global
+  model \warn{loses on matmul} (+12\%).
+\end{frame}
+
+\begin{frame}{In xv6: page writes relative to Clock}
+  \centering
+  \textbf{\small Test}\\[2pt]\wtbl{kernel_writes_test}
+
+  \medskip
+  \textbf{\small Held-out}\\[2pt]\wtbl{kernel_writes_heldout}
+
+  \medskip
+  \small Graph \good{95\% / 86\% fewer writes}, matmul 96\%, kv 32\% (test) ---
+  the dirty bit at work.
+\end{frame}
+
+\begin{frame}{Did the simulator predict the kernel?}
+  \centering\wtbl{kernel_pred}
+
+  \medskip
+  \small Kernel $\to$ simulator, faults/Clock for the same runs: \good{agreement to a
+  few hundredths} for the ML models. FIFO is worse in the kernel (it also evicts hot
+  code/stack pages the traces lack). Graph test differs because of one stream \ldots
+\end{frame}
+
+\begin{frame}{\ldots that sits on a capacity cliff}
+  \centering\wtbl{kernel_cliff}
+
+  \medskip
+  \small The kernel gives this PageRank stream $\approx$2 extra frames; at +2 the simulator
+  matches every classical policy within 3\%. Per-workload ML still beats Clock there;
+  the global model \warn{does not} (cause not established).
+\end{frame}
+
+\begin{frame}{The price: victim-selection time}
+  \centering\tbl{kernel_cost}
+
+  \medskip
+  \small ML visits every resident page on each eviction: \warn{11--13$\times$ Clock},
+  $\approx$2$\times$ Aging ($\approx$40\,\textmu s emulated). Small next to a disk read
+  in xv6; a real kernel would score a sample or batch (as MGLRU does).
+\end{frame}
+
 % ------------------------------------------------------------------ close
 \section{Conclusions}
 
@@ -422,6 +496,9 @@
     \item \textbf{Failure modes are real}: many feature sets are catastrophic, and the first
       training set taught models to evict the page being streamed. Validation-based
       selection and probation are part of the method, not details.
+    \item \textbf{It works in the kernel}: integer-only \texttt{VM\_POLICY\_ML} beats Clock
+      in xv6 on all five workloads (3--46\% fewer faults, up to 96\% fewer writes), as the
+      simulator predicted; selection costs 11--13$\times$ Clock.
     \item The earlier graph and lzw results were measured on broken traces and are withdrawn.
   \end{enumerate}
 \end{frame}
@@ -429,12 +506,11 @@
 \begin{frame}{Next steps}
   \small
   \begin{enumerate}
-    \item Implement the selected kernel+refault model as \texttt{VM\_POLICY\_ML} in
-      \texttt{kernel/vmpage.c} with the integer path; pass the regression suite; measure
-      faults, writes and eviction latency in xv6 itself.
-    \item Choose weights per program or phase (the global model keeps less of the gain on matmul).
+    \item Cheaper selection: score a sample/batch of candidates instead of all of them.
+    \item In-kernel runs at 5\% and 20\% memory (mechanical; hours of QEMU time).
+    \item Pick weights automatically per program or phase (the global model loses on matmul).
     \item Capacity-aware models for graph at 5\% and 20\%.
-    \item Port the feature set to Linux MGLRU/DAMON signals.
+    \item Port to Linux: the same features from MGLRU / DAMON / workingset (plan in the report, \S9.1).
   \end{enumerate}
 \end{frame}
 

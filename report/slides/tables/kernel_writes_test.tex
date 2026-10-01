@@ -2,5 +2,9 @@
 \toprule
 workload & FIFO & Aging & LFU (decayed) & ML global & ML per-workload & ML per-workload, K only \\
 \midrule
+btree & 1.058 & 1.026 & 1.028 & 0.952 & 1.022 & 1.043 \\
+graph & 2.533 & 1.750 & 2.301 & 0.515 & 0.045 & 0.045 \\
+kv & 1.992 & 1.462 & 1.645 & 0.737 & 0.682 & 0.715 \\
+sort & 1.148 & 0.982 & 0.987 & 0.965 & 0.944 & 0.982 \\
 \bottomrule
 \end{tabular}

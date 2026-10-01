@@ -344,6 +344,34 @@ def main():
             t.add([r["policy"], r["workload"], r["runs"], r["median_kernel_over_sim"],
                    r["min"], r["max"]])
         T["kernel_vs_sim"] = t
+    pred = {(r["policy"], r["workload"], r["split"]): r for r in read("summary_kernel_pred.csv")}
+    if pred:
+        cols = [("fifo", "FIFO"), ("ml/global", "ML global"), ("ml/workload", "ML per-workload")]
+        t = Table("Kernel measurement vs simulator prediction for the same runs: faults / Clock, "
+                  "10% (kernel → simulated)", ["workload", "split"] + [n for _, n in cols])
+        for wl in WL:
+            for split in SPLITS:
+                vals = [pred.get((p_, wl, split)) for p_, _ in cols]
+                if any(vals):
+                    t.add([wl, split] + [f"{fmt(float(v["kernel_vs_clock"]))} → "
+                                         f"{fmt(float(v['sim_vs_clock']))}" if v else "—"
+                                         for v in vals])
+        T["kernel_pred"] = t
+    cl = read("kernel_cliff.csv")
+    if cl:
+        t = Table(f"The outlier stream {cl[0]['stem']}: kernel faults at {cl[0]['frames']} frames "
+                  "vs the simulator at that many frames and a few more",
+                  ["policy", "kernel"] + [f"sim +{c[len('sim_plus'):]}"
+                                          for c in cl[0] if c.startswith("sim_plus")],
+                  "The simulator at +2 frames reproduces every classical policy's kernel count "
+                  "within 3%: the stream sits on a capacity cliff.")
+        names = {"fifo": "FIFO", "clock": "Clock", "aging": "Aging", "lfu": "LFU (decayed)"}
+        for r in cl:
+            name = names.get(r["policy"]) or ("ML global" if r["model"] == "global" else
+                                              "ML per-workload, K only" if r["model"].endswith("-k")
+                                              else "ML per-workload")
+            t.add([name, r["kernel_faults"]] + [r[c] for c in r if c.startswith("sim_plus")])
+        T["kernel_cliff"] = t
 
     # compact versions for the slides: the kernel+refault tier only
     for name in ("quant", "dagger"):

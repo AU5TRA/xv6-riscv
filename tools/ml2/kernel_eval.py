@@ -69,6 +69,15 @@ def make_lane(i):
     subprocess.run(["rsync", "-a", "--exclude", "traces", "--exclude", "traces2",
                     "--exclude", "report", "--exclude", ".git", "--exclude", "test-logs",
                     f"{ROOT}/", f"{lane}/"], check=True)
+    # Host-side only: xv6 does not negotiate virtio's flush feature, so QEMU
+    # makes every guest write durable (a host fsync per swap write), ~0.1 s
+    # each with several lanes on one virtual disk. cache=unsafe skips the host
+    # syncs; the guest sees the same device and data, so every counter is
+    # unchanged -- only wall time drops.
+    mk = lane / "Makefile"
+    text = mk.read_text()
+    assert "format=raw,id=x0\n" in text
+    mk.write_text(text.replace("format=raw,id=x0\n", "format=raw,id=x0,cache=unsafe\n"))
     return lane
 
 

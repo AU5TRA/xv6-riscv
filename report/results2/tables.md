@@ -496,6 +496,10 @@
 
 | workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
 |---|---|---|---|---|---|---|
+| btree | 1.143 | 1.116 | 1.127 | 0.843 | 0.823 | 0.824 |
+| graph | 2.096 | 1.585 | 2.027 | 0.989 | 0.614 | 0.630 |
+| kv | 1.284 | 1.107 | 1.175 | 0.875 | 0.871 | 0.908 |
+| sort | 1.331 | 0.988 | 0.991 | 0.980 | 0.960 | 0.988 |
 
 *Every policy runs the same workload command with the same resident limit; faults = zero-fill + swap faults.*
 
@@ -504,12 +508,21 @@
 
 | workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
 |---|---|---|---|---|---|---|
+| btree | 1.058 | 1.026 | 1.028 | 0.952 | 1.022 | 1.043 |
+| graph | 2.533 | 1.750 | 2.301 | 0.515 | 0.045 | 0.045 |
+| kv | 1.992 | 1.462 | 1.645 | 0.737 | 0.682 | 0.715 |
+| sort | 1.148 | 0.982 | 0.987 | 0.965 | 0.944 | 0.982 |
 
 <!-- kernel_heldout -->
 **In xv6 itself: faults relative to Clock, heldout streams, 10% (kernel counters; geo-mean over streams)**
 
 | workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
 |---|---|---|---|---|---|---|
+| btree | 1.087 | 1.063 | 1.073 | 0.893 | 0.854 | 0.893 |
+| graph | 1.289 | 1.264 | 1.274 | 0.535 | 0.541 | 0.550 |
+| kv | 1.312 | 1.133 | 1.187 | 0.878 | 0.875 | 0.924 |
+| matmul | 1.820 | 0.999 | 0.999 | 1.115 | 0.973 | 0.999 |
+| sort | 1.190 | 0.998 | 1.006 | 0.977 | 0.933 | 0.998 |
 
 *Every policy runs the same workload command with the same resident limit; faults = zero-fill + swap faults.*
 
@@ -518,12 +531,95 @@
 
 | workload | FIFO | Aging | LFU (decayed) | ML global | ML per-workload | ML per-workload, K only |
 |---|---|---|---|---|---|---|
+| btree | 1.069 | 1.018 | 1.019 | 0.984 | 0.966 | 0.981 |
+| graph | 1.375 | 1.323 | 1.332 | 0.395 | 0.138 | 0.130 |
+| kv | 1.221 | 1.133 | 1.171 | 0.878 | 0.875 | 0.924 |
+| matmul | 13.002 | 0.987 | 0.987 | 3.889 | 0.035 | 0.987 |
+| sort | 1.097 | 0.995 | 1.010 | 0.971 | 0.925 | 0.995 |
 
 <!-- kernel_cost -->
 **Victim-selection cost in xv6: timer ticks (10 MHz, emulated) and candidates per eviction, mean over all runs**
 
 | policy | ticks / eviction | candidates / eviction |
 |---|---|---|
+| Clock | 35.3 | 106.0 |
+| FIFO | 12.6 | 106.0 |
+| Aging | 199.6 | 106.0 |
+| LFU (decayed) | 199.4 | 106.0 |
+| ML global | 411.0 | 106.0 |
+| ML per-workload | 451.7 | 106.0 |
+| ML per-workload, K only | 400.6 | 106.0 |
+
+<!-- kernel_vs_sim -->
+**Kernel vs simulator: kernel faults / simulated faults for the same stream, frames and policy (median over runs)**
+
+| policy | workload | runs | median | min | max |
+|---|---|---|---|---|---|
+| aging | btree | 9 | 1.0000 | 1.0000 | 1.0000 |
+| aging | graph | 6 | 0.9871 | 0.4531 | 0.9889 |
+| aging | kv | 11 | 1.0226 | 1.0098 | 1.0601 |
+| aging | matmul | 2 | 1.0002 | 1.0000 | 1.0005 |
+| aging | sort | 5 | 1.0074 | 1.0074 | 1.0180 |
+| clock | btree | 9 | 0.9996 | 0.9964 | 1.0004 |
+| clock | graph | 6 | 0.9777 | 0.4257 | 0.9799 |
+| clock | kv | 11 | 1.0235 | 1.0085 | 1.0391 |
+| clock | matmul | 2 | 1.0000 | 1.0000 | 1.0000 |
+| clock | sort | 5 | 1.0090 | 0.9520 | 1.0142 |
+| fifo | btree | 9 | 1.0183 | 1.0097 | 1.0225 |
+| fifo | graph | 6 | 0.9982 | 0.8544 | 0.9995 |
+| fifo | kv | 11 | 1.1440 | 1.0996 | 1.1490 |
+| fifo | matmul | 2 | 1.3607 | 1.3324 | 1.3889 |
+| fifo | sort | 5 | 1.2006 | 1.2006 | 1.4114 |
+| lfu | btree | 9 | 1.0045 | 1.0023 | 1.0055 |
+| lfu | graph | 6 | 0.9871 | 0.8323 | 0.9885 |
+| lfu | kv | 11 | 1.0394 | 1.0280 | 1.0834 |
+| lfu | matmul | 2 | 1.0002 | 1.0000 | 1.0005 |
+| lfu | sort | 5 | 1.0153 | 1.0153 | 1.0181 |
+| ml/global | btree | 9 | 1.0001 | 0.9973 | 1.0026 |
+| ml/global | graph | 6 | 1.0299 | 1.0150 | 1.2339 |
+| ml/global | kv | 11 | 1.0009 | 0.9924 | 1.0209 |
+| ml/global | matmul | 2 | 0.8335 | 0.8146 | 0.8524 |
+| ml/global | sort | 5 | 1.0000 | 0.9904 | 1.0024 |
+| ml/workload | btree | 9 | 1.0006 | 1.0000 | 1.0441 |
+| ml/workload | graph | 6 | 0.9442 | 0.3805 | 0.9987 |
+| ml/workload | kv | 11 | 0.9938 | 0.9851 | 1.0187 |
+| ml/workload | matmul | 2 | 1.0659 | 1.0650 | 1.0668 |
+| ml/workload | sort | 5 | 0.9886 | 0.9883 | 0.9984 |
+| ml/workload-k | btree | 9 | 1.0019 | 1.0012 | 1.0472 |
+| ml/workload-k | graph | 6 | 0.9449 | 0.3670 | 0.9985 |
+| ml/workload-k | kv | 11 | 1.0218 | 1.0076 | 1.0288 |
+| ml/workload-k | matmul | 2 | 1.0002 | 1.0000 | 1.0005 |
+| ml/workload-k | sort | 5 | 1.0074 | 1.0074 | 1.0180 |
+
+<!-- kernel_pred -->
+**Kernel measurement vs simulator prediction for the same runs: faults / Clock, 10% (kernel → simulated)**
+
+| workload | split | FIFO | ML global | ML per-workload |
+|---|---|---|---|---|
+| btree | test | 1.143 → 1.121 | 0.843 → 0.841 | 0.823 → 0.804 |
+| btree | heldout | 1.087 → 1.068 | 0.893 → 0.893 | 0.854 → 0.853 |
+| graph | test | 2.096 → 1.632 | 0.989 → 0.659 | 0.614 → 0.625 |
+| graph | heldout | 1.289 → 1.262 | 0.535 → 0.515 | 0.541 → 0.561 |
+| kv | test | 1.284 → 1.159 | 0.875 → 0.891 | 0.871 → 0.889 |
+| kv | heldout | 1.312 → 1.174 | 0.878 → 0.901 | 0.875 → 0.905 |
+| matmul | heldout | 1.820 → 1.338 | 1.115 → 1.338 | 0.973 → 0.913 |
+| sort | test | 1.331 → 0.976 | 0.980 → 0.967 | 0.960 → 0.950 |
+| sort | heldout | 1.190 → 1.000 | 0.977 → 0.986 | 0.933 → 0.951 |
+
+<!-- kernel_cliff -->
+**The outlier stream graph-pr2000x2-s3: kernel faults at 167 frames vs the simulator at that many frames and a few more**
+
+| policy | kernel | sim +0 | sim +1 | sim +2 | sim +3 | sim +4 |
+|---|---|---|---|---|---|---|
+| Clock | 23390 | 54948 | 39982 | 23609 | 12041 | 6758 |
+| FIFO | 86130 | 100806 | 92613 | 85126 | 78665 | 72553 |
+| Aging | 41625 | 91873 | 73061 | 42768 | 13805 | 4742 |
+| LFU (decayed) | 84009 | 100942 | 92095 | 84006 | 76674 | 69405 |
+| ML global | 65576 | 53145 | 36474 | 20121 | 9525 | 6577 |
+| ML per-workload | 18309 | 48118 | 32800 | 16382 | 7436 | 5327 |
+| ML per-workload, K only | 19842 | 54067 | 36946 | 17081 | 7351 | 5245 |
+
+*The simulator at +2 frames reproduces every classical policy's kernel count within 3%: the stream sits on a capacity cliff.*
 
 <!-- quant_compact -->
 **Integer-only scoring of the selected kernel+refault model (per-workload) — faults / Clock**
