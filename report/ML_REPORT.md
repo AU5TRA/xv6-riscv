@@ -1530,6 +1530,7 @@ All of it runs on the host from `tools/ml2/` with the venv in
     python3 kernel_eval.py --lanes 6 --fracs 0.1         # in-kernel runs (QEMU lanes, resumable)
     python3 kernel_vs_sim.py                             # same runs in the simulator
     python3 analyze.py && python3 tables.py && python3 figures.py && python3 fill_report.py
+    python3 md2tex.py --pdf                              # report/ML_REPORT.tex and .pdf
 
 On a Ryzen 5 5600 (6 threads to WSL) with an RTX 3060 Ti: datasets 3 min,
 sweep 75 min, neural training 25 min, phase B ~1.5 h; the 231 in-kernel runs
@@ -1549,6 +1550,8 @@ take 5.5 h of lane time, spread over six parallel lanes.
   `user/vmrun.c`, `user/mlmodels.h` — `VM_POLICY_ML`.
 * `tools/ml2/analyze.py`, `tables.py`, `figures.py`, `fill_report.py` — every
   table and figure in this report, from the CSVs.
+* `tools/ml2/md2tex.py` — this report as LaTeX (`report/ML_REPORT.tex`,
+  `.pdf`), generated from the Markdown.
 * `report/results2/` — every raw result (`classical.csv`, `linear_sweep.csv`,
   `linear_sweep_v1.csv`, `final_val.csv`, `final_test.csv`, `nn_eval.csv`,
   `extras.csv`, `extras_v1.csv`, `kernel_eval.csv`, `kernel_vs_sim.csv`,
