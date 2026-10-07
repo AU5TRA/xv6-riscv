@@ -57,7 +57,8 @@ ONLY="${ONLY:-}"
 TOTAL=0
 for w in $WORKLOADS; do
   case "$w" in
-    kv|btree|matmul|sort|lzw|graph) TOTAL=$((TOTAL + 6)) ;;
+    kv|btree|matmul|sort|graph) TOTAL=$((TOTAL + 6)) ;;
+    lzw) TOTAL=$((TOTAL + 12)) ;;
     *) echo "collect_v2: unknown workload '$w' in WORKLOADS" >&2; exit 1 ;;
   esac
 done
@@ -326,12 +327,15 @@ want sort && for spec in "5 4" "10 8" "15 12" "20 16" "25 20" "30 24"; do
   run_one sortbench "$1%" "$2" "sort-p$1-c$2" sortbench 2000 "$2" 40000 1 9
 done
 
-# lzwbench: 158 pages (129 touched), 267,312 refs at repeat_count 2. The
-# capacities below were chosen for the old 50-page table and are not yet
-# rescaled to the new footprint.
-want lzw && for spec in "5 3" "10 5" "15 8" "20 10" "25 13" "30 15"; do
+# lzwbench (compress(1)'s encoder) at two repeat counts, 5-30% of the pages
+# each one touches: repeat_count 20 touches 329 pages (3,976,724 refs; the
+# dictionary fills and is frozen), 30 touches 444 (6,122,661 refs; one
+# CLEAR). The tight capacities fault 2.7-3.7M times under FIFO, so give
+# these runs TIMEOUT=14400.
+want lzw && for spec in "20 5 16" "20 10 33" "20 15 49" "20 20 66" "20 25 82" "20 30 99" \
+                        "30 5 22" "30 10 44" "30 15 67" "30 20 89" "30 25 111" "30 30 133"; do
   set -- $spec
-  run_one lzwbench "$1%" "$2" "lzw-p$1-c$2" lzwbench "$2" 2 9
+  run_one lzwbench "$2%" "$3" "lzw-r$1-p$2-c$3" lzwbench "$3" "$1" 9
 done
 
 # graphbench: all ~2000 arena pages, ~6.25M refs. p5 took 4200s when only
