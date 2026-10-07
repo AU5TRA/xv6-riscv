@@ -195,6 +195,28 @@ main(int argc, char *argv[])
   g_codetab = (ushort *)(arena + codetab_off);
   g_arena_base = arena;
 
+  // Touch the first page so the burn phase has something in the arena's
+  // own VPN range to observe. The corpus is loaded only after the burn and
+  // the limit: loaded before, its resident input pages (175-263 at repeat
+  // counts 20-30) were counted in the settled baseline, so the margin came
+  // on top of the whole input and a "5%" run had 194-288 frames.
+  *(volatile int *)arena = 0;
+  uint64 settled;
+  int proven = vmbench_burn(arena, footprint_pages, &settled);
+  if(proven < 0){
+    printf("lzwbench: vmbench_burn failed\n");
+    exit(1);
+  }
+  if(proven == 0)
+    printf("[warn] vmbench_burn: VM_DEBUG unavailable, best-effort burn "
+           "used -- baseline-priority guarantee is weaker here\n");
+  if(vmctl(VM_SET_LIMIT, (int)settled + resident_margin) < 0){
+    printf("lzwbench: vmctl VM_SET_LIMIT failed\n");
+    exit(1);
+  }
+
+  // Load the input under the limit. This is setup: whatever it pushes out
+  // goes to swap now, outside the measured window.
   long got = 0;
   while(got < corpus_size){
     int n = read(fd, (char *)input + got, (int)(corpus_size - got));
@@ -209,25 +231,6 @@ main(int argc, char *argv[])
   }
   for(int r = 1; r < repeat_count; r++)
     memmove(input + (long)r * corpus_size, input, corpus_size);
-
-  // Touch the first page so the burn phase has something in the arena's
-  // own VPN range to observe. A read, not the `= 0` store the other
-  // workloads use: here the arena already holds the corpus, and a store
-  // would overwrite input[0..3] with zeros and change what gets compressed.
-  (void)*(volatile uchar *)arena;
-  uint64 settled;
-  int proven = vmbench_burn(arena, footprint_pages, &settled);
-  if(proven < 0){
-    printf("lzwbench: vmbench_burn failed\n");
-    exit(1);
-  }
-  if(proven == 0)
-    printf("[warn] vmbench_burn: VM_DEBUG unavailable, best-effort burn "
-           "used -- baseline-priority guarantee is weaker here\n");
-  if(vmctl(VM_SET_LIMIT, (int)settled + resident_margin) < 0){
-    printf("lzwbench: vmctl VM_SET_LIMIT failed\n");
-    exit(1);
-  }
 
   // compress clears the table before it starts; that sweep is setup and
   // stays outside the measured window. Later CLEARs are traced.
