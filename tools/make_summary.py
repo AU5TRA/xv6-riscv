@@ -45,7 +45,9 @@ MODELS = {
 #
 # graphbench has traced all five arrays since graph_trace() was added, so its
 # entry applies only to captures made before that -- the ones in the legacy
-# "T <vpn>" format (see no_fit_reason).
+# "T <vpn>" format (see no_fit_reason). lzwbench has traced its input and
+# output since it became compress(1)'s encoder; those runs print
+# "RESULT hash_slots=", and the entry applies only to runs that do not.
 NO_FIT = {
     "graph": "only the edge array is traced; rank, next_rank, visited and "
              "queue are not",
@@ -110,12 +112,15 @@ def load_refs(path: Path) -> list:
         return [int(line[2:]) for line in fh if line[:2] in REF_PREFIXES]
 
 
-def no_fit_reason(fam: str, trace: Path):
+def no_fit_reason(fam: str, trace: Path, log: Path):
     """Why a workload's trace cannot be fitted, or None if it can."""
     if fam == "graph":
         with trace.open("rb") as fh:
             legacy = fh.read(2) == b"T "
         return NO_FIT["graph"] if legacy else None
+    if fam == "lzw":
+        legacy = "RESULT hash_slots=" not in log.read_text(errors="replace")
+        return NO_FIT["lzw"] if legacy else None
     return NO_FIT.get(fam)
 
 
@@ -188,7 +193,7 @@ def main():
             "reads": scalar(log, "reads"),
             "writes": scalar(log, "writes"),
             "traceend": traceend(log),
-            "no_fit": no_fit_reason(family(stem), trace),
+            "no_fit": no_fit_reason(family(stem), trace, log),
         })
 
     order = ["kv", "btree", "sort", "graph", "lzw", "matmulN", "matmulB"]

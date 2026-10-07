@@ -49,7 +49,7 @@ for spec in "$@"; do
       --exclude=./fs.img -cf - . | tar -C "$d" -xf -
   case "$spec" in
     workloads:*) env_args=(WORKLOADS="${spec#workloads:}" ONLY=) ;;
-    *)           env_args=(WORKLOADS="kv btree matmul sort graph" ONLY="$spec") ;;
+    *)           env_args=(WORKLOADS="kv btree matmul sort graph lzw" ONLY="$spec") ;;
   esac
   echo "lane$i: $spec"
   env "${env_args[@]}" OUT=traces/sweep-rw BASE="$BASE" \

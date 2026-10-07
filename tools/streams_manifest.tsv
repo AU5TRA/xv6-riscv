@@ -110,3 +110,7 @@ matmul-blocked96-s1	155	pilot	matmulbench 2000 8000 96 blocked 9
 matmul-blocked96-s1-rep	155	pilot	matmulbench 2000 8000 96 blocked 9
 matmul-blocked128-s1	330	pilot	matmulbench 2000 8000 128 blocked 9
 matmul-blocked128-s1-rep	330	pilot	matmulbench 2000 8000 128 blocked 9
+lzw-r20-s1	400	pilot	lzwbench 8000 20 9
+lzw-r20-s1-rep	400	pilot	lzwbench 8000 20 9
+lzw-r30-s1	600	pilot	lzwbench 8000 30 9
+lzw-r30-s1-rep	600	pilot	lzwbench 8000 30 9

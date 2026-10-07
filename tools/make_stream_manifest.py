@@ -17,7 +17,6 @@ Stems are <workload>-<variant>-s<seed>. Phases:
 Deliberately absent:
   * kvbench TTL -- expiry reads uptime(), so a TTL run's reference string
     depends on timing and would not reproduce.
-  * lzwbench -- its repeat_count 2 string (~109 MB) exceeds MAXFILE.
   * matmulbench seeds -- the seed only fills in matrix values; the access
     pattern is fixed by the loops, so every seed gives the same string.
 
@@ -64,6 +63,12 @@ VARIANTS = [
     ("matmul-blocked64",  60,  [1], "matmulbench 2000 {m} 64 blocked %d" % FILE),
     ("matmul-blocked96",  155, [1], "matmulbench 2000 {m} 96 blocked %d" % FILE),
     ("matmul-blocked128", 330, [1], "matmulbench 2000 {m} 128 blocked %d" % FILE),
+    # lzwbench <margin> <repeat_count> -- no seed: the input is corpus.txt
+    # repeated, so every run gives the same string. 20 fills the dictionary
+    # and freezes it (~4.0M refs, ~30 MB); 30 also drives one CLEAR
+    # (~6.1M refs, ~46 MB).
+    ("lzw-r20", 400, [1], "lzwbench {m} 20 %d" % FILE),
+    ("lzw-r30", 600, [1], "lzwbench {m} 30 %d" % FILE),
 ]
 
 # Graph repeats cost ~11 min each; one graph repeat covers the code path the

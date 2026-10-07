@@ -22,9 +22,9 @@
 #                  so one workload's capacities can be split across parallel
 #                  lanes -- see tools/run_sweep_lanes.sh
 #
-# lzw is left out of the default: at repeat_count 2 its reference string is
-# ~109 MB, past xv6's 64 MiB MAXFILE, and the file sink loses the tail
-# silently. Add it to WORKLOADS only once that is resolved.
+# lzw is left out of the default. Before lzwbench became compress(1)'s
+# encoder its repeat_count 2 string was ~109 MB, past xv6's 64 MiB MAXFILE;
+# it is now 267,312 references (~1.5 MB) and can be added to WORKLOADS.
 #
 # OUT is never written over: the driver refuses to start if OUT already holds
 # traces or is the same directory as BASE. Several drivers can run in
@@ -326,7 +326,9 @@ want sort && for spec in "5 4" "10 8" "15 12" "20 16" "25 20" "30 24"; do
   run_one sortbench "$1%" "$2" "sort-p$1-c$2" sortbench 2000 "$2" 40000 1 9
 done
 
-# lzwbench: 50 pages, ~20M refs at repeat_count 2 -- see the header note
+# lzwbench: 158 pages (129 touched), 267,312 refs at repeat_count 2. The
+# capacities below were chosen for the old 50-page table and are not yet
+# rescaled to the new footprint.
 want lzw && for spec in "5 3" "10 5" "15 8" "20 10" "25 13" "30 15"; do
   set -- $spec
   run_one lzwbench "$1%" "$2" "lzw-p$1-c$2" lzwbench "$2" 2 9
