@@ -40,8 +40,8 @@ GROUPS = [
      "External merge sort, streaming sequential access"),
     ("graphbench", ["graph-"], "graphbench.trace",
      "Graph analytics: breadth-first search plus PageRank"),
-    ("lzwbench", ["lzw-"], "lzwbench.trace",
-     "LZW compression over a real text corpus"),
+    ("lzwbench", ["lzw-"], None,
+     "LZW compression (Unix compress) over a real text corpus"),
     ("matmulbench", ["matmulN", "matmulB"], None,
      "Matrix multiply, naive row-major vs cache-tiled"),
 ]
@@ -101,9 +101,17 @@ def main():
         for digest, members in by_sum.items():
             if canon:
                 name = canon
+            elif folder == "lzwbench":
+                # one string per repeat count: lzw-r20-p5-c16 -> lzwbench-r20
+                name = "lzwbench-%s.trace" % members[0].split("-")[1]
             else:
                 variant = "naive" if members[0].startswith("matmulN") else "blocked"
                 name = "matmulbench-%s.trace" % variant
+            if name in sum_to_name.values():
+                shutil.rmtree(STAGE)
+                sys.exit("make_archive: two different %s reference strings "
+                         "would both be named %s -- refusing to archive"
+                         % (folder, name))
             sum_to_name[digest] = name
             shutil.copy2(SWEEP / (members[0] + ".trace"), d / name)
 
@@ -175,8 +183,9 @@ def readme(manifest) -> str:
       % n_runs)
     A("produced by the %d runs contain exactly %d distinct reference strings,"
       % (n_runs, n_strings))
-    A("one per workload, with matmulbench's naive and blocked variants")
-    A("counted separately because they are genuinely different programs.")
+    A("one per workload, with matmulbench's naive and blocked variants and")
+    A("lzwbench's two input sizes (repeat counts 20 and 30) counted")
+    A("separately because they are genuinely different runs.")
     A("")
     A("So each folder holds ONE reference string and one log per capacity.")
     A("The logs are where the capacities differ. Shipping an identical copy")
@@ -218,7 +227,8 @@ def readme(manifest) -> str:
     A("                 |      the capacity ARGUMENT passed on the command line")
     A("                 the capacity percentage that was INTENDED")
     A("")
-    A("matmulbench instead uses matmulN (naive) and matmulB (blocked).")
+    A("matmulbench instead uses matmulN (naive) and matmulB (blocked), and")
+    A("lzwbench lzw-r<RR>-p<NN>-c<MM>, RR being the repeat count.")
     A("")
     A("*** Both numbers in the filename are labels from the original plan.")
     A("*** Neither is the capacity the run actually executed under.")
@@ -227,8 +237,8 @@ def readme(manifest) -> str:
     A("baseline, not an absolute frame count, so the real limit is higher than")
     A("MM. The real value is recorded inside each log as resident_limit=, and")
     A("is listed in the table below and in SUMMARY.txt. For btreebench,")
-    A("kvbench and graphbench the intended percentage is close to the truth;")
-    A("for sortbench, lzwbench and matmulbench it is not.")
+    A("kvbench, graphbench and lzwbench the intended percentage is close to")
+    A("the truth; for sortbench and matmulbench it is not.")
     A("")
     A("Quote the FRAMES column, never the filename -- and when simulating a")
     A("trace, use the ARENA column of SUMMARY.txt instead (see below).")

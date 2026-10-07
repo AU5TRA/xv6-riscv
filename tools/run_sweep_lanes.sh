@@ -7,9 +7,11 @@
 #
 # A lane spec is either "workloads:<names>" (whole workloads, as WORKLOADS)
 # or a space-separated list of run stems (as ONLY). With no specs the default
-# split below is used. It is sized so the one long run -- graph-p5, about an
-# hour -- sets the wall time: the other graph capacities pair up on two more
-# lanes, and every other workload shares the fourth.
+# split below is used. It is sized so the long runs set the wall time:
+# graph-p5 (about an hour) has a lane of its own, the other graph capacities
+# pair up on two more, kv/btree/matmul/sort share the fourth, and lzw's 12
+# runs fill five more lanes of about 90 minutes each (lzw-r30-p5 alone takes
+# that long). Nine lanes in all.
 #
 # Each lane gets its own tree because fs.img, the build and test-logs are per
 # tree; the WSL filesystem because the 9p-mounted Windows drive roughly
@@ -36,7 +38,12 @@ if [ $# -eq 0 ]; then
   set -- "graph-p5-c67" \
          "graph-p10-c133 graph-p25-c334" \
          "graph-p15-c200 graph-p20-c267 graph-p30-c400" \
-         "workloads:kv btree matmul sort"
+         "workloads:kv btree matmul sort" \
+         "lzw-r30-p5-c22" \
+         "lzw-r20-p5-c16 lzw-r20-p30-c99 lzw-r30-p30-c133" \
+         "lzw-r30-p10-c44 lzw-r30-p20-c89" \
+         "lzw-r20-p10-c33 lzw-r30-p15-c67" \
+         "lzw-r20-p15-c49 lzw-r20-p20-c66 lzw-r20-p25-c82 lzw-r30-p25-c111"
 fi
 
 i=0
