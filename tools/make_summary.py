@@ -355,11 +355,15 @@ def main():
                 % (len(matched), len(rows)), width=78):
             A(line)
     else:
-        for line in textwrap.wrap(
-                "Completeness: these traces predate the TRACEEND check, so "
-                "nothing in the capture proves they are whole. lzwbench's are "
-                "known to be truncated: they end 976 bytes short of the cap, at "
-                "58%% of the references the run made.", width=78):
+        text = ("Completeness: these traces predate the TRACEEND check, so "
+                "nothing in the capture proves they are whole.")
+        # The truncated captures this describes were deleted on 2026-10-07;
+        # say it only of a campaign that still has them.
+        if any(r["fam"] == "lzw" and not r["traceend"] for r in rows):
+            text += (" lzwbench's are known to be truncated: they end 976 "
+                     "bytes short of the cap, at 58% of the references the "
+                     "run made.")
+        for line in textwrap.wrap(text, width=78):
             A(line)
     A("")
 
