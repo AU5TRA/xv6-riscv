@@ -110,7 +110,17 @@ matmul-blocked96-s1	155	pilot	matmulbench 2000 8000 96 blocked 9
 matmul-blocked96-s1-rep	155	pilot	matmulbench 2000 8000 96 blocked 9
 matmul-blocked128-s1	330	pilot	matmulbench 2000 8000 128 blocked 9
 matmul-blocked128-s1-rep	330	pilot	matmulbench 2000 8000 128 blocked 9
-lzw-r20-s1	400	pilot	lzwbench 8000 20 9
-lzw-r20-s1-rep	400	pilot	lzwbench 8000 20 9
-lzw-r30-s1	600	pilot	lzwbench 8000 30 9
-lzw-r30-s1-rep	600	pilot	lzwbench 8000 30 9
+lzw-r20-s0	570	pilot	lzwbench 8000 20 9 0
+lzw-r20-s1	570	dataset	lzwbench 8000 20 9 1
+lzw-r20-s2	570	dataset	lzwbench 8000 20 9 2
+lzw-r20-s3	570	dataset	lzwbench 8000 20 9 3
+lzw-r20-s4	570	dataset	lzwbench 8000 20 9 4
+lzw-r20-s5	570	dataset	lzwbench 8000 20 9 5
+lzw-r20-s0-rep	570	pilot	lzwbench 8000 20 9 0
+lzw-r30-s0	850	pilot	lzwbench 8000 30 9 0
+lzw-r30-s1	850	dataset	lzwbench 8000 30 9 1
+lzw-r30-s2	850	dataset	lzwbench 8000 30 9 2
+lzw-r30-s3	850	dataset	lzwbench 8000 30 9 3
+lzw-r30-s4	850	dataset	lzwbench 8000 30 9 4
+lzw-r30-s5	850	dataset	lzwbench 8000 30 9 5
+lzw-r30-s0-rep	850	pilot	lzwbench 8000 30 9 0

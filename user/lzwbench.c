@@ -1,7 +1,15 @@
-// lzwbench: LZW compression over a real text corpus (corpus.txt,
-// shipped in fs.img -- the GNU GPLv3 license text, chosen simply for
-// being real, freely-redistributable, moderately-sized English prose
-// with natural redundancy).
+// lzwbench: LZW compression over a real text corpus, shipped in fs.img.
+// The seed picks the text; every one is real English prose, 35,823 bytes:
+//   seed 0  corpus.txt   the GNU GPL version 3 licence (the original input)
+//   seed 1  corpus1.txt  Austen, Pride and Prejudice        (Gutenberg #1342)
+//   seed 2  corpus2.txt  Doyle, Adventures of Sherlock Holmes   (#1661)
+//   seed 3  corpus3.txt  Darwin, On the Origin of Species       (#1228)
+//   seed 4  corpus4.txt  Hamilton et al., The Federalist Papers (#1404)
+//   seed 5  corpus5.txt  Carroll, Alice's Adventures in Wonderland (#11)
+// Seeds 1-5 are public-domain texts from Project Gutenberg: the 35,823
+// bytes from the first line of prose (past the title page and contents),
+// with the Project Gutenberg header and licence removed. The size matches
+// corpus.txt so every seed compresses the same number of bytes.
 //
 // Justification against the "no single heuristic wins" property
 // (WORK_PROMPT.md SS0): LZW's dictionary lookup (mapping a
@@ -142,26 +150,37 @@ lzw_cl_block(long in_count)
 int
 main(int argc, char *argv[])
 {
-  if(argc != 3 && argc != 4){
+  if(argc < 3 || argc > 5){
     printf("usage: lzwbench <resident_margin> <repeat_count> "
-           "[trace: 1=console, 9=file]\n");
+           "[trace: 1=console, 9=file] [seed: 0-5]\n");
     exit(1);
   }
   int resident_margin = atoi(argv[1]);
   int repeat_count = atoi(argv[2]);
   if(repeat_count < 1)
     repeat_count = 1;
-  int trace_flags = argc == 4 ? atoi(argv[3]) : 0;
+  int trace_flags = argc >= 4 ? atoi(argv[3]) : 0;
   int trace = (trace_flags & 1) != 0;
+  int seed = argc == 5 ? atoi(argv[4]) : 0;
+  if(seed < 0 || seed > 5){
+    printf("lzwbench: seed must be 0-5\n");
+    exit(1);
+  }
   if(trace && vmbench_trace_sink(trace_flags) < 0){
     printf("lzwbench: cannot create %s\n", VMBENCH_TRACE_PATH);
     exit(1);
   }
 
   vmbench_banner("lzwbench", "setup");
-  int fd = open("corpus.txt", 0);
+  char corpus_name[16];
+  strcpy(corpus_name, "corpus.txt");
+  if(seed > 0){
+    strcpy(corpus_name, "corpusN.txt");
+    corpus_name[6] = (char)('0' + seed);
+  }
+  int fd = open(corpus_name, 0);
   if(fd < 0){
-    printf("lzwbench: could not open corpus.txt\n");
+    printf("lzwbench: could not open %s\n", corpus_name);
     exit(1);
   }
   struct stat st;
@@ -170,8 +189,8 @@ main(int argc, char *argv[])
     exit(1);
   }
   long corpus_size = st.size;
-  printf("[info] real text corpus: corpus.txt, %ld bytes (GNU GPLv3 "
-         "license text)\n", corpus_size);
+  printf("[info] seed %d: %s, %ld bytes of English text\n", seed,
+         corpus_name, corpus_size);
 
   long total_in = corpus_size * repeat_count;
   // At most one code per input byte, plus the CLEARs.
@@ -247,7 +266,7 @@ main(int argc, char *argv[])
   vmbench_banner("lzwbench", "workload");
   if(trace)
     vmbench_trace_start("lzwbench", "see RESULT lines below for full "
-                        "parameters", 1, arena, footprint_pages,
+                        "parameters", (uint64)seed, arena, footprint_pages,
                         resident_margin);
   // compress's main loop.
   lzw_trace(&input[0], VMBENCH_READ);
@@ -298,6 +317,7 @@ main(int argc, char *argv[])
   vmbench_result("resident_margin", resident_margin);
   vmbench_result("corpus_bytes", corpus_size);
   vmbench_result("repeat_count", repeat_count);
+  vmbench_result("seed", seed);
   vmbench_result("input_bytes", total_in);
   vmbench_result("hash_slots", HSIZE);
   vmbench_result("output_codes", g_out_count);

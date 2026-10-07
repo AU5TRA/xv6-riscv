@@ -201,10 +201,12 @@ UPROGS=\
 # later merge; kept pre-split rather than regenerated, see those files'
 # own header comments.
 TRACEREPLAY_DATA=$(addprefix $U/redisreplay,0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)
+# lzwbench's seeded inputs: seed k compresses corpus<k>.txt (seed 0, corpus.txt).
+CORPORA=$(addsuffix .txt,$(addprefix corpus,1 2 3 4 5))
 SQLITEREPLAY_DATA=$(addprefix $U/sqlitereplay,0 1 2 3 4 5 6)
 
-fs.img: mkfs/mkfs README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
-	mkfs/mkfs fs.img README corpus.txt $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
+fs.img: mkfs/mkfs README corpus.txt $(CORPORA) $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
+	mkfs/mkfs fs.img README corpus.txt $(CORPORA) $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
 	truncate -s $$(($(FSSIZE) * $(BSIZE) + $(NSWAPSLOTS) * 4096)) fs.img
 
 -include kernel/*.d user/*.d

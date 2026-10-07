@@ -26,6 +26,7 @@ Usage:  python3 tools/make_stream_manifest.py > tools/streams_manifest.tsv
 MARGIN = 8000          # above every footprint below; resident_limit_max 16384
 SEEDS5 = [1, 2, 3, 4, 5]
 SEEDS3 = [1, 2, 3]
+SEEDS6 = [0, 1, 2, 3, 4, 5]   # lzwbench: seed 0 is the original text
 FILE = 9               # trace bit | file-sink bit
 
 # (stem prefix, estimated seconds per run incl. fs.img rebuild, seeds,
@@ -63,12 +64,12 @@ VARIANTS = [
     ("matmul-blocked64",  60,  [1], "matmulbench 2000 {m} 64 blocked %d" % FILE),
     ("matmul-blocked96",  155, [1], "matmulbench 2000 {m} 96 blocked %d" % FILE),
     ("matmul-blocked128", 330, [1], "matmulbench 2000 {m} 128 blocked %d" % FILE),
-    # lzwbench <margin> <repeat_count> -- no seed: the input is corpus.txt
-    # repeated, so every run gives the same string. 20 fills the dictionary
-    # and freezes it (~4.0M refs, ~30 MB); 30 also drives one CLEAR
-    # (~6.1M refs, ~46 MB).
-    ("lzw-r20", 400, [1], "lzwbench {m} 20 %d" % FILE),
-    ("lzw-r30", 600, [1], "lzwbench {m} 30 %d" % FILE),
+    # lzwbench <margin> <repeat_count> <flags> <seed> -- the seed picks the
+    # text: 0 is corpus.txt (the GPL), 1-5 are public-domain books of the
+    # same size (user/lzwbench.c). With the GPL, 20 fills the dictionary and
+    # freezes it (~4.0M refs); 30 also drives one CLEAR (~6.1M refs).
+    ("lzw-r20", 570, SEEDS6, "lzwbench {m} 20 %d {s}" % FILE),
+    ("lzw-r30", 850, SEEDS6, "lzwbench {m} 30 %d {s}" % FILE),
 ]
 
 # Graph repeats cost ~11 min each; one graph repeat covers the code path the
