@@ -2,7 +2,8 @@
 # End-to-end check of the file sink before committing to a 36-run campaign.
 #
 # lzwbench 300 1 <trace> is the cheapest workload that completes: with the
-# reference stream on the console it took 63s and emitted 48,927 references.
+# reference stream on the console it took 63s and emitted 48,927 references
+# (before lzwbench became compress(1)'s encoder; it now emits 133,967).
 # Running the identical workload with the stream routed to a file must
 # reproduce that reference count exactly -- the workload is deterministic, so
 # the sink cannot change how many pages it touches. Anything else means the
@@ -35,7 +36,7 @@ mkdir -p /tmp/sm
 python3 tools/extract_file.py fs.img reftrace.txt /tmp/sm/reftrace.txt 2>&1 | tail -3
 if [ -f /tmp/sm/reftrace.txt ]; then
   echo "extracted bytes: $(stat -c %s /tmp/sm/reftrace.txt)"
-  echo "reference lines: $(grep -cE '^[TRW] ' /tmp/sm/reftrace.txt)   (expect 48927)"
+  echo "reference lines: $(grep -cE '^[TRW] ' /tmp/sm/reftrace.txt)   (expect 133967)"
   echo "distinct pages : $(awk '/^[TRW] /{print $2}' /tmp/sm/reftrace.txt | sort -u | wc -l)"
   echo "--- first 3 ---"; head -3 /tmp/sm/reftrace.txt
   echo "--- last 3 ---";  tail -3 /tmp/sm/reftrace.txt

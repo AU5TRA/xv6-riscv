@@ -42,12 +42,21 @@ def policies(workload):
             ("ml", "global"), ("ml", workload), ("ml", workload + "-k")]
 
 
+# Where a workload's margin and trace flags sit in its command line. Most
+# take <footprint> <margin> ... <flags>; lzwbench takes <margin>
+# <repeat_count> <flags> <seed>, so the defaults would overwrite its repeat
+# count and seed.
+MARGIN_ARG = {"lzwbench": 1}
+FLAGS_ARG = {"lzwbench": 3}
+
+
 def command(stem, frames):
     for line in open(MANIFEST):
         if line.startswith(stem + "\t"):
             cmd = line.rstrip("\n").split("\t")[3].split()
-            cmd[2] = str(frames)                       # margin
-            cmd[-1] = str(int(cmd[-1]) & ~TRACE_BITS)  # tracing off
+            m, f = MARGIN_ARG.get(cmd[0], 2), FLAGS_ARG.get(cmd[0], -1)
+            cmd[m] = str(frames)                     # margin
+            cmd[f] = str(int(cmd[f]) & ~TRACE_BITS)  # tracing off
             return cmd
     raise KeyError(stem)
 

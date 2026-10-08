@@ -15,16 +15,17 @@
 # Settings, all overridable from the environment:
 #   OUT            where this campaign writes          (traces/sweep-rw)
 #   BASE           the campaign it is checked against  (traces/sweep)
-#   WORKLOADS      which to run, cheapest first        (kv btree matmul sort graph)
+#   WORKLOADS      which to run, cheapest first        (kv btree matmul sort graph lzw)
 #   TIMEOUT        per-run limit in seconds            (5400)
 #   GRAPH_TIMEOUT  per-run limit for graphbench        (10800)
+#   LZW_TIMEOUT    per-run limit for lzwbench          (14400)
 #   ONLY           run just these stems, space-separated (e.g. "graph-p5-c67"),
 #                  so one workload's capacities can be split across parallel
 #                  lanes -- see tools/run_sweep_lanes.sh
 #
-# lzw is left out of the default: at repeat_count 2 its reference string is
-# ~109 MB, past xv6's 64 MiB MAXFILE, and the file sink loses the tail
-# silently. Add it to WORKLOADS only once that is resolved.
+# lzw joined the default once lzwbench became compress(1)'s encoder: its
+# old repeat_count 2 string was ~109 MB, past xv6's 64 MiB MAXFILE; at
+# repeat counts 20 and 30 it is now 24-36 MB.
 #
 # OUT is never written over: the driver refuses to start if OUT already holds
 # traces or is the same directory as BASE. Several drivers can run in
@@ -45,9 +46,10 @@ unset VM_DEBUG
 
 OUT="${OUT:-traces/sweep-rw}"
 BASE="${BASE:-traces/sweep}"
-WORKLOADS="${WORKLOADS:-kv btree matmul sort graph}"
+WORKLOADS="${WORKLOADS:-kv btree matmul sort graph lzw}"
 TIMEOUT="${TIMEOUT:-5400}"
 GRAPH_TIMEOUT="${GRAPH_TIMEOUT:-10800}"
+LZW_TIMEOUT="${LZW_TIMEOUT:-14400}"
 RES="$OUT/RESULTS.tsv"
 CMP="$OUT/COMPARISON.tsv"
 STATUS="$OUT/STATUS.txt"
@@ -57,7 +59,8 @@ ONLY="${ONLY:-}"
 TOTAL=0
 for w in $WORKLOADS; do
   case "$w" in
-    kv|btree|matmul|sort|lzw|graph) TOTAL=$((TOTAL + 6)) ;;
+    kv|btree|matmul|sort|graph) TOTAL=$((TOTAL + 6)) ;;
+    lzw) TOTAL=$((TOTAL + 12)) ;;
     *) echo "collect_v2: unknown workload '$w' in WORKLOADS" >&2; exit 1 ;;
   esac
 done
@@ -326,11 +329,19 @@ want sort && for spec in "5 4" "10 8" "15 12" "20 16" "25 20" "30 24"; do
   run_one sortbench "$1%" "$2" "sort-p$1-c$2" sortbench 2000 "$2" 40000 1 9
 done
 
-# lzwbench: 50 pages, ~20M refs at repeat_count 2 -- see the header note
-want lzw && for spec in "5 3" "10 5" "15 8" "20 10" "25 13" "30 15"; do
+# lzwbench (compress(1)'s encoder) at two repeat counts, 5-30% of the pages
+# each one touches: repeat_count 20 touches 329 pages (3,976,724 refs; the
+# dictionary fills and is frozen), 30 touches 444 (6,122,661 refs; one
+# CLEAR). Seed 0 (corpus.txt), the lzwbench default. The tight capacities
+# fault 3.1-4.1M times; lzw-r30-p5 took 5397s, so the default limit would
+# end it.
+echo "$LZW_TIMEOUT" > "$STATE/timeout"
+want lzw && for spec in "20 5 16" "20 10 33" "20 15 49" "20 20 66" "20 25 82" "20 30 99" \
+                        "30 5 22" "30 10 44" "30 15 67" "30 20 89" "30 25 111" "30 30 133"; do
   set -- $spec
-  run_one lzwbench "$1%" "$2" "lzw-p$1-c$2" lzwbench "$2" 2 9
+  run_one lzwbench "$2%" "$3" "lzw-r$1-p$2-c$3" lzwbench "$3" "$1" 9
 done
+echo "$TIMEOUT" > "$STATE/timeout"
 
 # graphbench: all ~2000 arena pages, ~6.25M refs. p5 took 4200s when only
 # the edges were traced, and full tracing made p30 1.57x slower, so the

@@ -45,7 +45,9 @@ MODELS = {
 #
 # graphbench has traced all five arrays since graph_trace() was added, so its
 # entry applies only to captures made before that -- the ones in the legacy
-# "T <vpn>" format (see no_fit_reason).
+# "T <vpn>" format (see no_fit_reason). lzwbench has traced its input and
+# output since it became compress(1)'s encoder; those runs print
+# "RESULT hash_slots=", and the entry applies only to runs that do not.
 NO_FIT = {
     "graph": "only the edge array is traced; rank, next_rank, visited and "
              "queue are not",
@@ -110,12 +112,15 @@ def load_refs(path: Path) -> list:
         return [int(line[2:]) for line in fh if line[:2] in REF_PREFIXES]
 
 
-def no_fit_reason(fam: str, trace: Path):
+def no_fit_reason(fam: str, trace: Path, log: Path):
     """Why a workload's trace cannot be fitted, or None if it can."""
     if fam == "graph":
         with trace.open("rb") as fh:
             legacy = fh.read(2) == b"T "
         return NO_FIT["graph"] if legacy else None
+    if fam == "lzw":
+        legacy = "RESULT hash_slots=" not in log.read_text(errors="replace")
+        return NO_FIT["lzw"] if legacy else None
     return NO_FIT.get(fam)
 
 
@@ -188,26 +193,29 @@ def main():
             "reads": scalar(log, "reads"),
             "writes": scalar(log, "writes"),
             "traceend": traceend(log),
-            "no_fit": no_fit_reason(family(stem), trace),
+            "no_fit": no_fit_reason(family(stem), trace, log),
         })
 
     order = ["kv", "btree", "sort", "graph", "lzw", "matmulN", "matmulB"]
     rows.sort(key=lambda r: (order.index(r["fam"]), r["limit"] or 0))
 
-    # The reference string is identical at every capacity of a workload, so
-    # it is loaded once per workload for the fits.
-    refs_by_fam = {}
+    # The reference string is identical at every capacity of a workload
+    # configuration, so it is loaded once per configuration for the fits. A
+    # workload can have more than one (lzw at two repeat counts); keying by
+    # family alone fitted every lzw run against the first one's string.
+    refs_by_cfg = {}
     for r in rows:
         r["fit"] = None
         if r["no_fit"] or not r["limit"]:
             continue
-        if r["fam"] not in refs_by_fam:
-            refs_by_fam[r["fam"]] = load_refs(SWEEP / r["trace"])
+        cfg = (r["fam"], r["refs"])
+        if cfg not in refs_by_cfg:
+            refs_by_cfg[cfg] = load_refs(SWEEP / r["trace"])
         # Pages below the arena (text, data, stack) are the only untraced
         # pages these workloads have, so they bound the fit.
-        r["fit"] = fit_untraced(refs_by_fam[r["fam"]], r["limit"],
+        r["fit"] = fit_untraced(refs_by_cfg[cfg], r["limit"],
                                 r["evicts"], r["below_arena"] or 0)
-    refs_by_fam.clear()
+    refs_by_cfg.clear()
 
     L = []
     A = L.append
@@ -219,8 +227,10 @@ def main():
     per_fam = collections.Counter(r["fam"] for r in rows)
     workloads = sorted({MODELS[f][0].split()[0] for f in per_fam})
     caps = sorted(set(per_fam.values()), reverse=True)
-    A("%d runs: %d workloads (matmulbench in two variants), at %s memory"
-      % (len(rows), len(workloads), " or ".join(str(c) for c in caps)))
+    A("%d runs: %d workload%s%s, at %s memory"
+      % (len(rows), len(workloads), "" if len(workloads) == 1 else "s",
+         " (matmulbench in two variants)" if "matmulN" in per_fam else "",
+         " or ".join(str(c) for c in caps)))
     A("capacities each.")
     A("Each run records the reference string of the workload's own data (every")
     A("traced arena page it touched, in order) plus the kernel's own fault and")
@@ -250,8 +260,10 @@ def main():
         name, desc = MODELS[r["fam"]]
         A("")
         A("%s -- %s" % (name, desc))
-        A("  working set %d traced pages, %s references per run"
-          % (r["pages"], "{:,}".format(r["refs"])))
+        for pages, refs in sorted({(q["pages"], q["refs"]) for q in rows
+                                   if q["fam"] == r["fam"]}):
+            A("  working set %d traced pages, %s references per run"
+              % (pages, "{:,}".format(refs)))
         A("")
         A(" %5s %8s %5s %8s %6s %9s %9s %s" %
           ("LIMIT", "UNTRACED", "ARENA", "COVERAGE", "FIT",
@@ -326,9 +338,9 @@ def main():
     A("    %-12s %14s %10s %16s" % ("WORKLOAD", "BYTES", "OF CAP", "HEADROOM"))
     seen = set()
     for r in rows:
-        if r["fam"] in seen:
+        if (r["fam"], r["size"]) in seen:
             continue
-        seen.add(r["fam"])
+        seen.add((r["fam"], r["size"]))
         A("    %-12s %14s %9.2f%% %16s"
           % (MODELS[r["fam"]][0].split()[0], "{:,}".format(r["size"]),
              100.0 * r["size"] / MAXFILE, "{:,}".format(MAXFILE - r["size"])))
@@ -343,11 +355,15 @@ def main():
                 % (len(matched), len(rows)), width=78):
             A(line)
     else:
-        for line in textwrap.wrap(
-                "Completeness: these traces predate the TRACEEND check, so "
-                "nothing in the capture proves they are whole. lzwbench's are "
-                "known to be truncated: they end 976 bytes short of the cap, at "
-                "58%% of the references the run made.", width=78):
+        text = ("Completeness: these traces predate the TRACEEND check, so "
+                "nothing in the capture proves they are whole.")
+        # The truncated captures this describes were deleted on 2026-10-07;
+        # say it only of a campaign that still has them.
+        if any(r["fam"] == "lzw" and not r["traceend"] for r in rows):
+            text += (" lzwbench's are known to be truncated: they end 976 "
+                     "bytes short of the cap, at 58% of the references the "
+                     "run made.")
+        for line in textwrap.wrap(text, width=78):
             A(line)
     A("")
 

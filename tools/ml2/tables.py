@@ -14,7 +14,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 R = ROOT / "report" / "results2"
 TEX = ROOT / "report" / "slides" / "tables"
-WL = ["btree", "graph", "kv", "matmul", "sort"]
+WL = ["btree", "graph", "kv", "lzw", "matmul", "sort"]
 SPLITS = ("test", "heldout")
 GROUPS = [("F", "oracle (F)"), ("K", "kernel (K)"), ("K+K+", "kernel+refault (K∪K+)"),
           ("F+K", "oracle+kernel")]

@@ -30,7 +30,10 @@ Splits, fixed so every experiment reports against the same data:
     validation, and the rest training -- seeds 1-3/4/5 for five seeds,
     1/2/3 for three;
   * matmulbench has one stream per variant (its seed has no effect), so
-    its variants are training data and its n=128 variants are held out.
+    its variants are training data and its n=128 variants are held out;
+  * lzwbench has seeds 0-5 (seed = input text), so lzw-r20 splits like the
+    others -- seeds 0-3 train, 4 validation, 5 test -- and lzw-r30 is
+    held out.
 
 Capacities are fractions of the stream's own distinct pages (CAPACITY_GRID).
 The streams were collected at a generous margin, so no kernel run exists at
@@ -57,7 +60,7 @@ ML = STREAMS / "ml"
 NEVER = np.uint32(0xFFFFFFFF)
 CAPACITY_GRID = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
 HELD_OUT = {"kv-F", "btree-scan", "graph-bfs2000", "sort-n60000",
-            "matmul-naive128", "matmul-blocked128"}
+            "matmul-naive128", "matmul-blocked128", "lzw-r30"}
 STEM_RE = re.compile(r"^(?P<variant>(?P<workload>[a-z]+)-[A-Za-z0-9]+)-s(?P<seed>\d+)$")
 
 

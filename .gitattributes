@@ -21,3 +21,8 @@ traces/**  -whitespace
 
 # The stream manifest is read by bash (tools/collect_streams.sh).
 tools/*.tsv text eol=lf
+
+# lzwbench's input texts, stored byte for byte. Every lzw trace depends on
+# the exact bytes xv6 reads, and corpus.txt's traces were made from its CRLF
+# form; letting autocrlf convert it would change them on another checkout.
+corpus*.txt -text

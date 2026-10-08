@@ -2,18 +2,21 @@
 COLLECTED TRACE DATASET -- SUMMARY
 ==============================================================================
 
-36 runs: six workloads, each at six memory capacities.
+30 runs: 5 workloads (matmulbench in two variants), at 6 or 3 memory
+capacities each.
 Each run records the reference string of the workload's own data (every
 traced arena page it touched, in order) plus the kernel's own fault and
 eviction counters at that capacity. The program's code and stack are not
 traced, but they share the frame limit; see UNTRACED below.
 
 Location:  traces/sweep/
-  <run>.trace    the reference string, one 'T <page>' line per access
+  <run>.trace    the reference string, one 'R <page>' (read) or 'W <page>'
+                 (write) line per access; 'T <page>' in captures
+                 made before the access type was recorded
   <run>.log      the full run transcript and RESULT counters
   <run>.harness  the test-harness output for that run
 
-Totals:    36 traces, 0.6 GB, 114,765,048 reference records
+Totals:    30 traces, 0.2 GB, 40,990,644 reference records
 
 
 PER-WORKLOAD
@@ -67,21 +70,6 @@ graphbench -- graph analytics: BFS plus PageRank
   visited and queue are not. FAULTS and EVICTIONS include those untraced
   pages, so they cannot be reproduced by replaying this trace.
 
-lzwbench -- LZW text compression over a real corpus
-  working set 49 traced pages, 12,295,734 references per run
-
- LIMIT UNTRACED ARENA COVERAGE    FIT    FAULTS EVICTIONS TRACE FILE
-    23        -     -        -      -   129,092   129,101 lzw-p5-c3.trace
-    25        -     -        -      -   122,179   122,188 lzw-p10-c5.trace
-    28        -     -        -      -   111,962   111,971 lzw-p15-c8.trace
-    30        -     -        -      -   105,859   105,868 lzw-p20-c10.trace
-    33        -     -        -      -    96,603    96,612 lzw-p25-c13.trace
-    35        -     -        -      -    90,487    90,496 lzw-p30-c15.trace
-
-  No UNTRACED/ARENA/COVERAGE: only the dictionary table is traced; the input
-  and output buffers are not. FAULTS and EVICTIONS include those untraced
-  pages, so they cannot be reproduced by replaying this trace.
-
 matmulbench naive -- matrix multiply, row-major order
   working set 27 traced pages, 1,778,688 references per run
 
@@ -131,20 +119,16 @@ the set usable: one reference string, six operating points.
 SIZE HEADROOM
 ------------------------------------------------------------------------------
 xv6 caps any single file at 67,382,272 bytes. A trace that reached the cap
-would stop growing without raising an error, so the margin matters:
+would lose its tail, so the margin matters:
 
     WORKLOAD              BYTES     OF CAP         HEADROOM
     kvbench             944,948      1.40%       66,437,324
     btreebench        1,323,146      1.96%       66,059,126
     sortbench         9,276,354     13.77%       58,105,918
     graphbench       16,786,360     24.91%       50,595,912
-    lzwbench         67,381,296    100.00%              976
     matmulbench       8,893,440     13.20%       58,488,832
     matmulbench       9,999,360     14.84%       57,382,912
 
-All 36 traces were verified complete. lzwbench is the only one close to
-the cap, with 976 bytes to spare; it was checked two independent ways.
-Re-running any of these 36 configurations is safe, because the workloads
-are deterministic and produce the same size every time. Increasing any
-workload's size argument is not safe until a length check is added.
+Completeness: these traces predate the TRACEEND check, so nothing in the
+capture proves they are whole.
 

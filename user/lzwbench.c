@@ -1,7 +1,15 @@
-// lzwbench: LZW compression over a real text corpus (corpus.txt,
-// shipped in fs.img -- the GNU GPLv3 license text, chosen simply for
-// being real, freely-redistributable, moderately-sized English prose
-// with natural redundancy).
+// lzwbench: LZW compression over a real text corpus, shipped in fs.img.
+// The seed picks the text; every one is real English prose, 35,823 bytes:
+//   seed 0  corpus.txt   the GNU GPL version 3 licence (the original input)
+//   seed 1  corpus1.txt  Austen, Pride and Prejudice        (Gutenberg #1342)
+//   seed 2  corpus2.txt  Doyle, Adventures of Sherlock Holmes   (#1661)
+//   seed 3  corpus3.txt  Darwin, On the Origin of Species       (#1228)
+//   seed 4  corpus4.txt  Hamilton et al., The Federalist Papers (#1404)
+//   seed 5  corpus5.txt  Carroll, Alice's Adventures in Wonderland (#11)
+// Seeds 1-5 are public-domain texts from Project Gutenberg: the 35,823
+// bytes from the first line of prose (past the title page and contents),
+// with the Project Gutenberg header and licence removed. The size matches
+// corpus.txt so every seed compresses the same number of bytes.
 //
 // Justification against the "no single heuristic wins" property
 // (WORK_PROMPT.md SS0): LZW's dictionary lookup (mapping a
@@ -23,83 +31,156 @@
 #include "user/user.h"
 #include "user/vmbench.h"
 
-#define LZW_FIRST_CODE 256
-#define LZW_MAX_CODE 65536
-#define LZW_TABLE_SIZE 16384 // power of 2
+// The encoder is Unix compress(1) -- compress 4.0, the version that
+// fixed the .Z format -- so the dictionary is the one a real LZW tool
+// keeps, not a toy. An earlier version of this file let up to 65536
+// codes into a 16384-slot linear-probing table; the table filled
+// completely and every miss then scanned all 16384 slots, which was ~99%
+// of its reference string. compress never lets that happen:
+//   * the table (HSIZE) is a prime larger than the code space, so it
+//     always keeps empty slots and a miss stops at the first one;
+//   * collisions use compress's secondary probe (disp = HSIZE - i);
+//   * once all 65536 codes are assigned the dictionary is frozen, and
+//     every CHECK_GAP input bytes the compression ratio is checked; if it
+//     has stopped improving the table is wiped and a CLEAR code emitted
+//     ("block compress" mode, compress's default).
+// Keys and codes live in two parallel arrays, htab and codetab, as in
+// compress. htab is 32-bit here: count_int was 32 bits on the machines
+// compress was written for, and a key needs only 24.
+//
+// Unlike compress, the whole input and the whole output stream sit in
+// the arena rather than passing through small stdio buffers; both are
+// traced, so the reference string holds every arena page this program
+// touches.
+#define BITS 16
+#define HSIZE 69001 // prime, 95% occupancy at 2^BITS codes -- compress's value
+#define INIT_BITS 9
+#define CHECK_GAP 10000
+#define CLEAR 256
+#define FIRST 257
+#define MAXCODE(n) ((1 << (n)) - 1)
+#define MAXMAXCODE (1 << BITS)
+#define HSHIFT 8 // compress: 8 - log2 of how far HSIZE falls short of 65536
 
-struct lzw_entry {
-  int prefix; // -1 if empty
-  int byte;
-  int code;
-};
-
-static struct lzw_entry *g_table;
+static int *g_htab;        // key (c << BITS) + ent, or -1 if empty
+static ushort *g_codetab;  // code assigned to the key in the same slot
+static ushort *g_output;
 static char *g_arena_base;
-static int g_next_code;
+static long g_out_count;
 
-static long
-lzw_hash(int prefix, int byte)
+// compress's output() bookkeeping: codes are n_bits wide, growing from 9
+// to 16 as codes are assigned and dropping back to 9 after a CLEAR. Only
+// the packed size is tracked (for the ratio check); each code is stored
+// in the arena as a ushort.
+static int g_free_ent;
+static int g_n_bits;
+static int g_maxcode;
+static int g_clear_flg;
+static long g_out_bits;
+static long g_clears;
+
+static void
+lzw_trace(const void *p, char access)
 {
-  uint64 x = ((uint64)(uint32)prefix << 8) ^ (uint64)(uint32)byte;
-  x ^= x >> 15;
-  x *= 0x2545F4914F6CDD1DULL;
-  x ^= x >> 13;
-  return (long)(x & (LZW_TABLE_SIZE - 1));
+  vmbench_trace_ref(g_arena_base,
+                    (uint64)(((const char *)p - g_arena_base) /
+                             VMBENCH_PGSIZE),
+                    access);
 }
 
-// Finds the code for (prefix, byte) if present; returns -1 otherwise.
-// If not present and there's room, ALSO inserts a new code for it.
-static int
-lzw_lookup_or_insert(int prefix, int byte)
+static void
+lzw_output(int code)
 {
-  long slot = lzw_hash(prefix, byte);
-  for(long tries = 0; tries < LZW_TABLE_SIZE; tries++){
-    struct lzw_entry *e = &g_table[slot];
-    // A probe only writes when it lands on an empty slot and there is
-    // still a code to assign; every other probe just compares.
-    int inserts = e->prefix == -1 && g_next_code < LZW_MAX_CODE;
-    vmbench_trace_ref((char *)g_arena_base,
-                       (uint64)(((char *)e - (char *)g_arena_base) /
-                                VMBENCH_PGSIZE),
-                       inserts ? VMBENCH_WRITE : VMBENCH_READ);
-    if(e->prefix == -1){
-      if(g_next_code < LZW_MAX_CODE){
-        e->prefix = prefix;
-        e->byte = byte;
-        e->code = g_next_code++;
-      }
-      return -1; // not found (whether or not we just inserted)
+  g_output[g_out_count] = (ushort)code;
+  lzw_trace(&g_output[g_out_count], VMBENCH_WRITE);
+  g_out_count++;
+  g_out_bits += g_n_bits;
+  if(g_free_ent > g_maxcode || g_clear_flg){
+    if(g_clear_flg){
+      g_n_bits = INIT_BITS;
+      g_maxcode = MAXCODE(g_n_bits);
+      g_clear_flg = 0;
+    } else {
+      g_n_bits++;
+      g_maxcode = g_n_bits == BITS ? MAXMAXCODE : MAXCODE(g_n_bits);
     }
-    if(e->prefix == prefix && e->byte == byte)
-      return e->code;
-    slot = (slot + 1) & (LZW_TABLE_SIZE - 1);
   }
-  return -1; // table full and not found -- caller treats as miss
+}
+
+static void
+lzw_cl_hash(int traced)
+{
+  for(long i = 0; i < HSIZE; i++){
+    g_htab[i] = -1;
+    if(traced)
+      lzw_trace(&g_htab[i], VMBENCH_WRITE);
+  }
+}
+
+// compress's cl_block(): called with the dictionary full, every
+// CHECK_GAP input bytes. The ratio is input bytes per output byte with
+// 8 fractional bits; a CLEAR is sent the first time it fails to improve.
+static long g_ratio;
+static long g_checkpoint;
+
+static void
+lzw_cl_block(long in_count)
+{
+  g_checkpoint = in_count + CHECK_GAP;
+  long bytes_out = 3 + g_out_bits / 8; // 3-byte .Z header
+  long rat;
+  if(in_count > 0x007fffff){
+    rat = bytes_out >> 8;
+    rat = rat == 0 ? 0x7fffffff : in_count / rat;
+  } else {
+    rat = (in_count << 8) / bytes_out;
+  }
+  if(rat > g_ratio){
+    g_ratio = rat;
+  } else {
+    g_ratio = 0;
+    lzw_cl_hash(1);
+    g_free_ent = FIRST;
+    g_clear_flg = 1;
+    lzw_output(CLEAR);
+    g_clears++;
+  }
 }
 
 int
 main(int argc, char *argv[])
 {
-  if(argc != 3 && argc != 4){
+  if(argc < 3 || argc > 5){
     printf("usage: lzwbench <resident_margin> <repeat_count> "
-           "[trace: 1=console, 9=file]\n");
+           "[trace: 1=console, 9=file] [seed: 0-5]\n");
     exit(1);
   }
   int resident_margin = atoi(argv[1]);
   int repeat_count = atoi(argv[2]);
   if(repeat_count < 1)
     repeat_count = 1;
-  int trace_flags = argc == 4 ? atoi(argv[3]) : 0;
+  int trace_flags = argc >= 4 ? atoi(argv[3]) : 0;
   int trace = (trace_flags & 1) != 0;
+  int seed = argc == 5 ? atoi(argv[4]) : 0;
+  if(seed < 0 || seed > 5){
+    printf("lzwbench: seed must be 0-5\n");
+    exit(1);
+  }
   if(trace && vmbench_trace_sink(trace_flags) < 0){
     printf("lzwbench: cannot create %s\n", VMBENCH_TRACE_PATH);
     exit(1);
   }
 
   vmbench_banner("lzwbench", "setup");
-  int fd = open("corpus.txt", 0);
+  char corpus_name[16];
+  strcpy(corpus_name, "corpus.txt");
+  if(seed > 0){
+    strcpy(corpus_name, "corpusN.txt");
+    corpus_name[6] = (char)('0' + seed);
+  }
+  int fd = open(corpus_name, 0);
   if(fd < 0){
-    printf("lzwbench: could not open corpus.txt\n");
+    printf("lzwbench: could not open %s\n", corpus_name);
     exit(1);
   }
   struct stat st;
@@ -108,14 +189,16 @@ main(int argc, char *argv[])
     exit(1);
   }
   long corpus_size = st.size;
-  printf("[info] real text corpus: corpus.txt, %ld bytes (GNU GPLv3 "
-         "license text)\n", corpus_size);
+  printf("[info] seed %d: %s, %ld bytes of English text\n", seed,
+         corpus_name, corpus_size);
 
   long total_in = corpus_size * repeat_count;
-  long table_bytes = (long)LZW_TABLE_SIZE * sizeof(struct lzw_entry);
-  long need_bytes = total_in           // input buffer
-                    + total_in * 2     // output codes (worst case, 2 bytes/code)
-                    + table_bytes;     // dictionary hash table
+  // At most one code per input byte, plus the CLEARs.
+  long max_codes = total_in + total_in / CHECK_GAP + 2;
+  long output_off = (total_in + 7) & ~7L;
+  long htab_off = (output_off + max_codes * (long)sizeof(ushort) + 7) & ~7L;
+  long codetab_off = htab_off + (long)HSIZE * (long)sizeof(int);
+  long need_bytes = codetab_off + (long)HSIZE * (long)sizeof(ushort);
   int footprint_pages = (int)((need_bytes + VMBENCH_PGSIZE - 1) /
                                VMBENCH_PGSIZE) +
                         4;
@@ -126,10 +209,33 @@ main(int argc, char *argv[])
     exit(1);
   }
   uchar *input = (uchar *)arena;
-  ushort *output = (ushort *)(input + total_in);
-  g_table = (struct lzw_entry *)(output + total_in);
+  g_output = (ushort *)(arena + output_off);
+  g_htab = (int *)(arena + htab_off);
+  g_codetab = (ushort *)(arena + codetab_off);
   g_arena_base = arena;
 
+  // Touch the first page so the burn phase has something in the arena's
+  // own VPN range to observe. The corpus is loaded only after the burn and
+  // the limit: loaded before, its resident input pages (175-263 at repeat
+  // counts 20-30) were counted in the settled baseline, so the margin came
+  // on top of the whole input and a "5%" run had 194-288 frames.
+  *(volatile int *)arena = 0;
+  uint64 settled;
+  int proven = vmbench_burn(arena, footprint_pages, &settled);
+  if(proven < 0){
+    printf("lzwbench: vmbench_burn failed\n");
+    exit(1);
+  }
+  if(proven == 0)
+    printf("[warn] vmbench_burn: VM_DEBUG unavailable, best-effort burn "
+           "used -- baseline-priority guarantee is weaker here\n");
+  if(vmctl(VM_SET_LIMIT, (int)settled + resident_margin) < 0){
+    printf("lzwbench: vmctl VM_SET_LIMIT failed\n");
+    exit(1);
+  }
+
+  // Load the input under the limit. This is setup: whatever it pushes out
+  // goes to swap now, outside the measured window.
   long got = 0;
   while(got < corpus_size){
     int n = read(fd, (char *)input + got, (int)(corpus_size - got));
@@ -145,28 +251,14 @@ main(int argc, char *argv[])
   for(int r = 1; r < repeat_count; r++)
     memmove(input + (long)r * corpus_size, input, corpus_size);
 
-  // Touch the first page so the burn phase has something in the arena's
-  // own VPN range to observe. A read, not the `= 0` store the other
-  // workloads use: here the arena already holds the corpus, and a store
-  // would overwrite input[0..3] with zeros and change what gets compressed.
-  (void)*(volatile uchar *)arena;
-  uint64 settled;
-  int proven = vmbench_burn(arena, footprint_pages, &settled);
-  if(proven < 0){
-    printf("lzwbench: vmbench_burn failed\n");
-    exit(1);
-  }
-  if(proven == 0)
-    printf("[warn] vmbench_burn: VM_DEBUG unavailable, best-effort burn "
-           "used -- baseline-priority guarantee is weaker here\n");
-  if(vmctl(VM_SET_LIMIT, (int)settled + resident_margin) < 0){
-    printf("lzwbench: vmctl VM_SET_LIMIT failed\n");
-    exit(1);
-  }
-
-  for(long i = 0; i < LZW_TABLE_SIZE; i++)
-    g_table[i].prefix = -1;
-  g_next_code = LZW_FIRST_CODE;
+  // compress clears the table before it starts; that sweep is setup and
+  // stays outside the measured window. Later CLEARs are traced.
+  lzw_cl_hash(0);
+  g_free_ent = FIRST;
+  g_n_bits = INIT_BITS;
+  g_maxcode = MAXCODE(INIT_BITS);
+  g_ratio = 0;
+  g_checkpoint = CHECK_GAP;
 
   struct vmstats before;
   vmbench_reset_and_snapshot(&before);
@@ -174,21 +266,43 @@ main(int argc, char *argv[])
   vmbench_banner("lzwbench", "workload");
   if(trace)
     vmbench_trace_start("lzwbench", "see RESULT lines below for full "
-                        "parameters", 1, arena, footprint_pages,
+                        "parameters", (uint64)seed, arena, footprint_pages,
                         resident_margin);
-  long out_count = 0;
-  int prefix = input[0];
-  for(long i = 1; i < total_in; i++){
-    int byte = input[i];
-    int code = lzw_lookup_or_insert(prefix, byte);
-    if(code >= 0){
-      prefix = code;
-    } else {
-      output[out_count++] = (ushort)prefix;
-      prefix = byte;
+  // compress's main loop.
+  lzw_trace(&input[0], VMBENCH_READ);
+  int ent = input[0];
+  for(long in_count = 1; in_count < total_in; in_count++){
+    lzw_trace(&input[in_count], VMBENCH_READ);
+    int c = input[in_count];
+    int fcode = (c << BITS) + ent;
+    long i = ((long)c << HSHIFT) ^ ent;
+    lzw_trace(&g_htab[i], VMBENCH_READ);
+    if(g_htab[i] != fcode && g_htab[i] >= 0){
+      long disp = i == 0 ? 1 : HSIZE - i;
+      do {
+        if((i -= disp) < 0)
+          i += HSIZE;
+        lzw_trace(&g_htab[i], VMBENCH_READ);
+      } while(g_htab[i] != fcode && g_htab[i] >= 0);
+    }
+    if(g_htab[i] == fcode){
+      lzw_trace(&g_codetab[i], VMBENCH_READ);
+      ent = g_codetab[i];
+      continue;
+    }
+    // Miss: i is the empty slot the probe stopped at.
+    lzw_output(ent);
+    ent = c;
+    if(g_free_ent < MAXMAXCODE){
+      g_codetab[i] = (ushort)g_free_ent++;
+      lzw_trace(&g_codetab[i], VMBENCH_WRITE);
+      g_htab[i] = fcode;
+      lzw_trace(&g_htab[i], VMBENCH_WRITE);
+    } else if(in_count + 1 >= g_checkpoint){
+      lzw_cl_block(in_count + 1);
     }
   }
-  output[out_count++] = (ushort)prefix;
+  lzw_output(ent);
 
   if(trace)
     vmbench_trace_stop();
@@ -203,9 +317,13 @@ main(int argc, char *argv[])
   vmbench_result("resident_margin", resident_margin);
   vmbench_result("corpus_bytes", corpus_size);
   vmbench_result("repeat_count", repeat_count);
+  vmbench_result("seed", seed);
   vmbench_result("input_bytes", total_in);
-  vmbench_result("output_codes", out_count);
-  vmbench_result("dictionary_entries", g_next_code - LZW_FIRST_CODE);
+  vmbench_result("hash_slots", HSIZE);
+  vmbench_result("output_codes", g_out_count);
+  vmbench_result("compressed_bytes", 3 + (g_out_bits + 7) / 8);
+  vmbench_result("clears", g_clears);
+  vmbench_result("dictionary_entries", g_free_ent - FIRST);
   vmbench_result("zero_faults", d.zero_faults);
   vmbench_result("swap_faults", d.swap_faults);
   vmbench_result("evictions", d.evictions);

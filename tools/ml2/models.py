@@ -1,7 +1,7 @@
 """Training-data access and model fitting for the traces2 study.
 
 Scopes: a model is trained either on one workload's train split
-("btree", "graph", "kv", "matmul", "sort") or on all of them ("global",
+("btree", "graph", "kv", "lzw", "matmul", "sort") or on all of them ("global",
 each workload weighted equally so kv's 2.2M rows don't drown sort's 82K).
 
 Linear models are fitted in closed form. The weighted moment matrix of
@@ -21,7 +21,7 @@ import pagesim as ps
 
 CACHE = ps.ROOT / "traces2" / "ml2_cache"
 MODELS = ps.ROOT / "report" / "models2"
-WORKLOADS = ["btree", "graph", "kv", "matmul", "sort"]
+WORKLOADS = ["btree", "graph", "kv", "lzw", "matmul", "sort"]
 RIDGE = 1e-4
 PROTECT_AGE = 2   # probation for newly loaded pages, chosen on validation (§7)
 
