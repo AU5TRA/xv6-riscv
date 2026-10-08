@@ -8,6 +8,11 @@ A spec is a pickled dict in report/models2/zoo/<name>.pkl:
 """
 from __future__ import annotations
 
+import os
+
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")   # one process per cell: BLAS threads only oversubscribe the cores
+
 import csv
 import math
 import pickle
@@ -135,7 +140,7 @@ def scored(spec, protect_age=None):
 # ---- evaluation --------------------------------------------------------------
 def clock_table():
     t = {}
-    for f in ("classical.csv", "transfer.csv", "transfer_real.csv"):
+    for f in ("classical.csv", "transfer.csv", "transfer_real.csv", "transfer_app.csv"):
         p = R / f
         if p.exists():
             for r in csv.DictReader(open(p)):
@@ -148,7 +153,8 @@ CLOCK = clock_table()
 TRANSFER_STEMS = ([f"pat-{m}-s{s}" for m in ("loop", "scanhot", "scanhotlo", "zipf060", "zipf080",
                   "zipf099", "zipf120", "uniform", "phase", "phaseshort", "switch") for s in (1, 5)]
                   + [f"kv-T{c}-s1" for c in (4, 17, 18, 24, 35, 52)]
-                  + ["redis-real-s1", "sqlite-real-s1"])
+                  + ["redis-real-s1", "sqlite-real-s1"]
+                  + [f"app-{m}-s{k}" for m in ("chase", "spmv", "hashjoin", "bloom") for k in (1, 3)])
 
 
 def val_stems(scope):
@@ -160,7 +166,10 @@ def val_stems(scope):
 
 
 def test_stems():
-    return list(ps.stems(("test", "heldout"))) + TRANSFER_STEMS
+    """test + held-out dataset streams and the transfer streams that have Clock reference counts
+    (patbench seeds 1 and 5 only; the other patbench seeds are not scored)."""
+    out = list(dict.fromkeys(list(ps.stems(("test", "heldout"))) + TRANSFER_STEMS))
+    return [s for s in out if (s, "0.1") in CLOCK]
 
 
 def _job(a):

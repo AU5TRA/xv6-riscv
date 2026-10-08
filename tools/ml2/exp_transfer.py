@@ -19,6 +19,8 @@ import pagesim as ps
 R = ps.ROOT / "report" / "results2"
 OUT = R / "transfer.csv"
 OUT_REAL = R / "transfer_real.csv"
+OUT_APP = R / "transfer_app.csv"
+APP = [f"app-{m}-s{k}" for m in ("chase", "spmv", "hashjoin", "bloom") for k in (1, 3)]
 FRACS = ("0.05", "0.1", "0.2")
 CLASSIC = ["fifo", "lru", "clock", "belady", "mru", "arc", "s3fifo", "s3scan", "mglru", "lhd"]
 HEADER = ["model", "stem", "workload", "fraction", "frames", "faults", "writebacks", "aborted"]
@@ -57,9 +59,9 @@ def job(args):
     return rows
 
 
-def run(jobs, real=False):
-    out = OUT_REAL if real else OUT
-    tasks = [(st, fr) for st in (REAL if real else stems()) for fr in FRACS]
+def run(jobs, which="main"):
+    out = {"main": OUT, "real": OUT_REAL, "app": OUT_APP}[which]
+    tasks = [(st, fr) for st in {"main": stems(), "real": REAL, "app": APP}[which] for fr in FRACS]
     t0 = time.time()
     with Pool(jobs) as pool, open(out, "w", newline="") as f:
         w = csv.writer(f); w.writerow(HEADER)
@@ -70,7 +72,7 @@ def run(jobs, real=False):
 
 
 def report():
-    rows = list(csv.DictReader(open(OUT))) + (list(csv.DictReader(open(OUT_REAL))) if OUT_REAL.exists() else [])
+    rows = [r for p in (OUT, OUT_REAL, OUT_APP) if p.exists() for r in csv.DictReader(open(p))]
     f = {(r["model"], r["stem"], r["fraction"]): int(r["faults"]) for r in rows}
     models = sorted({r["model"] for r in rows}, key=lambda m: (not m in CLASSIC, CLASSIC.index(m) if m in CLASSIC else 0, m))
     print("faults / Clock, geo-mean over the 3 capacities and the seeds of a mode")
@@ -86,6 +88,6 @@ def report():
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("--jobs", type=int, default=6); ap.add_argument("--real", action="store_true")
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("--jobs", type=int, default=6); ap.add_argument("--set", default="main", choices=["main", "real", "app"])
     a = ap.parse_args()
-    run(a.jobs, a.real) if a.cmd == "run" else report()
+    run(a.jobs, a.set) if a.cmd == "run" else report()

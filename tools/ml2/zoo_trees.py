@@ -12,6 +12,10 @@ candidate-set rank features ("r"). The grid is fixed below, before any result.
 Selection is on validation only (matmul has no validation streams: its training streams).
 """
 import argparse
+import os
+
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")   # before numpy loads: one process per cell
 import csv
 import math
 import time
@@ -36,7 +40,7 @@ GRID = [("cart", dict(depth=4)), ("cart", dict(depth=8)),
         ("rank", dict(trees=100, leaves=16)), ("rf", dict(trees=30, depth=8)),
         ("logit", dict())]
 ROW_CAP = {"cart": 400_000, "rf": 400_000, "logit": 400_000, "gbdt": 1_500_000, "rank": 1_000_000}
-PROTECT = (0, 2)
+PROTECT = (2,)   # probation 2 scans, the value chosen on validation for the linear models (models.PROTECT_AGE)
 SEL_FRAC = "0.1"
 
 
@@ -115,7 +119,11 @@ def fit(scopes):
 
 def names(scope):
     """Every fitted model of the scope (any family: trees here, neural nets from zoo_nn.py)."""
-    return sorted(p.stem for p in Z.ZOO.glob(f"{scope}.*.pkl"))
+    out = sorted(p.stem for p in Z.ZOO.glob(f"{scope}.*.pkl"))
+    if scope == "global":      # the global scope is 5x the validation cost: fixed pruning of the smaller variants
+        out = [n for n in out if n.split(".", 3)[1:4:2] not in (["cart", "depth4"], ["gbdt", "trees30-leaves8"],
+                                                                  ["gbdt", "trees100-leaves8"], ["rf", "trees30-depth8"])]
+    return out
 
 
 def select(jobs):
@@ -145,8 +153,13 @@ def test(jobs):
     tasks = []
     for scope in SCOPES:
         keep = set()
-        for fam, (v, nm, pa) in best(scope).items():
-            keep.add((nm, pa))
+        NN = {"deep", "setctx", "cnnmlp", "lstmmlp", "agecnn", "setcnn"}
+        for is_nn in (False, True):      # fixed rule: the best (by validation) of the tree family and of the neural family,
+            for kern in (False, True):   # overall, and among kernel-observable inputs only (K / Kr)
+                top = sorted((v, nm, pa) for fam, (v, nm, pa) in best(scope).items()
+                             if (nm.split(".")[1] in NN) == is_nn
+                             and (not kern or nm.split(".")[2] in ("K", "Kr")))[:1]
+                keep |= {(nm, pa) for _, nm, pa in top}
         for nm, pa in keep:
             for st in Z.test_stems():
                 wl = ps.index_entry(st)["workload"]
@@ -160,9 +173,10 @@ def test(jobs):
 def report():
     rows = list(csv.DictReader(open(Z.CELLS)))
     groups = {"test": lambda r: r["split"] == "test", "held-out": lambda r: r["split"] == "heldout"
-              and not r["stem"].startswith(("pat", "kv-T", "redis", "sqlite")),
+              and not r["stem"].startswith(("pat", "kv-T", "redis", "sqlite", "app-")),
               "pat": lambda r: r["stem"].startswith("pat"), "kv-T": lambda r: r["stem"].startswith("kv-T"),
-              "real": lambda r: r["stem"].startswith(("redis", "sqlite"))}
+              "real": lambda r: r["stem"].startswith(("redis", "sqlite")),
+              "app": lambda r: r["stem"].startswith("app-")}
     print(f"{'scope':8s}{'family.featset':12s}{'val':>7s}  " + "".join(f"{g:>9s}" for g in groups) + "   model")
     for scope in SCOPES:
         for fam, (v, nm, pa) in sorted(best(scope).items(), key=lambda kv: kv[1][0]):
