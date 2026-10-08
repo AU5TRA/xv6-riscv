@@ -257,4 +257,116 @@ uint64 vmbench_rng_below(struct vmbench_rng *r, uint64 bound);
 // truth for the table's size.
 uint64 vmbench_zipf_sample(struct vmbench_rng *r);
 
+// The same sampler over any table: `cdf` holds `n` ranks, as written by
+// tools/gen_zipf_table.py --name (user/zipf_table_<name>.h). For skews
+// and sizes other than kvbench's. One draw from the PRNG per sample,
+// exactly as vmbench_zipf_sample(), so a host model reproduces both the
+// same way. Inline here rather than in vmbench.c so the programs that do
+// not use it keep byte-identical binaries -- and so the same arena
+// addresses -- as the ones their traces were collected with.
+static inline uint64
+vmbench_zipf_sample_cdf(struct vmbench_rng *r, const uint32 *cdf, int n)
+{
+  uint32 draw = (uint32)vmbench_rng_next(r);
+  int lo = 0, hi = n - 1;
+  while(lo < hi){
+    int mid = lo + (hi - lo) / 2;
+    if(cdf[mid] >= draw)
+      hi = mid;
+    else
+      lo = mid + 1;
+  }
+  return (uint64)lo;
+}
+
+// A bucketed table (tools/gen_zipf_table.py --buckets): pick bucket b by
+// its exact probability with one draw, exactly as above, then a rank
+// uniformly in [start[b], start[b+1]) with a second -- drawn even for a
+// one-rank bucket, so every sample costs two draws.
+static inline uint64
+vmbench_zipf_sample_bucketed(struct vmbench_rng *r, const uint32 *cdf,
+                             const uint32 *start, int nbuckets)
+{
+  uint64 b = vmbench_zipf_sample_cdf(r, cdf, nbuckets);
+  return start[b] + vmbench_rng_below(r, start[b + 1] - start[b]);
+}
+
+// ---- Seeded permutation of [0, n) -----------------------------------------
+// Scatters logical items (pages, nodes, keys) over [0, n) in a seeded
+// order without a table: a table would itself be working data, needing
+// either a place outside the arena (untraced) or traced lookups that are
+// not part of the workload. A balanced Feistel network on the smallest
+// even number of bits covering n, with splitmix64's finalizer as the round
+// function, made a permutation of [0, n) by cycle-walking: re-encrypt
+// until the value lands in range. The walk always ends, because the cycle
+// through x contains x itself. Inline for the same reason as the sampler
+// above. tools/hostmodel/common.py's Perm is the host model of it.
+struct vmbench_perm {
+  uint64 n;
+  uint64 key;
+  int half;    // bits per half
+  uint64 mask; // (1 << half) - 1
+};
+
+static inline uint64
+vmbench_mix64(uint64 z)
+{
+  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+  z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+  return z ^ (z >> 31);
+}
+
+static inline void
+vmbench_perm_init(struct vmbench_perm *pm, uint64 n, uint64 key)
+{
+  int bits = 2;
+  while((1ULL << bits) < n)
+    bits++;
+  bits += bits & 1;
+  pm->n = n;
+  pm->key = key;
+  pm->half = bits / 2;
+  pm->mask = (1ULL << pm->half) - 1;
+}
+
+static inline uint64
+vmbench_perm_round(const struct vmbench_perm *pm, uint64 v, int round)
+{
+  return vmbench_mix64(v + pm->key +
+                       (uint64)(round + 1) * 0x9E3779B97F4A7C15ULL) &
+         pm->mask;
+}
+
+// x's position in the seeded order: a value in [0, n).
+static inline uint64
+vmbench_perm_fwd(const struct vmbench_perm *pm, uint64 x)
+{
+  do {
+    uint64 l = x >> pm->half, r = x & pm->mask;
+    for(int i = 0; i < 4; i++){
+      uint64 t = l ^ vmbench_perm_round(pm, r, i);
+      l = r;
+      r = t;
+    }
+    x = (l << pm->half) | r;
+  } while(x >= pm->n);
+  return x;
+}
+
+// The inverse: vmbench_perm_inv(pm, vmbench_perm_fwd(pm, x)) == x.
+static inline uint64
+vmbench_perm_inv(const struct vmbench_perm *pm, uint64 x)
+{
+  do {
+    uint64 l = x >> pm->half, r = x & pm->mask;
+    for(int i = 3; i >= 0; i--){
+      uint64 t = r ^ vmbench_perm_round(pm, l, i);
+      r = l;
+      l = t;
+    }
+    x = (l << pm->half) | r;
+  } while(x >= pm->n);
+  return x;
+}
+
 #endif
