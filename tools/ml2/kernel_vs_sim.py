@@ -49,13 +49,22 @@ def simulate(s, frames, r):
     return ps.run(s, frames, SIMPOL[r["policy"]])
 
 
+def prefix(s, n):
+    """The first n references of a stream: patbench / appbench kernel runs use fewer accesses than
+    the stored 1M-reference stream, whose first n references are exactly what they ran."""
+    import copy
+    t = copy.copy(s)
+    t.n = n
+    return t
+
+
 def job(args):
     stem, rows = args
     s = ps.load_stream(stem)
     out = []
     for r in rows:
         frames = int(r["frames"])
-        sim = simulate(s, frames, r)
+        sim = simulate(prefix(s, int(r["accesses"])) if r.get("accesses") else s, frames, r)
         kern = int(r["swap_faults"]) + int(r["zero_faults"])
         out.append([stem, r["split"], r["workload"], r["fraction"], frames, r["policy"],
                     r["model"], kern, sim["faults"], f"{kern / sim['faults']:.4f}",

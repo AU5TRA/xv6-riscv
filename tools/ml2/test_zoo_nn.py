@@ -12,7 +12,7 @@ for arch, _ in N.GRID:
     (X, H, Y, W, Mk), _ = N.sets(d, cols, arch, norm)
     net.eval()
     with torch.no_grad():
-        P = net(X[:40], H[:40], Mk[:40]).cpu().numpy()
+        P = net(X[:40].to(N.DEV), H[:40].to(N.DEV), Mk[:40].to(N.DEV)).cpu().numpy()
     g = d["group"]; worst = 0.0
     for i, gid in enumerate(np.unique(g)[:40]):
         m = g == gid

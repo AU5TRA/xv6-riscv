@@ -38,8 +38,11 @@ GRID = [("cart", dict(depth=4)), ("cart", dict(depth=8)),
         ("gbdt", dict(trees=30, leaves=8)), ("gbdt", dict(trees=30, leaves=16)),
         ("gbdt", dict(trees=100, leaves=8)), ("gbdt", dict(trees=100, leaves=16)),
         ("rank", dict(trees=100, leaves=16)), ("rf", dict(trees=30, depth=8)),
-        ("logit", dict())]
+        ("logit", dict()),
+        # follow-up (added after the first results, to meet the <= 2x cost criterion): kernel-sized ensembles
+        ("gbdt", dict(trees=4, leaves=8)), ("gbdt", dict(trees=8, leaves=8)), ("gbdt", dict(trees=16, leaves=8))]
 ROW_CAP = {"cart": 400_000, "rf": 400_000, "logit": 400_000, "gbdt": 1_500_000, "rank": 1_000_000}
+NN_MAX_REFS = 400_000
 PROTECT = (2,)   # probation 2 scans, the value chosen on validation for the linear models (models.PROTECT_AGE)
 SEL_FRAC = "0.1"
 
@@ -160,9 +163,20 @@ def test(jobs):
                              if (nm.split(".")[1] in NN) == is_nn
                              and (not kern or nm.split(".")[2] in ("K", "Kr")))[:1]
                 keep |= {(nm, pa) for _, nm, pa in top}
+        small = sorted((v, nm, pa) for fam, (v, nm, pa) in best(scope).items()
+                       if nm.split(".")[1] == "gbdt" and nm.split(".")[2] in ("K", "Kr")
+                       and nm.split(".")[3].startswith(("trees4-", "trees8-", "trees16-")))[:1]
+        keep |= {(nm, pa) for _, nm, pa in small}
+        # kernel-feasible neural net: K inputs only and no oracle history (deep, setctx, agecnn)
+        top = sorted((v, nm, pa) for fam, (v, nm, pa) in best(scope).items()
+                     if nm.split(".")[1] in ("deep", "setctx", "agecnn") and nm.split(".")[2] == "K")[:1]
+        keep |= {(nm, pa) for _, nm, pa in top}
         for nm, pa in keep:
             for st in Z.test_stems():
-                wl = ps.index_entry(st)["workload"]
+                ent = ps.index_entry(st)
+                wl = ent["workload"]
+                if nm.split(".")[1] in NN and ent["refs"] > NN_MAX_REFS:
+                    continue        # numpy callbacks cost ~1-3 ms per eviction: skipped on the 1M+ reference streams
                 if scope != "global" and wl != scope and not (scope == "kv" and st.startswith("kv-T")):
                     continue
                 tasks += [(nm, pa, st, f, scope) for f in ("0.05", "0.1", "0.2")]

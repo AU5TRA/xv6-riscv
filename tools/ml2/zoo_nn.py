@@ -16,6 +16,10 @@ Selection on validation, never on test (see zoo_trees.py select/test/report, whi
     python3 zoo_nn.py fit [--scopes global kv ...]
 """
 import argparse
+import os
+
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")   # before numpy loads: one process per cell
 import time
 
 import numpy as np
@@ -121,7 +125,7 @@ def sets(d, cols, arch, norm=None):
     Y[gi[keep], pos[keep]] = d["label"][order][keep]
     W[gi[keep], pos[keep]] = d["weight"][order][keep]
     M_[gi[keep], pos[keep]] = True
-    t = lambda a: torch.from_numpy(a).to(DEV)
+    t = torch.from_numpy                      # stays on the CPU; batches go to the GPU
     return (t(Xt), t(Ht), t(Y), t(W), t(M_)), norm
 
 
@@ -134,11 +138,14 @@ def train(scope, arch, fs, epochs=40, seed=1):
         va = {k: v[m] for k, v in tr.items()}; tr = {k: v[~m] for k, v in tr.items()}
     (Xt, Ht, Yt, Wt, Mt), norm = sets(tr, cols, arch)
     (Xv, Hv, Yv, Wv, Mv), _ = sets(va, cols, arch, norm)
+    if sum(a.numel() * a.element_size() for a in (Xt, Ht, Yt, Wt, Mt)) < 3e9:
+        Xt, Ht, Yt, Wt, Mt = (a.to(DEV) for a in (Xt, Ht, Yt, Wt, Mt))   # whole training set on the GPU
     torch.manual_seed(seed)
     net = Net(arch, len(cols)).to(DEV)
     opt = torch.optim.Adam(net.parameters(), lr=2e-3)
 
     def loss(x, h, y, w, m):
+        x, h, y, w, m = (a.to(DEV) for a in (x, h, y, w, m))
         p = net(x, h, m)
         ww = w * m
         return (ww * (p - y) ** 2).sum() / ww.sum()
@@ -147,7 +154,7 @@ def train(scope, arch, fs, epochs=40, seed=1):
     G = len(Xt)
     for ep in range(epochs):
         net.train()
-        perm = torch.randperm(G, device=DEV)
+        perm = torch.randperm(G, device=Xt.device)
         for i in range(0, G, 512):
             b = perm[i:i + 512]
             opt.zero_grad()
@@ -155,7 +162,13 @@ def train(scope, arch, fs, epochs=40, seed=1):
             opt.step()
         net.eval()
         with torch.no_grad():
-            v = float(loss(Xv, Hv, Yv, Wv, Mv))
+            num = den = 0.0
+            for i in range(0, len(Xv), 4096):
+                sl = slice(i, i + 4096)
+                x, h, y, w, m = (a[sl].to(DEV) for a in (Xv, Hv, Yv, Wv, Mv))
+                ww = w * m
+                num += float((ww * (net(x, h, m) - y) ** 2).sum()); den += float(ww.sum())
+            v = num / den
         if v < best - 1e-5:
             best, bad, state = v, 0, {k: x.detach().clone() for k, x in net.state_dict().items()}
         else:
@@ -187,12 +200,13 @@ def _mlp(x, w, prefix):
 
 
 def _conv(h, w):                                 # h [n, NH] -> [n, 32]
-    def c(x, W, b):                              # x [n, Cin, L], W [Cout, Cin, 3]
+    def c(x, W, b):                              # x [n, Cin, L], W [Cout, Cin, 3] -> [n, Cout, L-2]
         n, ci, L = x.shape
-        win = np.stack([x[:, :, i:i + L - 2] for i in range(3)], 3)      # [n, Cin, L-2, 3]
-        return np.maximum(np.einsum("ncls,ocs->nol", win, W) + b[None, :, None], 0)
+        win = np.lib.stride_tricks.sliding_window_view(x, 3, axis=2)       # [n, Cin, L-2, 3]
+        win = win.transpose(0, 2, 1, 3).reshape(n, L - 2, ci * 3)
+        return np.maximum(win @ W.reshape(W.shape[0], -1).T + b, 0).transpose(0, 2, 1)
     z = c(h[:, None, :], w["hist.c1.weight"], w["hist.c1.bias"])
-    return c(z, w["hist.c2.weight"], w["hist.c2.bias"]).reshape(len(h), -1)
+    return np.ascontiguousarray(c(z, w["hist.c2.weight"], w["hist.c2.bias"])).reshape(len(h), -1)
 
 
 def _lstm(h, w):                                 # h [n, NH] -> [n, 16]

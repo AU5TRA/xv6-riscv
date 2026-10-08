@@ -52,10 +52,13 @@ def main():
     for scope in T.SCOPES:
         systems = {k[0]: v for k, v in sysf.items() if k[1] in ("*", scope)}
         for cls, is_nn, kern in (("zoo-trees", False, False), ("zoo-nn", True, False),
-                                 ("zooK-trees", False, True), ("zooK-nn", True, True)):
+                                 ("zooK-trees", False, True), ("zooK-nn", True, True), ("zooKF-nn", True, "kf"), ("zooS-trees", False, "small")):
             cand = sorted((v, nm) for fam, (v, nm, pa) in T.best(scope).items()
-                          if (nm.split(".")[1] in NN) == is_nn and (not kern or nm.split(".")[2] in ("K", "Kr")))
-            if cand and not (kern and cand[0][1].split(".")[2] in ("FK", "FKr")):
+                          if (nm.split(".")[1] in NN) == is_nn
+                          and (not kern or (nm.split(".")[2] == "K" and nm.split(".")[1] in ("deep", "setctx", "agecnn") if kern == "kf"
+                                            else nm.split(".")[2] in ("K", "Kr") and nm.split(".")[3].startswith(("trees4-", "trees8-", "trees16-"))
+                                            if kern == "small" else nm.split(".")[2] in ("K", "Kr"))))
+            if cand:
                 nm = cand[0][1]
                 systems[f"{cls}:{nm.split('.', 1)[1]}"] = {(r["stem"], r["fraction"]): int(r["faults"])
                                                            for r in cells if r["model"] == f"{nm}|pa2"}
@@ -89,7 +92,7 @@ def main():
             for n in zoo_names:       # paired stem-level bootstrap of the zoo model vs the best linear model
                 refname = "lin-any" if ".FK" in n else "lin-K+K+"      # compare like with like: oracle features vs the best linear on any tier
                 d, dl = rows[n][g][1], sysf[(refname, scope)]
-                if not all(c in dl for c in common):
+                if not all(c in dl and c in d for c in common):
                     continue
                 by = defaultdict(list)
                 for c in common:

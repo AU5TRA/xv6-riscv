@@ -33,7 +33,7 @@ INDEX = ROOT / "traces2" / "ML" / "index.json"
 MANIFEST = ROOT / "tools" / "streams_manifest.tsv"
 HEADER = ["stem", "split", "workload", "variant", "fraction", "frames", "policy",
           "model", "status", "swap_faults", "evictions", "page_writes", "select_ticks",
-          "candidates_scanned", "zero_faults", "wall_s", "transcript"]
+          "candidates_scanned", "zero_faults", "wall_s", "transcript", "accesses"]
 TRACE_BITS = 9      # trace | file-sink flag bits (tools/make_stream_manifest.py)
 
 
@@ -46,16 +46,19 @@ def policies(workload):
 # take <footprint> <margin> ... <flags>; lzwbench takes <margin>
 # <repeat_count> <flags> <seed>, so the defaults would overwrite its repeat
 # count and seed.
-MARGIN_ARG = {"lzwbench": 1}
+MARGIN_ARG = {"lzwbench": 1, "appbench": 1}
+ACC_ARG = {"patbench": 3, "appbench": 2}      # access-count argument, overridable with --accesses
 FLAGS_ARG = {"lzwbench": 3}
 
 
-def command(stem, frames):
+def command(stem, frames, accesses=0):
     for line in open(MANIFEST):
         if line.startswith(stem + "\t"):
             cmd = line.rstrip("\n").split("\t")[3].split()
             m, f = MARGIN_ARG.get(cmd[0], 2), FLAGS_ARG.get(cmd[0], -1)
             cmd[m] = str(frames)                     # margin
+            if accesses and cmd[0] in ACC_ARG:
+                cmd[ACC_ARG[cmd[0]]] = str(accesses)   # shorter run than the 1M-reference stream
             cmd[f] = str(int(cmd[f]) & ~TRACE_BITS)  # tracing off
             return cmd
     raise KeyError(stem)
@@ -90,9 +93,9 @@ def make_lane(i):
     return lane
 
 
-def run_one(lane, job, timeout):
+def run_one(lane, job, timeout, accesses=0):
     stem, split, wl, variant, frac, frames, pol, model = job
-    cmd = ["vmrun", pol] + ([model] if model else []) + command(stem, frames)
+    cmd = ["vmrun", pol] + ([model] if model else []) + command(stem, frames, accesses)
     t0 = time.time()
     p = subprocess.run(["python3", "tools/run_xv6_tests.py", "--cpus", "1", "--timeout",
                         str(timeout), " ".join(cmd)], cwd=lane, capture_output=True, text=True)
@@ -112,7 +115,7 @@ def run_one(lane, job, timeout):
     return [stem, split, wl, variant, frac, frames, pol, model or "", status,
             d.get("swap_faults", ""), d.get("evictions", ""), d.get("page_writes", ""),
             d.get("select_ticks", ""), d.get("candidates_scanned", ""),
-            d.get("zero_faults", ""), f"{wall:.0f}", path]
+            d.get("zero_faults", ""), f"{wall:.0f}", path, accesses or ""]
 
 
 def main():
@@ -122,6 +125,7 @@ def main():
     ap.add_argument("--splits", default="test,heldout")
     ap.add_argument("--only", default="", help="comma-separated stem prefixes")
     ap.add_argument("--timeout", type=int, default=10800)
+    ap.add_argument("--accesses", type=int, default=0, help="run patbench/appbench for this many accesses only")
     a = ap.parse_args()
     idx = json.load(open(INDEX))["streams"]
     done = set()
@@ -164,7 +168,7 @@ def main():
                 job = q.get_nowait()
             except queue.Empty:
                 return
-            row = run_one(lane, job, a.timeout)
+            row = run_one(lane, job, a.timeout, a.accesses)
             with lock:
                 w.writerow(row)
                 f.flush()
