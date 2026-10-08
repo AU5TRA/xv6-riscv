@@ -84,12 +84,22 @@ struct model {
   // evicted while any older one exists (Clock's second chance for a new
   // page, applied to a learned score). 0 = off.
   int protect_age;
+  // Sampled scoring (like cache_ext's bpf_cache_ext_list_sample): each eviction
+  // considers only sample_k random residents instead of all of them.
+  // sample_scan = 0: every resident is still scanned (A bit read and cleared,
+  // features updated), only the scoring is sampled. sample_scan = 1: only the
+  // sampled pages are scanned, so the scan-driven features (idle, aging, sfreq)
+  // of the others go stale. sample_k = 0 turns sampling off.
+  int sample_k;
+  int sample_scan;
+  int sample_seed;
 };
 
 struct result {
   int64_t faults, evictions, writebacks;
   int64_t rows, overflow;
   int64_t aborted;          // stopped early: faults exceeded max_faults
+  int64_t scanned, scored;  // pages scanned / scored, summed over evictions
 };
 
 struct recorder {
@@ -196,6 +206,7 @@ struct state {
   int64_t seq, scans, distinct_seen;
   int32_t *order; int order_n; int64_t hand;   // Clock candidate list
   int32_t ring[EMB_W]; int ring_i;             // last EMB_W pages referenced
+  uint64_t srng; int32_t *samp;                // sampled-scoring rng / chosen indices
 };
 
 static float feature(const struct state *s, int p, int64_t t, int f) {
@@ -222,20 +233,21 @@ static float feature(const struct state *s, int p, int64_t t, int f) {
 // Kernel-style full scan of every candidate: read and clear A, update the
 // aging counter, the sampled counts and the decayed LFU counter exactly as
 // sample_page() + choose_aging()/choose_lfu() would.
-static void scan_all(struct state *s) {
-  for (int k = 0; k < s->count; k++) {
-    int p = s->res[k];
-    int a = s->abit[p];
-    s->seen_now[p] = a;
-    s->aging[p] = (s->aging[p] >> 1) | (a ? 0x80 : 0);
-    if (a) {
-      s->sfreq[p]++;
-      s->last_seen[p] = s->scans;
-      s->kfreq[p]++;                       // sample_page()'s frequency++
-    }
-    s->kfreq[p] = (s->kfreq[p] >> 1) + (a ? 1 : 0);  // choose_lfu decay
-    s->abit[p] = 0;
+static void scan_one(struct state *s, int p) {
+  int a = s->abit[p];
+  s->seen_now[p] = a;
+  s->aging[p] = (s->aging[p] >> 1) | (a ? 0x80 : 0);
+  if (a) {
+    s->sfreq[p]++;
+    s->last_seen[p] = s->scans;
+    s->kfreq[p]++;                         // sample_page()'s frequency++
   }
+  s->kfreq[p] = (s->kfreq[p] >> 1) + (a ? 1 : 0);  // choose_lfu decay
+  s->abit[p] = 0;
+}
+
+static void scan_all(struct state *s) {
+  for (int k = 0; k < s->count; k++) scan_one(s, s->res[k]);
 }
 
 static int argmax_by(const struct state *s, const double *score) {
@@ -396,6 +408,36 @@ static int choose(struct state *s, int policy, const struct model *m,
   }
 }
 
+// Draw k distinct resident indices (partial Fisher-Yates) into s->samp.
+static void draw_sample(struct state *s, int k) {
+  for (int i = 0; i < s->count; i++) s->samp[i] = i;
+  for (int i = 0; i < k; i++) {
+    int j = i + (int)(xs(&s->srng) % (uint64_t)(s->count - i));
+    int32_t tmp = s->samp[i]; s->samp[i] = s->samp[j]; s->samp[j] = tmp;
+  }
+}
+
+// choose() restricted to the k sampled candidates in s->samp[0..k-1]: same
+// score, same probation (among the sampled), same tie-break (oldest load).
+static int choose_sampled(struct state *s, const struct model *m, int64_t t, int k) {
+  int any_old = 0;
+  for (int i = 0; i < k; i++)
+    if (m->protect_age && s->scans - s->load_scan[s->res[s->samp[i]]] >= m->protect_age)
+      any_old = 1;
+  int best = -1;
+  double best_score = 0;
+  for (int i = 0; i < k; i++) {
+    int idx = s->samp[i], p = s->res[idx];
+    if (any_old && s->scans - s->load_scan[p] < m->protect_age) continue;
+    double sc = score_one(s, m, p, t, NULL);
+    if (best < 0 || sc > best_score ||
+        (sc == best_score && s->load_seq[p] < s->load_seq[s->res[best]])) {
+      best = idx; best_score = sc;
+    }
+  }
+  return best;
+}
+
 static int clock_choose(struct state *s) {
   // choose_clock(): hand advances over the candidate list; a referenced
   // candidate has A cleared and is skipped, at most two sweeps.
@@ -493,7 +535,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
            ALLOC(s->has_copy, n_pages) && ALLOC(s->seen_now, n_pages) &&
            ALLOC(s->hist, (int64_t)n_pages * GRU_K) &&
            ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1) &&
-           ALLOC(pick, cap + 1);
+           ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1);
   if (ok && need_bit) ok = ALLOC(s->bit, n + 1) != NULL;
   if (ok && policy == P_GRU)
     ok = ALLOC(s->gru_cache, (int64_t)n_pages * m->gru_h) &&
@@ -506,6 +548,9 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   for (int j = 0; j < EMB_W; j++) s->ring[j] = -1;
   uint64_t rng = r ? (r->rng ? r->rng : 88172645463325252ull) : 1;
   int32_t group = 0;
+  s->srng = 0x9E3779B97F4A7C15ull ^ ((uint64_t)(m ? m->sample_seed : 0) * 0xD1B54A32D192ED03ull);
+  if (!s->srng) s->srng = 1;
+  int sampling = learned && m && m->kind == 0 && m->sample_k > 0;
 
   for (int64_t t = 0; t < n; t++) {
     int p = (int)pg[t];
@@ -514,7 +559,22 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       o->faults++;
       if (max_faults > 0 && o->faults > max_faults) { o->aborted = 1; break; }
       if (s->count >= cap) {                  // ---- evict ----
-        if (need_scan) scan_all(s);
+        int sampled = sampling && s->count > m->sample_k;
+        if (sampled) {
+          draw_sample(s, m->sample_k);
+          if (m->sample_scan) {
+            for (int i = 0; i < m->sample_k; i++) scan_one(s, s->res[s->samp[i]]);
+            o->scanned += m->sample_k;
+          } else {
+            scan_all(s);
+            o->scanned += s->count;
+          }
+          o->scored += m->sample_k;
+        } else if (need_scan) {
+          scan_all(s);
+          o->scanned += s->count;
+          if (learned) o->scored += s->count;
+        }
         if (need_bit) s->bit_now = bit_sum(s->bit, t - 1);
         if (r && r->p > 0 && (double)(xs(&rng) >> 11) / 9007199254740992.0 < r->p)
           record(s, r, o, t, group++, &rng, pick);
@@ -525,6 +585,8 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
           memmove(s->order + idx, s->order + idx + 1,
                   sizeof(int32_t) * (s->order_n - idx - 1));
           s->order_n--;
+        } else if (sampled) {
+          k = choose_sampled(s, m, t, m->sample_k);
         } else {
           k = choose(s, policy, m, t, score);
         }
@@ -585,7 +647,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   free(s->sfreq); free(s->kfreq); free(s->refaults); free(s->abit);
   free(s->dbit); free(s->aging); free(s->has_copy); free(s->seen_now);
   free(s->hist); free(s->order); free(score); free(s->bit); free(pick);
-  free(s->gru_cache); free(s->gru_dirty);
+  free(s->gru_cache); free(s->gru_dirty); free(s->samp);
   return 0;
 }
 

@@ -57,13 +57,16 @@ class Model(C.Structure):
                 ("head_w", C.POINTER(C.c_float)), ("head_layers", C.c_int),
                 ("head_sizes", C.c_int * (MAXL + 1)), ("emb_d", C.c_int),
                 ("emb", C.POINTER(C.c_float)), ("quant_w", C.c_int),
-                ("qa", C.c_int32 * NF), ("protect_age", C.c_int)]
+                ("qa", C.c_int32 * NF), ("protect_age", C.c_int),
+                ("sample_k", C.c_int), ("sample_scan", C.c_int),
+                ("sample_seed", C.c_int)]
 
 
 class Result(C.Structure):
     _fields_ = [("faults", C.c_int64), ("evictions", C.c_int64),
                 ("writebacks", C.c_int64), ("rows", C.c_int64),
-                ("overflow", C.c_int64), ("aborted", C.c_int64)]
+                ("overflow", C.c_int64), ("aborted", C.c_int64),
+                ("scanned", C.c_int64), ("scored", C.c_int64)]
 
 
 class Recorder(C.Structure):
@@ -167,7 +170,8 @@ def run(s, cap, policy, model=None, max_faults=0):
     res = _call(s, cap, policy, model.c if model is not None else None,
                 max_faults=max_faults)
     return {"faults": res.faults, "evictions": res.evictions,
-            "writebacks": res.writebacks, "aborted": bool(res.aborted)}
+            "writebacks": res.writebacks, "aborted": bool(res.aborted),
+            "scanned": res.scanned, "scored": res.scored}
 
 
 def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False,
@@ -209,6 +213,11 @@ class ScoredModel:
         self.c = Model()
         self.c.kind = {"mlp": 0, "gru": 1, "embed": 2}[kind]
         self.c.protect_age = int(kw.get("protect_age", 0))
+        # sampled scoring: sample_k random residents per eviction (0 = all);
+        # sample_scan=1 also restricts the accessed-bit scan to the sample
+        self.c.sample_k = int(kw.get("sample_k", 0))
+        self.c.sample_scan = int(kw.get("sample_scan", 0))
+        self.c.sample_seed = int(kw.get("sample_seed", 1))
         self._keep = []
         if kind == "mlp":
             feats = kw["features"]
