@@ -2,8 +2,10 @@
 """Offline page-replacement simulator (WORK_PROMPT.md Phase 4).
 
 Replays a vmbench reference trace (see tools/trace_decode.py for the
-format) through FIFO, Clock, Aging, LRU, and Belady's optimal (via
-next-use distance), reporting fault and eviction counts for each.
+format) through FIFO, Clock, Aging, LRU, LFU, MRU, ARC and Belady's
+optimal (via next-use distance), reporting fault and eviction counts for
+each. MRU and ARC exist only here, not in the kernel: they are the
+reference answers for patbench's loop and switch/phase patterns.
 
 Runs entirely on the host, in plain Python -- this does NOT run inside
 xv6 and has no floating-point restriction. FIFO/Clock/Aging are
@@ -27,6 +29,7 @@ older, single-file transcript that already has both.
 """
 import sys
 import argparse
+import collections
 from trace_decode import decode, decode_split, parse_header
 
 
@@ -221,6 +224,130 @@ class StackDistance:
         self.last_distinct_at[vpn] = self.distinct_seen
 
 
+class Mru:
+    """Hand-written (no learning) Most-Recently-Used: evict the resident
+    page touched most recently. Wrong for almost everything, but it is the
+    textbook answer for a cyclic loop just larger than memory (patbench
+    loop): LRU, FIFO and Clock miss on every access there, while MRU keeps
+    C - 1 pages of the loop in place and misses only about L - C times per
+    pass. Simulator only; the kernel has no MRU."""
+    name = "mru"
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.order = collections.OrderedDict()  # most recently used last
+        self.faults = 0
+        self.evictions = 0
+
+    def access(self, vpn):
+        if vpn in self.order:
+            self.order.move_to_end(vpn)
+            return
+        self.faults += 1
+        if len(self.order) >= self.capacity:
+            self.order.popitem(last=True)
+            self.evictions += 1
+        self.order[vpn] = None
+
+
+class Arc:
+    """Adaptive Replacement Cache (Megiddo and Modha, "ARC: A Self-Tuning,
+    Low Overhead Replacement Cache", FAST 2003), following the paper's
+    Figure 4 case by case. Simulator only; the kernel has no ARC.
+
+    T1 holds resident pages seen once recently, T2 resident pages seen at
+    least twice; B1 and B2 are their ghost lists (page numbers only, not
+    resident). p is the target size of T1: a hit in B1 says T1 was too
+    small and grows it, a hit in B2 shrinks it. Every list is kept LRU
+    first, MRU last. p and the adaptation steps are real numbers, as in
+    the paper. The reference for patbench's switch and phase modes, which
+    alternate between recency-friendly and frequency-friendly phases."""
+    name = "arc"
+
+    def __init__(self, capacity):
+        self.c = capacity
+        self.p = 0.0
+        self.t1 = collections.OrderedDict()
+        self.t2 = collections.OrderedDict()
+        self.b1 = collections.OrderedDict()
+        self.b2 = collections.OrderedDict()
+        self.faults = 0
+        self.evictions = 0
+
+    def _replace(self, in_b2):
+        # REPLACE(x_t, p): evict T1's LRU page into B1 if T1 is over its
+        # target (or at it, when the request was a B2 ghost hit), otherwise
+        # T2's LRU page into B2.
+        t1 = len(self.t1)
+        if t1 >= 1 and ((in_b2 and t1 == self.p) or t1 > self.p):
+            victim, _ = self.t1.popitem(last=False)
+            self.b1[victim] = None
+        else:
+            victim, _ = self.t2.popitem(last=False)
+            self.b2[victim] = None
+        self.evictions += 1
+
+    def access(self, vpn):
+        # Case I: a hit in T1 or T2 moves the page to T2's MRU end.
+        if vpn in self.t1:
+            del self.t1[vpn]
+            self.t2[vpn] = None
+            return
+        if vpn in self.t2:
+            self.t2.move_to_end(vpn)
+            return
+        self.faults += 1
+        # Case II: a ghost hit in B1 -- T1 should have been larger.
+        if vpn in self.b1:
+            b1, b2 = len(self.b1), len(self.b2)
+            self.p = min(self.p + (1.0 if b1 >= b2 else b2 / b1), float(self.c))
+            self._replace(False)
+            del self.b1[vpn]
+            self.t2[vpn] = None
+            return
+        # Case III: a ghost hit in B2 -- T2 should have been larger.
+        if vpn in self.b2:
+            b1, b2 = len(self.b1), len(self.b2)
+            self.p = max(self.p - (1.0 if b2 >= b1 else b1 / b2), 0.0)
+            self._replace(True)
+            del self.b2[vpn]
+            self.t2[vpn] = None
+            return
+        # Case IV: a page in none of the four lists.
+        l1 = len(self.t1) + len(self.b1)
+        l2 = len(self.t2) + len(self.b2)
+        if l1 == self.c:
+            # A: L1 is full. If T1 has room for a ghost, drop B1's LRU
+            # ghost and replace; otherwise B1 is empty and T1's LRU page is
+            # evicted outright, with no ghost.
+            if len(self.t1) < self.c:
+                self.b1.popitem(last=False)
+                self._replace(False)
+            else:
+                self.t1.popitem(last=False)
+                self.evictions += 1
+        elif l1 < self.c and l1 + l2 >= self.c:
+            # B: the directory is full; drop B2's LRU ghost if all 2c
+            # entries are in use, then replace.
+            if l1 + l2 == 2 * self.c:
+                self.b2.popitem(last=False)
+            self._replace(False)
+        self.t1[vpn] = None
+
+    def check_invariants(self):
+        """The paper's invariants (its section III.B, for DBL(2c)). Used by
+        the self-test; a broken one means a bug, not a workload effect."""
+        t1, t2, b1, b2, c = (len(self.t1), len(self.t2), len(self.b1),
+                             len(self.b2), self.c)
+        assert t1 + t2 <= c, "resident pages exceed capacity"
+        assert t1 + b1 <= c, "L1 exceeds c"
+        assert t1 + t2 + b1 + b2 <= 2 * c, "directory exceeds 2c"
+        assert 0.0 <= self.p <= c, "p out of range"
+        keys = [set(self.t1), set(self.t2), set(self.b1), set(self.b2)]
+        assert sum(map(len, keys)) == len(set().union(*keys)), \
+            "a page is in two lists"
+
+
 def belady_faults_evictions(refs, capacity):
     """Belady's optimal: evict whichever resident page's next use is
     furthest in the future (or never used again)."""
@@ -260,6 +387,8 @@ POLICIES = {
     "lru": Lru,
     "lfu": Lfu,
     "stackdist": StackDistance,
+    "mru": Mru,
+    "arc": Arc,
 }
 
 
@@ -395,7 +524,7 @@ def main():
                           "Omit for an older single-file transcript.")
     ap.add_argument("--policy", default="all",
                      choices=["fifo", "clock", "aging", "lru", "lfu",
-                              "stackdist", "belady", "all"])
+                              "stackdist", "mru", "arc", "belady", "all"])
     ap.add_argument("--validate", action="store_true",
                      help="cross-check the simulator against this "
                           "transcript's own kernel-reported counters "
