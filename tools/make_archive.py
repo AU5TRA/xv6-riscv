@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import sys
+import textwrap
 import zipfile
 from pathlib import Path
 
@@ -44,6 +45,36 @@ GROUPS = [
      "LZW compression (Unix compress) over a real text corpus"),
     ("matmulbench", ["matmulN", "matmulB"], None,
      "Matrix multiply, naive row-major vs cache-tiled"),
+    ("patbench", ["pat-"], None,
+     "Synthetic access patterns with known answers (loop, scan, Zipf, ...)"),
+    ("chasebench", ["chase-"], None,
+     "Pointer chasing (SPEC mcf-like): linked lists and a parent-linked tree"),
+    ("joinbench", ["join-"], None,
+     "Hash join: build a table from R, probe it with S"),
+    ("bloombench", ["bloom-"], None,
+     "Bloom filter: k hashed bit probes per insert and lookup"),
+    ("spmvbench", ["spmv-"], None,
+     "Sparse matrix-vector product in CSR (NAS CG core): random and banded"),
+    ("heapbench", ["heap-"], None,
+     "malloc/free churn through a K&R free-list allocator"),
+]
+
+# Workloads with one reference string per variant, named
+# <folder>-<variant>.trace from the stem's second field
+# (lzw-r20-p5-c16 -> lzwbench-r20.trace, pat-loop-p5-c51 -> patbench-loop.trace).
+PER_VARIANT = {"lzwbench", "patbench", "chasebench", "joinbench", "bloombench",
+               "spmvbench", "heapbench"}
+
+# What makes a workload's runs more than one reference string, for README.txt.
+VARIANT_NOTES = [
+    ("matmulbench", "matmulbench's naive and blocked variants"),
+    ("lzwbench", "lzwbench's two input sizes (repeat counts 20 and 30)"),
+    ("patbench", "patbench's patterns"),
+    ("chasebench", "chasebench's three structures"),
+    ("joinbench", "joinbench's three join shapes"),
+    ("bloombench", "bloombench's two hash counts"),
+    ("spmvbench", "spmvbench's two matrix structures"),
+    ("heapbench", "heapbench's three allocation mixes"),
 ]
 
 FIELD = {k: re.compile(r"%s=(\d+)" % k)
@@ -101,9 +132,9 @@ def main():
         for digest, members in by_sum.items():
             if canon:
                 name = canon
-            elif folder == "lzwbench":
-                # one string per repeat count: lzw-r20-p5-c16 -> lzwbench-r20
-                name = "lzwbench-%s.trace" % members[0].split("-")[1]
+            elif folder in PER_VARIANT:
+                # one string per variant: lzw-r20-p5-c16 -> lzwbench-r20
+                name = "%s-%s.trace" % (folder, members[0].split("-")[1])
             else:
                 variant = "naive" if members[0].startswith("matmulN") else "blocked"
                 name = "matmulbench-%s.trace" % variant
@@ -183,9 +214,20 @@ def readme(manifest) -> str:
       % n_runs)
     A("produced by the %d runs contain exactly %d distinct reference strings,"
       % (n_runs, n_strings))
-    A("one per workload, with matmulbench's naive and blocked variants and")
-    A("lzwbench's two input sizes (repeat counts 20 and 30) counted")
-    A("separately because they are genuinely different runs.")
+    folders = {folder for folder, *_ in manifest}
+    notes = [note for folder, note in VARIANT_NOTES if folder in folders]
+    if folders <= {"kvbench", "btreebench", "sortbench", "graphbench",
+                   "lzwbench", "matmulbench"}:
+        # the original workloads: the wording their archives always had
+        A("one per workload, with matmulbench's naive and blocked variants and")
+        A("lzwbench's two input sizes (repeat counts 20 and 30) counted")
+        A("separately because they are genuinely different runs.")
+    else:
+        for line in textwrap.wrap(
+                "one per workload, with %s and %s counted separately because "
+                "they are genuinely different runs."
+                % (", ".join(notes[:-1]), notes[-1]), width=70):
+            A(line)
     A("")
     A("So each folder holds ONE reference string and one log per capacity.")
     A("The logs are where the capacities differ. Shipping an identical copy")
@@ -227,8 +269,12 @@ def readme(manifest) -> str:
     A("                 |      the capacity ARGUMENT passed on the command line")
     A("                 the capacity percentage that was INTENDED")
     A("")
-    A("matmulbench instead uses matmulN (naive) and matmulB (blocked), and")
-    A("lzwbench lzw-r<RR>-p<NN>-c<MM>, RR being the repeat count.")
+    A("matmulbench instead uses matmulN (naive) and matmulB (blocked),")
+    A("lzwbench lzw-r<RR>-p<NN>-c<MM>, RR being the repeat count, and")
+    A("patbench pat-<pattern>-p<NN>-c<MM>, its reference string being")
+    A("patbench-<pattern>.trace; chasebench, joinbench, bloombench,")
+    A("spmvbench and heapbench name their variants the same way")
+    A("(chase-tree-p5-c51.log, chasebench-tree.trace).")
     A("")
     A("*** Both numbers in the filename are labels from the original plan.")
     A("*** Neither is the capacity the run actually executed under.")

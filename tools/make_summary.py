@@ -36,7 +36,18 @@ MODELS = {
     "lzw": ("lzwbench", "LZW text compression over a real corpus"),
     "matmulN": ("matmulbench naive", "matrix multiply, row-major order"),
     "matmulB": ("matmulbench blocked", "matrix multiply, cache-tiled order"),
+    "pat": ("patbench", "synthetic access patterns with known answers"),
+    "chase": ("chasebench", "pointer chasing over linked lists and a tree"),
+    "join": ("joinbench", "hash join: random table probes, streaming scans"),
+    "bloom": ("bloombench", "Bloom filter: k random bit probes per operation"),
+    "spmv": ("spmvbench", "sparse matrix-vector product, CSR (NAS CG core)"),
+    "heap": ("heapbench", "malloc/free churn through a K&R free list"),
 }
+
+# Workloads swept in many variants (<workload>-<variant>-p<NN>-c<MM>). Their
+# rows are grouped by variant; the older workloads keep plain capacity
+# order, so their summaries regenerate unchanged.
+BY_VARIANT = {"pat", "chase", "join", "bloom", "spmv", "heap"}
 
 # Workloads whose trace leaves part of the arena itself untraced. Those pages
 # compete for frames in ways the FIFO model below cannot represent, and a fit
@@ -85,6 +96,13 @@ def family(stem: str) -> str:
         if stem.startswith(k):
             return k
     return stem.split("-")[0]
+
+
+def config(stem: str) -> str:
+    """The workload configuration a run belongs to: its stem without the
+    capacity labels (lzw-r20-p5-c16 -> lzw-r20, matmulN-c4 -> matmulN).
+    Every run of one configuration has the same reference string."""
+    return re.sub(r"(-p\d+)?-c\d+$", "", stem)
 
 
 def count_refs(path: Path) -> int:
@@ -196,19 +214,24 @@ def main():
             "no_fit": no_fit_reason(family(stem), trace, log),
         })
 
-    order = ["kv", "btree", "sort", "graph", "lzw", "matmulN", "matmulB"]
-    rows.sort(key=lambda r: (order.index(r["fam"]), r["limit"] or 0))
+    order = ["kv", "btree", "sort", "graph", "lzw", "matmulN", "matmulB",
+             "pat", "chase", "join", "bloom", "spmv", "heap"]
+    rows.sort(key=lambda r: (order.index(r["fam"]),
+                             config(r["stem"]) if r["fam"] in BY_VARIANT else "",
+                             r["limit"] or 0))
 
     # The reference string is identical at every capacity of a workload
     # configuration, so it is loaded once per configuration for the fits. A
     # workload can have more than one (lzw at two repeat counts); keying by
-    # family alone fitted every lzw run against the first one's string.
+    # family alone fitted every lzw run against the first one's string. The
+    # reference count alone does not tell configurations apart either: every
+    # patbench variant makes exactly 2,000,000 references.
     refs_by_cfg = {}
     for r in rows:
         r["fit"] = None
         if r["no_fit"] or not r["limit"]:
             continue
-        cfg = (r["fam"], r["refs"])
+        cfg = (config(r["stem"]), r["refs"])
         if cfg not in refs_by_cfg:
             refs_by_cfg[cfg] = load_refs(SWEEP / r["trace"])
         # Pages below the arena (text, data, stack) are the only untraced
@@ -226,7 +249,11 @@ def main():
     # matmulN/matmulB are one workload in two variants, at fewer capacities.
     per_fam = collections.Counter(r["fam"] for r in rows)
     workloads = sorted({MODELS[f][0].split()[0] for f in per_fam})
-    caps = sorted(set(per_fam.values()), reverse=True)
+    # Capacities per configuration, not per workload: lzw's 12 runs are two
+    # repeat counts at 6 capacities each, patbench's 70 are 11 variants.
+    caps = sorted(set(collections.Counter(config(r["stem"])
+                                          for r in rows).values()),
+                  reverse=True)
     A("%d runs: %d workload%s%s, at %s memory"
       % (len(rows), len(workloads), "" if len(workloads) == 1 else "s",
          " (matmulbench in two variants)" if "matmulN" in per_fam else "",

@@ -28,6 +28,7 @@ SEEDS5 = [1, 2, 3, 4, 5]
 SEEDS3 = [1, 2, 3]
 SEEDS6 = [0, 1, 2, 3, 4, 5]   # lzwbench: seed 0 is the original text
 FILE = 9               # trace bit | file-sink bit
+PAT_S = 170            # patbench, any mode: 154s measured for 2M accesses
 
 # (stem prefix, estimated seconds per run incl. fs.img rebuild, seeds,
 #  command template with {m} margin and {s} seed)
@@ -70,6 +71,53 @@ VARIANTS = [
     # freezes it (~4.0M refs); 30 also drives one CLEAR (~6.1M refs).
     ("lzw-r20", 570, SEEDS6, "lzwbench {m} 20 %d {s}" % FILE),
     ("lzw-r30", 850, SEEDS6, "lzwbench {m} 30 %d {s}" % FILE),
+    # patbench <footprint> <margin> <accesses> <seed> <mode> -- six synthetic
+    # patterns with known answers (user/patbench.c), 2,000,000 accesses over
+    # 1024 pages, one reference each: 2.0M refs, ~13 MB, all 1024 pages
+    # touched. The zipf modes and switch need exactly 1024 pages.
+    ("pat-loop",       PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} loop %d" % FILE),
+    ("pat-scanhot",    PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} scanhot %d" % FILE),
+    ("pat-scanhotlo",  PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} scanhotlo %d" % FILE),
+    ("pat-zipf060",    PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} zipf060 %d" % FILE),
+    ("pat-zipf080",    PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} zipf080 %d" % FILE),
+    ("pat-zipf099",    PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} zipf099 %d" % FILE),
+    ("pat-zipf120",    PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} zipf120 %d" % FILE),
+    ("pat-uniform",    PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} uniform %d" % FILE),
+    ("pat-phase",      PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} phase %d" % FILE),
+    ("pat-phaseshort", PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} phaseshort %d" % FILE),
+    ("pat-switch",     PAT_S, SEEDS5, "patbench 1024 {m} 2000000 {s} switch %d" % FILE),
+    # chasebench <footprint> <margin> <ops> <seed> <mode> -- pointer chasing
+    # over 1024 pages of nodes (user/chasebench.c); ops sized for ~2.0M refs
+    # (seed 1: list 2,041,652, tree 2,005,263, n256 2,001,911), all 1024
+    # pages touched. chase-n256 is the tree with 256-byte nodes.
+    ("chase-list", 170, SEEDS5, "chasebench 1024 {m} 4000 {s} list %d" % FILE),
+    ("chase-tree", 170, SEEDS5, "chasebench 1024 {m} 160000 {s} tree %d" % FILE),
+    ("chase-n256", 170, SEEDS5, "chasebench 1024 {m} 180000 {s} tree256 %d" % FILE),
+    # joinbench <footprint> <margin> <r_tuples> <seed> <mode> -- hash join
+    # (user/joinbench.c), |R| = 65536; footprint = the pages the layout needs,
+    # all touched. Seed 1: uni 623,039 refs over 1280 pages, zipf 567,481
+    # over 1280, r4 1,082,885 over 2048.
+    ("join-uni",  60, SEEDS5, "joinbench 1280 {m} 65536 {s} uni %d" % FILE),
+    ("join-zipf", 60, SEEDS5, "joinbench 1280 {m} 65536 {s} zipf %d" % FILE),
+    ("join-r4",   90, SEEDS5, "joinbench 2048 {m} 65536 {s} r4 %d" % FILE),
+    # bloombench <footprint> <margin> <n_keys> <seed> <mode> -- a 512-page
+    # Bloom filter (user/bloombench.c), 131072 keys inserted and 4x as many
+    # queries. Seed 1: k3 1,448,691 refs, k7 3,031,307; all 512 pages.
+    ("bloom-k3", 130, SEEDS5, "bloombench 512 {m} 131072 {s} k3 %d" % FILE),
+    ("bloom-k7", 250, SEEDS5, "bloombench 512 {m} 131072 {s} k7 %d" % FILE),
+    # spmvbench <footprint> <margin> <iters> <seed> <mode> -- CSR SpMV
+    # (user/spmvbench.c), 131072 rows, ~4 non-zeros a row, 2 iterations:
+    # ~4.2M refs over ~1667 pages (the exact count varies with the seed's
+    # non-zeros; 1680 covers them).
+    ("spmv-rand", 340, SEEDS5, "spmvbench 1680 {m} 2 {s} rand %d" % FILE),
+    ("spmv-band", 340, SEEDS5, "spmvbench 1680 {m} 2 {s} band %d" % FILE),
+    # heapbench <footprint> <margin> <ops> <seed> <mode> -- K&R malloc/free
+    # in the arena (user/heapbench.c), 24000 operations. Seed 1: small
+    # 3,862,616 refs over 409 pages, mixed 3,585,728 over 1469, churn
+    # 2,522,723 over 438; the break stays below the 2048-page arena.
+    ("heap-small", 300, SEEDS5, "heapbench 2048 {m} 24000 {s} small %d" % FILE),
+    ("heap-mixed", 280, SEEDS5, "heapbench 2048 {m} 24000 {s} mixed %d" % FILE),
+    ("heap-churn", 200, SEEDS5, "heapbench 2048 {m} 24000 {s} churn %d" % FILE),
 ]
 
 # Graph repeats cost ~11 min each; one graph repeat covers the code path the
