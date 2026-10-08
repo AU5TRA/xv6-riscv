@@ -5,7 +5,8 @@ PY=~/.venvs/xv6ml/bin/python
 FSETS="rec,freq,sd,wr ref,aging,sfreq,idle,age,dirty \
 ref,aging,sfreq,idle,age,dirty,refaults,rdist \
 rec,freq,sd,wr,ref,aging,sfreq,idle,age,dirty,refaults,rdist"
-for scope in btree graph kv matmul sort global; do
+# SCOPES="lzw global" ./train_all_nn.sh retrains just those scopes
+for scope in ${SCOPES:-btree graph kv lzw matmul sort global}; do
   for fs in $FSETS; do
     for kind in mlp rlin rmlp; do
       $PY -u train_nn.py $kind --scope $scope --features $fs 2>&1 | grep --line-buffered -v -i warn

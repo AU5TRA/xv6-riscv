@@ -13,7 +13,7 @@ stopped and marked aborted (its counts are lower bounds).
 
     python3 sweep_linear.py [--jobs 6]
       -> report/models2/linear_<scope>.json
-      -> report/results2/linear_sweep.csv   (resumable)
+      -> report/results2/linear_sweep.csv   (resumable per scope x stream x capacity)
 """
 import argparse
 import csv
@@ -120,7 +120,7 @@ def main():
     if OUT.exists():
         with open(OUT) as f:
             for r in csv.DictReader(f):
-                done.add((r["stem"], r["fraction"]))
+                done.add((r["scope"], r["stem"], r["fraction"]))
     refs = {e["stem"]: e["refs"] for e in ps.index()["streams"]}
     keep = {}
     if a.only_selected:
@@ -134,12 +134,14 @@ def main():
     for stem in ps.stems(EVAL_SPLITS):
         wl = ps.index_entry(stem)["workload"]
         for frac in fracs:
-            if (stem, frac) in done:
-                continue
+            # resume per scope: a rebuilt scope (e.g. global after a new
+            # workload joins it) is recomputed without redoing the others
             jobs = [(sc, key, spec) for sc in (wl, "global")
+                    if (sc, stem, frac) not in done
                     for key, spec in specs[sc].items()
                     if not a.only_selected or key in keep.get(sc, ())]
-            tasks.append((stem, frac, jobs))
+            if jobs:
+                tasks.append((stem, frac, jobs))
     tasks.sort(key=lambda t: -refs[t[0]] * float(t[1]) ** 0)
     print(f"{len(tasks)} stream x capacity tasks to run "
           f"({len(done)} already done)", flush=True)

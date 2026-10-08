@@ -16,7 +16,9 @@ Summary:             report/results2/dataset_summary.csv
 """
 import argparse
 import csv
+import os
 import time
+import zlib
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -25,6 +27,8 @@ import numpy as np
 import pagesim as ps
 
 CACHE = ps.ROOT / "traces2" / "ml2_cache"
+SALT = os.environ.get("BUILD_SEED_SALT", "")
+
 RESULTS = ps.ROOT / "report" / "results2"
 TRAIN_FRACS = ("0.05", "0.1", "0.2")
 MAX_CAND = 32
@@ -44,7 +48,10 @@ def job(args):
     per = min(MAX_CAND, cap)
     p = min(1.0, ROWS[split] / (evictions * per))
     max_rows = int(ROWS[split] * 1.5) + 4 * per
-    seed = hash((stem, frac)) & 0xFFFFFFFF
+    # crc32, not hash(): hash() of a str tuple changes with every process
+    # (PYTHONHASHSEED), which made every rebuild draw different rows. BUILD_SEED_SALT
+    # varies the draw on purpose (training-sample noise experiments).
+    seed = zlib.crc32(f"{stem}|{frac}|{SALT}".encode()) & 0xFFFFFFFF
     r = ps.record(s, cap, BEHAVIOR, p=p, max_rows=max_rows, seed=seed,
                   seq=True, max_cand=MAX_CAND, n_recent=N_RECENT)
     assert not r["overflow"], (stem, frac)
