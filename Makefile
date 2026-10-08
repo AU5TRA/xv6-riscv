@@ -206,8 +206,9 @@ TRACEREPLAY_DATA=$(addprefix $U/redisreplay,0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 1
 CORPORA=$(addsuffix .txt,$(addprefix corpus,1 2 3 4 5))
 SQLITEREPLAY_DATA=$(addprefix $U/sqlitereplay,0 1 2 3 4 5 6)
 
-fs.img: mkfs/mkfs README corpus.txt $(CORPORA) $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
-	mkfs/mkfs fs.img README corpus.txt $(CORPORA) $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
+TWKEYS=$(wildcard user/twk*.bin)
+fs.img: mkfs/mkfs README corpus.txt $(CORPORA) $(TWKEYS) $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
+	mkfs/mkfs fs.img README corpus.txt $(CORPORA) $(TWKEYS) $(UPROGS) $(TRACEREPLAY_DATA) $(SQLITEREPLAY_DATA)
 	truncate -s $$(($(FSSIZE) * $(BSIZE) + $(NSWAPSLOTS) * 4096)) fs.img
 
 -include kernel/*.d user/*.d

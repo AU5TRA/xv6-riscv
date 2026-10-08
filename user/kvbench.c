@@ -59,6 +59,7 @@
 #include "user/user.h"
 #include "user/vmbench.h"
 #include "user/zipf_table.h"
+#include "kernel/fcntl.h"
 
 #define KV_SLOT_BYTES 16 // {int key; int value_off; int value_size; int expiry_tick;}
 #define KV_SLOTS_PER_PAGE (VMBENCH_PGSIZE / KV_SLOT_BYTES)
@@ -319,7 +320,45 @@ kv_get(int key, int *found)
   return get_from_table(&g_table, key, found);
 }
 
-enum { YCSB_A, YCSB_B, YCSB_C, YCSB_D, YCSB_F };
+enum { YCSB_A, YCSB_B, YCSB_C, YCSB_D, YCSB_F, YCSB_T };
+
+// Mode T<cluster>: replay a Twitter cache-trace key stream from the file
+// /twk<cluster>.bin (uint16 entries key*2+is_write, see tools/gen_tw_keys.py).
+// It is read in small chunks through a stack buffer after the setup burn, so
+// the table adds no resident pages the burn would have to evict first.
+static int g_tw_cluster;
+static int g_tw_fd = -1;
+static unsigned short g_tw_buf[128];
+static int g_tw_buf_len, g_tw_buf_pos;
+
+static int
+tw_open(void)
+{
+  char name[24] = "/twk";
+  int n = 4, c = g_tw_cluster, d = 1;
+  while(c / d >= 10)
+    d *= 10;
+  for(; d > 0; d /= 10)
+    name[n++] = '0' + (c / d) % 10;
+  strcpy(name + n, ".bin");
+  return open(name, O_RDONLY);
+}
+
+static int
+tw_next(void)
+{
+  if(g_tw_buf_pos >= g_tw_buf_len){
+    int r = read(g_tw_fd, g_tw_buf, sizeof(g_tw_buf));
+    if(r <= 0){
+      close(g_tw_fd);
+      g_tw_fd = tw_open();
+      r = read(g_tw_fd, g_tw_buf, sizeof(g_tw_buf));
+    }
+    g_tw_buf_len = r / 2;
+    g_tw_buf_pos = 0;
+  }
+  return g_tw_buf[g_tw_buf_pos++];
+}
 
 static int
 parse_mode(const char *s)
@@ -334,7 +373,11 @@ parse_mode(const char *s)
     return YCSB_D;
   if(strcmp(s, "F") == 0)
     return YCSB_F;
-  printf("kvbench: unknown mode '%s' (want A|B|C|D|F)\n", s);
+  if(s[0] == 'T' && s[1] >= '0' && s[1] <= '9'){
+    g_tw_cluster = atoi(s + 1);
+    return YCSB_T;
+  }
+  printf("kvbench: unknown mode '%s' (want A|B|C|D|F|T<cluster>)\n", s);
   exit(1);
 }
 
@@ -433,6 +476,14 @@ main(int argc, char *argv[])
   for(long k = 0; k < g_nkeys; k++)
     put_in_table(&g_table, (int)k, value_size_for(&rng, valuesize_enabled), 0);
 
+  if(mode == YCSB_T){
+    g_tw_fd = tw_open();
+    if(g_tw_fd < 0){
+      printf("kvbench: cannot open twk%d.bin\n", g_tw_cluster);
+      exit(1);
+    }
+  }
+
   struct vmstats before;
   vmbench_reset_and_snapshot(&before);
 
@@ -486,15 +537,21 @@ main(int argc, char *argv[])
       }
     }
 
-    uint64 rank = vmbench_zipf_sample(&rng);
-    if(rank >= (uint64)g_nkeys)
-      rank = rank % (uint64)g_nkeys;
+    int tw_write = 0;
     int key;
-    if(mode == YCSB_D){
-      key = (int)((epoch_offset + (uint64)vmbench_rng_below(&rng,
-                   g_nkeys / 4 + 1)) % (uint64)g_nkeys);
+    if(mode == YCSB_T){
+      int e = tw_next();
+      key = (e >> 1) % (int)g_nkeys;
+      tw_write = e & 1;
     } else {
-      key = (int)((rank + (uint64)epoch_offset) % (uint64)g_nkeys);
+      uint64 rank = vmbench_zipf_sample(&rng);
+      if(rank >= (uint64)g_nkeys)
+        rank = rank % (uint64)g_nkeys;
+      if(mode == YCSB_D)
+        key = (int)((epoch_offset + (uint64)vmbench_rng_below(&rng,
+                     g_nkeys / 4 + 1)) % (uint64)g_nkeys);
+      else
+        key = (int)((rank + (uint64)epoch_offset) % (uint64)g_nkeys);
     }
 
     int do_write;
@@ -503,6 +560,7 @@ main(int argc, char *argv[])
     case YCSB_B: do_write = vmbench_rng_below(&rng, 100) < 5; break;
     case YCSB_C: do_write = 0; break;
     case YCSB_D: do_write = vmbench_rng_below(&rng, 100) < 5; break;
+    case YCSB_T: do_write = tw_write; break;
     default: do_write = 0; break;
     }
 
