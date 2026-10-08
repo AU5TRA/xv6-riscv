@@ -55,9 +55,13 @@ lzw_lookup_or_insert(int prefix, int byte)
   long slot = lzw_hash(prefix, byte);
   for(long tries = 0; tries < LZW_TABLE_SIZE; tries++){
     struct lzw_entry *e = &g_table[slot];
+    // A probe only writes when it lands on an empty slot and there is
+    // still a code to assign; every other probe just compares.
+    int inserts = e->prefix == -1 && g_next_code < LZW_MAX_CODE;
     vmbench_trace_ref((char *)g_arena_base,
                        (uint64)(((char *)e - (char *)g_arena_base) /
-                                VMBENCH_PGSIZE));
+                                VMBENCH_PGSIZE),
+                       inserts ? VMBENCH_WRITE : VMBENCH_READ);
     if(e->prefix == -1){
       if(g_next_code < LZW_MAX_CODE){
         e->prefix = prefix;
@@ -141,7 +145,11 @@ main(int argc, char *argv[])
   for(int r = 1; r < repeat_count; r++)
     memmove(input + (long)r * corpus_size, input, corpus_size);
 
-  *(volatile int *)arena = 0;
+  // Touch the first page so the burn phase has something in the arena's
+  // own VPN range to observe. A read, not the `= 0` store the other
+  // workloads use: here the arena already holds the corpus, and a store
+  // would overwrite input[0..3] with zeros and change what gets compressed.
+  (void)*(volatile uchar *)arena;
   uint64 settled;
   int proven = vmbench_burn(arena, footprint_pages, &settled);
   if(proven < 0){

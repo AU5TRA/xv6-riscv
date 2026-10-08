@@ -9,8 +9,8 @@ probe() {
   python3 tools/run_xv6_tests.py --cpus 1 --timeout 1800 "$*" >/tmp/p.txt 2>&1
   rc=$?; e=$(date +%s)
   L=$(grep -oE '/[^ ]+\.log' /tmp/p.txt | tail -1)
-  refs=$(grep -c "^T " "$L" 2>/dev/null)
-  pages=$(grep "^T " "$L" 2>/dev/null | awk '{print $2}' | sort -u | wc -l)
+  refs=$(grep -cE "^[TRW] " "$L" 2>/dev/null)
+  pages=$(grep -E "^[TRW] " "$L" 2>/dev/null | awk '{print $2}' | sort -u | wc -l)
   printf "%-12s rc=%d %4ds refs=%-8s pages=%-6s\n" "$name" "$rc" "$((e-s))" "$refs" "$pages" | tee -a "$P"
 }
 probe btreebench btreebench 5000 900 45000 1 mixed 1

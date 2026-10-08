@@ -28,6 +28,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 NEW = ROOT / "traces" / "sweep"
+
+# Reference lines: "R <vpn>" / "W <vpn>", or "T <vpn>" in captures made
+# before the access type was recorded. Comparisons are on page numbers.
+REF_PREFIXES = (b"T ", b"R ", b"W ")
 OLD = ROOT / "traces" / "sweep-prefilesink"
 
 FIELD = {
@@ -56,7 +60,7 @@ def refs_from_log(path: Path):
     try:
         with path.open("rb") as fh:
             for line in fh:
-                if line.startswith(b"T "):
+                if line[:2] in REF_PREFIXES:
                     tok = line[2:].strip()
                     if tok.isdigit():
                         out.append(int(tok))
@@ -78,7 +82,7 @@ def count_refs(path: Path) -> int:
     try:
         with path.open("rb") as fh:
             for line in fh:
-                if line.startswith(b"T "):
+                if line[:2] in REF_PREFIXES:
                     n += 1
     except OSError:
         return 0

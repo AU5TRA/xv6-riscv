@@ -1,0 +1,13 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+policy & kernel & sim {+}0 & sim {+}1 & sim {+}2 & sim {+}3 & sim {+}4 \\
+\midrule
+Clock & 23390 & 54948 & 39982 & 23609 & 12041 & 6758 \\
+FIFO & 86130 & 100806 & 92613 & 85126 & 78665 & 72553 \\
+Aging & 41625 & 91873 & 73061 & 42768 & 13805 & 4742 \\
+LFU (decayed) & 84009 & 100942 & 92095 & 84006 & 76674 & 69405 \\
+ML global & 65576 & 53145 & 36474 & 20121 & 9525 & 6577 \\
+ML per-workload & 18309 & 48118 & 32800 & 16382 & 7436 & 5327 \\
+ML per-workload, K only & 19842 & 54067 & 36946 & 17081 & 7351 & 5245 \\
+\bottomrule
+\end{tabular}

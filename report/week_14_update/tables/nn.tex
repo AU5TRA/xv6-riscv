@@ -1,0 +1,10 @@
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Workload} & \textbf{Linear} (selected) & \textbf{MLP} & \textbf{Ranking MLP} & \textbf{GRU} & \textbf{Embedding} \\
+\midrule
+btree & 0.803 & 0.786 & 1.014 & 0.784 & $\geq$2.456 \\
+graph & 0.624 & 0.622 & $\geq$1.699 & 0.632 & $\geq$3.000 \\
+kv & 0.890 & 0.852 & 0.887 & 0.854 & 0.847 \\
+sort & 0.950 & 0.965 & 1.192 & 0.957 & 1.103 \\
+\bottomrule
+\end{tabular}

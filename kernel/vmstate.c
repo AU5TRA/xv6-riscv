@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "vmstats.h"
+#include "mlweights.h"
 
 static void
 clear_stats(struct vmstate *vm)
@@ -41,6 +42,8 @@ vmstate_reset(struct proc *p)
   p->vm.prefetch_head = 0;
   p->vm.prefetch_count = 0;
   p->vm.next_prefetch_id = 1;
+  p->vm.ml = ml_default_weights;
+  p->vm.ml_scans = 0;
 #ifdef VM_DEBUG
   p->vm.invalid_policy_once = 0;
 #endif
@@ -60,6 +63,8 @@ vmstate_inherit(struct proc *child, struct proc *parent)
   child->vm.prefetch_async = parent->vm.prefetch_async;
   child->vm.prefetch_automatic = parent->vm.prefetch_automatic;
   child->vm.clock_hand = 0;
+  child->vm.ml = parent->vm.ml;
+  child->vm.ml_scans = 0;
   child->vm.prefetch_head = 0;
   child->vm.prefetch_count = 0;
   child->vm.next_prefetch_id = 1;
@@ -80,10 +85,34 @@ vmstate_exec_reset(struct proc *p)
   release(&p->vm.lock);
 }
 
+// Checked copy of a user's model into the process: feature ids in range,
+// no more than ML_NFEAT of them, a sane probation.
+static int
+set_ml_weights(struct proc *p, uint64 addr)
+{
+  struct vm_ml_weights w;
+  // copyin can fault (this is a paging system), so it runs before any
+  // spinlock is held.
+  if(copyin(p->pagetable, p->sz, (char *)&w, addr, sizeof(w)) < 0)
+    return -1;
+  if(w.n < 1 || w.n > ML_NFEAT || w.protect_age < 0 || w.protect_age > 1024)
+    return -1;
+  for(int j = 0; j < w.n; j++)
+    if(w.feat[j] < 0 || w.feat[j] >= ML_NFEAT)
+      return -1;
+  acquire(&p->vm.lock);
+  p->vm.ml = w;
+  release(&p->vm.lock);
+  return 0;
+}
+
 int
 vmstate_ctl(struct proc *p, int command, uint64 value)
 {
   int result = 0;
+
+  if(command == VM_SET_ML_WEIGHTS)
+    return set_ml_weights(p, value);
 
   acquire(&p->vm.lock);
   switch(command){

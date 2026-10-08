@@ -27,8 +27,8 @@ probe() {
   python3 tools/run_xv6_tests.py --cpus 1 --timeout 900 "$*" >/tmp/q.txt 2>&1
   rc=$?; e=$(date +%s)
   L=$(grep -oE '/[^ ]+\.log' /tmp/q.txt | tail -1)
-  refs=$(grep -c "^T " "$L" 2>/dev/null)
-  pages=$(grep "^T " "$L" 2>/dev/null | awk '{print $2}' | sort -u | wc -l)
+  refs=$(grep -cE "^[TRW] " "$L" 2>/dev/null)
+  pages=$(grep -E "^[TRW] " "$L" 2>/dev/null | awk '{print $2}' | sort -u | wc -l)
   printf "%-22s rc=%d %4ds refs=%-9s pages=%-6s %s\n" \
     "$name" "$rc" "$((e-s))" "${refs:-0}" "${pages:-0}" \
     "$([ "$rc" = 0 ] && echo COMPLETED || echo 'still too big')" | tee -a "$P"

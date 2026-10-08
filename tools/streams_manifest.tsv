@@ -1,0 +1,112 @@
+# stem	est_s	phase	command
+kv-A-s1	60	pilot	kvbench 2000 8000 20000 1 A 9
+kv-A-s2	60	dataset	kvbench 2000 8000 20000 2 A 9
+kv-A-s3	60	dataset	kvbench 2000 8000 20000 3 A 9
+kv-A-s4	60	dataset	kvbench 2000 8000 20000 4 A 9
+kv-A-s5	60	dataset	kvbench 2000 8000 20000 5 A 9
+kv-A-s1-rep	60	pilot	kvbench 2000 8000 20000 1 A 9
+kv-B-s1	60	pilot	kvbench 2000 8000 20000 1 B 9
+kv-B-s2	60	dataset	kvbench 2000 8000 20000 2 B 9
+kv-B-s3	60	dataset	kvbench 2000 8000 20000 3 B 9
+kv-B-s4	60	dataset	kvbench 2000 8000 20000 4 B 9
+kv-B-s5	60	dataset	kvbench 2000 8000 20000 5 B 9
+kv-B-s1-rep	60	pilot	kvbench 2000 8000 20000 1 B 9
+kv-C-s1	60	pilot	kvbench 2000 8000 20000 1 C 9
+kv-C-s2	60	dataset	kvbench 2000 8000 20000 2 C 9
+kv-C-s3	60	dataset	kvbench 2000 8000 20000 3 C 9
+kv-C-s4	60	dataset	kvbench 2000 8000 20000 4 C 9
+kv-C-s5	60	dataset	kvbench 2000 8000 20000 5 C 9
+kv-C-s1-rep	60	pilot	kvbench 2000 8000 20000 1 C 9
+kv-D-s1	60	pilot	kvbench 2000 8000 20000 1 D 9
+kv-D-s2	60	dataset	kvbench 2000 8000 20000 2 D 9
+kv-D-s3	60	dataset	kvbench 2000 8000 20000 3 D 9
+kv-D-s4	60	dataset	kvbench 2000 8000 20000 4 D 9
+kv-D-s5	60	dataset	kvbench 2000 8000 20000 5 D 9
+kv-D-s1-rep	60	pilot	kvbench 2000 8000 20000 1 D 9
+kv-F-s1	60	pilot	kvbench 2000 8000 20000 1 F 9
+kv-F-s2	60	dataset	kvbench 2000 8000 20000 2 F 9
+kv-F-s3	60	dataset	kvbench 2000 8000 20000 3 F 9
+kv-F-s4	60	dataset	kvbench 2000 8000 20000 4 F 9
+kv-F-s5	60	dataset	kvbench 2000 8000 20000 5 F 9
+kv-F-s1-rep	60	pilot	kvbench 2000 8000 20000 1 F 9
+kv-Arehash-s1	60	pilot	kvbench 2000 8000 20000 1 A 11
+kv-Arehash-s2	60	dataset	kvbench 2000 8000 20000 2 A 11
+kv-Arehash-s3	60	dataset	kvbench 2000 8000 20000 3 A 11
+kv-Arehash-s4	60	dataset	kvbench 2000 8000 20000 4 A 11
+kv-Arehash-s5	60	dataset	kvbench 2000 8000 20000 5 A 11
+kv-Arehash-s1-rep	60	pilot	kvbench 2000 8000 20000 1 A 11
+kv-Avsize-s1	60	pilot	kvbench 2000 8000 20000 1 A 13
+kv-Avsize-s2	60	dataset	kvbench 2000 8000 20000 2 A 13
+kv-Avsize-s3	60	dataset	kvbench 2000 8000 20000 3 A 13
+kv-Avsize-s4	60	dataset	kvbench 2000 8000 20000 4 A 13
+kv-Avsize-s5	60	dataset	kvbench 2000 8000 20000 5 A 13
+kv-Avsize-s1-rep	60	pilot	kvbench 2000 8000 20000 1 A 13
+btree-mixed-s1	50	pilot	btreebench 5000 8000 45000 1 mixed 9
+btree-mixed-s2	50	dataset	btreebench 5000 8000 45000 2 mixed 9
+btree-mixed-s3	50	dataset	btreebench 5000 8000 45000 3 mixed 9
+btree-mixed-s4	50	dataset	btreebench 5000 8000 45000 4 mixed 9
+btree-mixed-s5	50	dataset	btreebench 5000 8000 45000 5 mixed 9
+btree-mixed-s1-rep	50	pilot	btreebench 5000 8000 45000 1 mixed 9
+btree-lookup-s1	50	pilot	btreebench 5000 8000 45000 1 lookup 9
+btree-lookup-s2	50	dataset	btreebench 5000 8000 45000 2 lookup 9
+btree-lookup-s3	50	dataset	btreebench 5000 8000 45000 3 lookup 9
+btree-lookup-s4	50	dataset	btreebench 5000 8000 45000 4 lookup 9
+btree-lookup-s5	50	dataset	btreebench 5000 8000 45000 5 lookup 9
+btree-lookup-s1-rep	50	pilot	btreebench 5000 8000 45000 1 lookup 9
+btree-scan-s1	50	pilot	btreebench 5000 8000 45000 1 scan 9
+btree-scan-s2	50	dataset	btreebench 5000 8000 45000 2 scan 9
+btree-scan-s3	50	dataset	btreebench 5000 8000 45000 3 scan 9
+btree-scan-s4	50	dataset	btreebench 5000 8000 45000 4 scan 9
+btree-scan-s5	50	dataset	btreebench 5000 8000 45000 5 scan 9
+btree-scan-s1-rep	50	pilot	btreebench 5000 8000 45000 1 scan 9
+btree-insert-s1	50	pilot	btreebench 5000 8000 45000 1 insert 9
+btree-insert-s2	50	dataset	btreebench 5000 8000 45000 2 insert 9
+btree-insert-s3	50	dataset	btreebench 5000 8000 45000 3 insert 9
+btree-insert-s4	50	dataset	btreebench 5000 8000 45000 4 insert 9
+btree-insert-s5	50	dataset	btreebench 5000 8000 45000 5 insert 9
+btree-insert-s1-rep	50	pilot	btreebench 5000 8000 45000 1 insert 9
+btree-mixedwal-s1	50	pilot	btreebench 5000 8000 45000 1 mixed 11
+btree-mixedwal-s2	50	dataset	btreebench 5000 8000 45000 2 mixed 11
+btree-mixedwal-s3	50	dataset	btreebench 5000 8000 45000 3 mixed 11
+btree-mixedwal-s4	50	dataset	btreebench 5000 8000 45000 4 mixed 11
+btree-mixedwal-s5	50	dataset	btreebench 5000 8000 45000 5 mixed 11
+btree-mixedwal-s1-rep	50	pilot	btreebench 5000 8000 45000 1 mixed 11
+graph-both2000x1-s1	660	pilot	graphbench 2000 8000 1 1 both 9
+graph-both2000x1-s2	660	dataset	graphbench 2000 8000 1 2 both 9
+graph-both2000x1-s3	660	dataset	graphbench 2000 8000 1 3 both 9
+graph-both2000x1-s4	660	dataset	graphbench 2000 8000 1 4 both 9
+graph-both2000x1-s5	660	dataset	graphbench 2000 8000 1 5 both 9
+graph-both1000x3-s1	660	pilot	graphbench 1000 8000 3 1 both 9
+graph-both1000x3-s2	660	dataset	graphbench 1000 8000 3 2 both 9
+graph-both1000x3-s3	660	dataset	graphbench 1000 8000 3 3 both 9
+graph-both1000x3-s1-rep	660	pilot	graphbench 1000 8000 3 1 both 9
+graph-bfs2000-s1	350	pilot	graphbench 2000 8000 1 1 bfs 9
+graph-bfs2000-s2	350	dataset	graphbench 2000 8000 1 2 bfs 9
+graph-bfs2000-s3	350	dataset	graphbench 2000 8000 1 3 bfs 9
+graph-pr2000x2-s1	660	pilot	graphbench 2000 8000 2 1 pagerank 9
+graph-pr2000x2-s2	660	dataset	graphbench 2000 8000 2 2 pagerank 9
+graph-pr2000x2-s3	660	dataset	graphbench 2000 8000 2 3 pagerank 9
+sort-n20000-s1	90	pilot	sortbench 2000 8000 20000 1 9
+sort-n20000-s2	90	dataset	sortbench 2000 8000 20000 2 9
+sort-n20000-s3	90	dataset	sortbench 2000 8000 20000 3 9
+sort-n20000-s1-rep	90	pilot	sortbench 2000 8000 20000 1 9
+sort-n40000-s1	160	pilot	sortbench 2000 8000 40000 1 9
+sort-n40000-s2	160	dataset	sortbench 2000 8000 40000 2 9
+sort-n40000-s3	160	dataset	sortbench 2000 8000 40000 3 9
+sort-n40000-s1-rep	160	pilot	sortbench 2000 8000 40000 1 9
+sort-n60000-s1	240	pilot	sortbench 2000 8000 60000 1 9
+sort-n60000-s2	240	dataset	sortbench 2000 8000 60000 2 9
+sort-n60000-s3	240	dataset	sortbench 2000 8000 60000 3 9
+sort-n60000-s1-rep	240	pilot	sortbench 2000 8000 60000 1 9
+matmul-naive64-s1	60	pilot	matmulbench 2000 8000 64 naive 9
+matmul-naive64-s1-rep	60	pilot	matmulbench 2000 8000 64 naive 9
+matmul-naive96-s1	155	pilot	matmulbench 2000 8000 96 naive 9
+matmul-naive96-s1-rep	155	pilot	matmulbench 2000 8000 96 naive 9
+matmul-naive128-s1	330	pilot	matmulbench 2000 8000 128 naive 9
+matmul-naive128-s1-rep	330	pilot	matmulbench 2000 8000 128 naive 9
+matmul-blocked64-s1	60	pilot	matmulbench 2000 8000 64 blocked 9
+matmul-blocked64-s1-rep	60	pilot	matmulbench 2000 8000 64 blocked 9
+matmul-blocked96-s1	155	pilot	matmulbench 2000 8000 96 blocked 9
+matmul-blocked96-s1-rep	155	pilot	matmulbench 2000 8000 96 blocked 9
+matmul-blocked128-s1	330	pilot	matmulbench 2000 8000 128 blocked 9
+matmul-blocked128-s1-rep	330	pilot	matmulbench 2000 8000 128 blocked 9

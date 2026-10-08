@@ -30,11 +30,25 @@ vmbench_trace_sink(int flags)
   return 0;
 }
 
+long vmbench_trace_refs;
+long vmbench_trace_bytes;
+
+// A short write is fatal, not ignored. xv6's writei() refuses a write that
+// would cross MAXFILE outright, so an oversized trace used to lose its whole
+// tail silently while the run still printed PASS -- lzwbench's did, at 58%.
+// Exiting here means no PASS, so the harness records the run as failed.
 void
 vmbench_trace_flush(void)
 {
   if(vmbench_trace_len > 0){
-    write(vmbench_trace_fd, vmbench_trace_buf, vmbench_trace_len);
+    int n = write(vmbench_trace_fd, vmbench_trace_buf, vmbench_trace_len);
+    if(n != vmbench_trace_len){
+      printf("\nvmbench: trace write failed (%d of %d bytes) after %ld "
+             "bytes and %ld references -- trace is incomplete\n",
+             n, vmbench_trace_len, vmbench_trace_bytes, vmbench_trace_refs);
+      exit(1);
+    }
+    vmbench_trace_bytes += n;
     vmbench_trace_len = 0;
   }
 }
@@ -59,6 +73,8 @@ vmbench_trace_start(const char *workload, const char *params, uint64 seed,
          "arena_start_vpn=%ld arena_pages=%d\n",
          workload, params, (long)seed, s.resident_limit,
          arena_cache_budget, s.policy, arena_start_vpn, arena_pages);
+  vmbench_trace_refs = 0;
+  vmbench_trace_bytes = 0;
   vmbench_trace_on = 1;
 }
 
@@ -67,6 +83,11 @@ vmbench_trace_stop(void)
 {
   vmbench_trace_on = 0;
   vmbench_trace_flush();
+  // What the workload believes it wrote. The host compares this against the
+  // extracted file's line count and size, which catches loss anywhere after
+  // the write() -- in the filesystem, the disk image, or the extraction.
+  printf("TRACEEND refs=%ld bytes=%ld\n", vmbench_trace_refs,
+         vmbench_trace_bytes);
 }
 
 int
@@ -102,6 +123,9 @@ vmbench_delta(const struct vmstats *before, const struct vmstats *after,
   out->page_writes = (long)after->page_writes - (long)before->page_writes;
   out->resident_count = (long)after->resident_count;
   out->free_swap_slots = (long)after->free_swap_slots;
+  out->select_ticks = (long)after->select_ticks - (long)before->select_ticks;
+  out->candidates_scanned =
+    (long)after->candidates_scanned - (long)before->candidates_scanned;
 }
 
 void
@@ -109,10 +133,10 @@ vmbench_print_delta(const char *label, const struct vmbench_delta *d)
 {
   printf("[%s] zero_faults=%ld swap_faults=%ld evictions=%ld "
          "page_reads=%ld page_writes=%ld resident_count=%ld "
-         "free_swap_slots=%ld\n",
+         "free_swap_slots=%ld select_ticks=%ld candidates_scanned=%ld\n",
          label, d->zero_faults, d->swap_faults, d->evictions,
          d->page_reads, d->page_writes, d->resident_count,
-         d->free_swap_slots);
+         d->free_swap_slots, d->select_ticks, d->candidates_scanned);
 }
 
 void
@@ -167,8 +191,8 @@ vmbench_zipf_sample(struct vmbench_rng *r)
   return (uint64)lo;
 }
 
-int
-vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
+static int
+burn(char *arena_base, int arena_pages, uint64 *settled_resident)
 {
   long arena_start_vpn = (long)arena_base / VMBENCH_PGSIZE;
   // Do not seize the trace ring if something else is already capturing
@@ -252,4 +276,25 @@ vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
   *settled_resident = settled.resident_count;
 
   return tracing;
+}
+
+// The burn sizes the process's baseline -- the settled resident count the
+// caller adds its margin to -- by evicting, so the result depends on which
+// policy chooses the victims: with vmrun selecting the policy, Clock settled
+// at 13 resident pages, Aging at 9 and a learned policy at 28 for the same
+// matmul run, which would hand each policy a different memory size. Run the
+// burn under FIFO (the default every trace was collected with) and restore
+// the process's own policy after, so every policy gets the same limit.
+int
+vmbench_burn(char *arena_base, int arena_pages, uint64 *settled_resident)
+{
+  struct vmstats st;
+  vmbench_snapshot(&st);
+  int policy = (int)st.policy;
+  if(vmctl(VM_SET_POLICY, VM_POLICY_FIFO) < 0)
+    return -1;
+  int r = burn(arena_base, arena_pages, settled_resident);
+  if(vmctl(VM_SET_POLICY, policy) < 0)
+    return -1;
+  return r;
 }

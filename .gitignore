@@ -19,7 +19,7 @@ WORK_PROMPT*.md
 # Collected traces: ~600MB of reference strings across 36 runs, regenerable
 # with tools/collect_v2.sh. The dataset summary is small and descriptive, so
 # it is kept; the data itself is not.
-traces/*
+traces*/*
 !traces/sweep/
 traces/sweep/*
 !traces/sweep/SUMMARY.txt
@@ -31,3 +31,28 @@ traces/sweep/*
 # Working write-ups, kept out of the repo by request.
 docs/CAMPAIGN2-CHANGES.txt
 docs/CHANGES-VS-STOCK-XV6.txt
+
+# tools/ml2 build output (compiled on first use by pagesim.py)
+tools/ml2/libpagesim.so
+__pycache__/
+# LaTeX build artifacts
+report/slides/*.aux
+report/slides/*.log
+report/slides/*.nav
+report/slides/*.out
+report/slides/*.snm
+report/slides/*.toc
+report/slides/*.vrb
+# the study's presentation and the figure PDFs it is built from
+!report/slides/ml_results.pdf
+!report/figures2/*.pdf
+# local backlog of deferred work
+/backlog.md
+# local walk-through of the whole project
+/EXPLANATION.md
+# week-14 report build artifacts
+report/week_14_update/*.aux
+report/week_14_update/*.log
+report/week_14_update/*.out
+!report/week_14_update_report.pdf
+!report/week_14_update/figs/*.pdf

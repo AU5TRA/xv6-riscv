@@ -2,10 +2,16 @@
 """Decode a vmbench reference trace (WORK_PROMPT.md Phase 3).
 
 Reads a test-harness transcript (or any file containing the same lines)
-that has a "TRACEHDR ..." line followed by a stream of "T <vpn>" lines
+that has a "TRACEHDR ..." line followed by a stream of reference lines
 (emitted by user/vmbench.h's touch_r/touch_w/vmbench_trace_ref when a
 workload is run with tracing enabled -- see user/btreebench.c's trailing
 `trace` CLI argument for the pattern other workloads should follow).
+
+A reference line is "R <vpn>" (the access only read the page) or
+"W <vpn>" (it modified it). Captures made before the access type was
+recorded use "T <vpn>" for every reference; all three are accepted, and
+the default decode returns page numbers only, so older traces and older
+callers behave exactly as before.
 
 Usage:
     python3 tools/trace_decode.py <transcript.log> [--json out.json]
@@ -23,7 +29,12 @@ import json
 import argparse
 
 TRACEHDR_RE = re.compile(r"^TRACEHDR (.*)$")
-REF_RE = re.compile(r"^T (-?\d+)$")
+REF_RE = re.compile(r"^([TRW]) (-?\d+)$")
+
+
+def _ref(m, with_access):
+    vpn = int(m.group(2))
+    return (vpn, m.group(1)) if with_access else vpn
 
 
 def parse_header(line):
@@ -48,7 +59,10 @@ def parse_header(line):
     return fields
 
 
-def decode(path):
+def decode(path, with_access=False):
+    """Returns (header, refs). refs holds page numbers, or with
+    with_access=True (vpn, access) pairs, access being "R", "W", or "T"
+    for a capture that predates the access type."""
     header = None
     refs = []
     with open(path, "r", errors="replace") as f:
@@ -62,11 +76,11 @@ def decode(path):
                 continue
             m = REF_RE.match(line)
             if m:
-                refs.append(int(m.group(1)))
+                refs.append(_ref(m, with_access))
     return header, refs
 
 
-def decode_split(header_path, refs_path):
+def decode_split(header_path, refs_path, with_access=False):
     """Like decode(), but for captures where the TRACEHDR and the T <vpn>
     reference stream live in two separate files -- the format
     tools/collect_v2.sh's harness writes: vmbench_trace_sink() (see
@@ -91,7 +105,7 @@ def decode_split(header_path, refs_path):
         for line in f:
             m = REF_RE.match(line.rstrip("\n"))
             if m:
-                refs.append(int(m.group(1)))
+                refs.append(_ref(m, with_access))
     return header, refs
 
 

@@ -27,6 +27,12 @@ struct vmstate {
   int invalid_policy_once;
 #endif
   struct vmstats stats;
+  // VM_POLICY_ML: the weights this process scores with (set by vmctl
+  // VM_SET_ML_WEIGHTS, inherited on fork, kept across exec) and the number
+  // of eviction scans so far -- the time base of every ML feature.
+  // ml_scans is protected by vmpage.c's frame_table.lock, like owned_head.
+  struct vm_ml_weights ml;
+  uint64 ml_scans;
   // Head/tail of this process's owned-frame list (vm_page.owner_next/prev).
   // Protected by vmpage.c's frame_table.lock, NOT this struct's own .lock --
   // every mutation site already holds frame_table.lock for other reasons.

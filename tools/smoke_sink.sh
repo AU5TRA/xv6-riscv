@@ -25,7 +25,7 @@ echo "rc=$RC elapsed=$((E-S))s"
 
 L=$(grep -oE '/[^ ]+\.log' /tmp/smoke.txt | tail -1)
 echo "transcript: $L"
-echo "console 'T ' lines in transcript: $(grep -c '^T ' "$L" 2>/dev/null)  (expect 0)"
+echo "console reference lines in transcript: $(grep -cE '^[TRW] ' "$L" 2>/dev/null)  (expect 0)"
 grep -E "RESULT (PASS|FAIL)" "$L" 2>/dev/null | head -3
 grep -oE "swap_faults=[0-9]+|evictions=[0-9]+|resident_limit=[0-9]+" "$L" 2>/dev/null | head -5
 
@@ -35,11 +35,11 @@ mkdir -p /tmp/sm
 python3 tools/extract_file.py fs.img reftrace.txt /tmp/sm/reftrace.txt 2>&1 | tail -3
 if [ -f /tmp/sm/reftrace.txt ]; then
   echo "extracted bytes: $(stat -c %s /tmp/sm/reftrace.txt)"
-  echo "reference lines: $(grep -c '^T ' /tmp/sm/reftrace.txt)   (expect 48927)"
-  echo "distinct pages : $(awk '/^T /{print $2}' /tmp/sm/reftrace.txt | sort -u | wc -l)"
+  echo "reference lines: $(grep -cE '^[TRW] ' /tmp/sm/reftrace.txt)   (expect 48927)"
+  echo "distinct pages : $(awk '/^[TRW] /{print $2}' /tmp/sm/reftrace.txt | sort -u | wc -l)"
   echo "--- first 3 ---"; head -3 /tmp/sm/reftrace.txt
   echo "--- last 3 ---";  tail -3 /tmp/sm/reftrace.txt
-  echo "malformed lines: $(grep -vcE '^T [0-9]+$' /tmp/sm/reftrace.txt)   (expect 0)"
+  echo "malformed lines: $(grep -vcE '^[TRW] [0-9]+$' /tmp/sm/reftrace.txt)   (expect 0)"
 else
   echo "EXTRACTION FAILED"
 fi

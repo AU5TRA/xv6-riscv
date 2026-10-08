@@ -355,12 +355,22 @@ tools/trace_decode.py --selftest <anything>`) before being trusted on
 real data — confirmed to match an independently-derived-by-hand
 expected answer, not just self-consistent with its own code.
 
-**Not implemented**: access-type mix (read/write ratio, dirty-page
-fraction at eviction) — the current trace format's `T <vpn>` lines
-don't distinguish reads from writes (a real limitation of the tracing
-mechanism as built, not a missing analysis step; extending it would
-mean either changing `vmbench_trace_ref`'s signature and every call
-site again, or adding a parallel R/W-aware primitive).
+**Access type (added later)**: the original `T <vpn>` lines did not
+distinguish reads from writes. `vmbench_trace_ref` now takes an access
+argument with no default, and every call site records `R <vpn>` (the
+access only read the page) or `W <vpn>` (it modified it) -- one
+reference per logical access exactly as before, so an old capture and a
+new one of the same run have the identical page sequence, differing only
+in the letter. Checked in real runs: the page sequences of kv-p30,
+btree-p30, sort-p5 and matmulB-c12 are identical to the sweep captures;
+sort's 640,000 and blocked matmul's 119,808 writes equal their
+analytical counts; lzw's writes equal its `dictionary_entries`; and a
+FIFO replay that tracks dirty pages from the W marks predicts the
+kernel's own `page_writes` (btree 12,329 inside [12,168, 12,438]; kv
+4,833 inside [4,588, 5,166]). The host tools accept `R`, `W` and legacy
+`T`; `trace_decode.decode(..., with_access=True)` returns the letter.
+Quirk worth knowing: kvbench's `varena_touch_range()` stores a byte, so
+a GET marks its value page W -- the trace records what the code does.
 
 ### Phase 4/5 — resolved (WORK_PROMPT3.md)
 
@@ -391,6 +401,21 @@ helper (called from `at()`/`set_at()`), and `lzwbench`'s
 `lzw_lookup_or_insert()`. All four verified capturing real reference
 data (12,865 to 47,784 references in quick smoke-test runs) before
 being used in the calibration control comparison above.
+
+**Correction (graphbench).** "Dominant accessor" was the wrong rule for
+graphbench. `edge_dst()` covers only the edge array; BFS's `visited[]`
+checks and PageRank's `next_rank[]` updates -- the random, hub-driven
+accesses the workload exists for -- went untraced, along with `queue[]`
+and `rank[]`, 667 of the arena's 2000 pages. The traced stream was
+nearly sequential (94% of consecutive references on the same page), and
+FIFO over it could not reproduce the kernel's own eviction count even
+with one frame (168,551 vs 2,035,488 at `resident_limit=71`). Every
+access to all five arrays now goes through `graph_trace()`, and the run
+prints `RESULT trace_refs=` so a lost tail is detectable. A host
+re-execution of the workload matches the new trace reference for
+reference, and FIFO over it reproduces the kernel's evictions with 3
+untraced (code/stack) frames, like the other fully traced workloads. The
+`traces/sweep/graph-*` captures predate this and need re-collecting.
 
 ## `user/tracereplay.c` — real-application trace replay through the actual kernel (follow-up task)
 

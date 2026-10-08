@@ -10,11 +10,15 @@ workload folder carries one reference string plus the six per-capacity logs
 that actually differ.
 
 Usage:  python3 tools/make_archive.py [outdir]
+        SWEEP=traces/sweep-rw python3 tools/make_archive.py [outdir]
+
+SWEEP picks the campaign to package (default traces/sweep).
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import sys
@@ -22,7 +26,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SWEEP = ROOT / "traces" / "sweep"
+SWEEP = ROOT / os.environ.get("SWEEP", "traces/sweep")
 OUTZIP = Path(sys.argv[1] if len(sys.argv) > 1 else r"/mnt/d/thesis") / "xv6-traces.zip"
 STAGE = ROOT / "traces" / ".archive-stage"
 
@@ -71,16 +75,27 @@ def main():
     manifest = []      # (folder, run, limit, faults, evicts, trace)
 
     for folder, prefixes, canon, _desc in GROUPS:
-        d = STAGE / folder
-        d.mkdir()
         stems = sorted(s.stem for s in SWEEP.glob("*.trace")
                        if any(s.name.startswith(p) for p in prefixes))
+        if not stems:
+            continue            # a workload this campaign did not collect
+        d = STAGE / folder
+        d.mkdir()
 
         # one reference string per distinct checksum
         by_sum = {}
         for stem in stems:
             t = SWEEP / (stem + ".trace")
             by_sum.setdefault(md5(t), []).append(stem)
+        # A workload's capacities must share one reference string; the
+        # single canonical name below depends on it. Two different strings
+        # mean a truncated or non-deterministic run, and writing both to the
+        # same name would silently keep only one of them.
+        if canon and len(by_sum) > 1:
+            groups = "; ".join(", ".join(m) for m in by_sum.values())
+            shutil.rmtree(STAGE)
+            sys.exit("make_archive: %s runs do not share one reference "
+                     "string (%s) -- refusing to archive" % (folder, groups))
 
         sum_to_name = {}
         for digest, members in by_sum.items():
@@ -125,19 +140,24 @@ def main():
 def readme(manifest) -> str:
     L = []
     A = L.append
+    n_runs = len(manifest)
+    n_workloads = len({folder for folder, *_ in manifest})
+    n_strings = len({(folder, trace) for folder, *_rest, trace in manifest})
     A("=" * 78)
     A("xv6 PAGING TRACES -- WHAT IS IN THIS ARCHIVE")
     A("=" * 78)
     A("")
-    A("36 runs: six workloads, each executed at six memory capacities.")
+    A("%d runs: %d workloads, each executed at several memory capacities."
+      % (n_runs, n_workloads))
     A("")
     A("")
     A("LAYOUT")
     A("-" * 78)
     A("One folder per workload. Inside each:")
     A("")
-    A("  *.trace    the reference string -- every page the program touched,")
-    A("             in the order it touched them, one access per line.")
+    A("  *.trace    the reference string -- every access the workload made to")
+    A("             its own data, in order, one access per line. The")
+    A("             program's code and stack are not traced.")
     A("  *.log      the full transcript of one run at one capacity, ending")
     A("             in RESULT lines with that run's fault and eviction counts.")
     A("")
@@ -151,31 +171,39 @@ def readme(manifest) -> str:
     A("The reference string does not depend on how much memory the program")
     A("was given. A sort sorts the same values in the same order whether it")
     A("has 8 frames or 28; only the kernel's response changes. This was")
-    A("verified by checksum -- the 36 trace files produced by the 36 runs")
-    A("contain exactly 7 distinct reference strings, one per workload, plus a")
-    A("second for matmulbench because its naive and blocked variants are")
-    A("genuinely different programs.")
+    A("verified by checksum when this archive was built -- the %d trace files"
+      % n_runs)
+    A("produced by the %d runs contain exactly %d distinct reference strings,"
+      % (n_runs, n_strings))
+    A("one per workload, with matmulbench's naive and blocked variants")
+    A("counted separately because they are genuinely different programs.")
     A("")
-    A("So each folder holds ONE reference string and SIX logs. The logs are")
-    A("where the six capacities differ. Shipping six identical copies of")
-    A("lzwbench's 67 MB trace would have made this archive five times larger")
-    A("and carried no extra information.")
+    A("So each folder holds ONE reference string and one log per capacity.")
+    A("The logs are where the capacities differ. Shipping an identical copy")
+    A("of the trace per capacity would multiply the archive's size and carry")
+    A("no extra information.")
     A("")
     A("")
     A("TRACE FILE FORMAT")
     A("-" * 78)
     A("Plain text, one line per memory access:")
     A("")
-    A("    T 114")
-    A("    T 114")
-    A("    T 689")
-    A("    T 114")
+    A("    R 114")
+    A("    W 114")
+    A("    R 689")
+    A("    R 114")
     A("")
-    A("'T' marks a reference; the number is the virtual page number touched.")
-    A("Pages are 4096 bytes. Order is exactly the order of execution. The")
-    A("values read or written, whether it was a read or a write, and the time")
-    A("it happened are all deliberately discarded -- page replacement depends")
-    A("on none of them.")
+    A("The letter is the access type: 'W' if the access modified the page at")
+    A("all, 'R' if it only read it. It decides which evictions cost a")
+    A("write-back to swap, and the kernel's page_writes count in each log is")
+    A("the matching ground truth. The number is the virtual page number")
+    A("touched. Pages are 4096 bytes. Order is exactly the order of")
+    A("execution. The values read or written and the time of each access are")
+    A("deliberately discarded -- page replacement depends on neither.")
+    A("")
+    A("Traces collected before the access type was recorded use 'T' on every")
+    A("line instead of 'R' or 'W'. They have the same page sequence, just no")
+    A("read/write distinction.")
     A("")
     A("Page numbers are absolute virtual page numbers, so the lowest number in")
     A("a file is wherever that program's arena happened to start. Only the")
@@ -200,11 +228,10 @@ def readme(manifest) -> str:
     A("MM. The real value is recorded inside each log as resident_limit=, and")
     A("is listed in the table below and in SUMMARY.txt. For btreebench,")
     A("kvbench and graphbench the intended percentage is close to the truth;")
-    A("for sortbench, lzwbench and matmulbench it is not. lzwbench in")
-    A("particular ran at 47-71% of its working set, not the 5-30% its")
-    A("filenames claim.")
+    A("for sortbench, lzwbench and matmulbench it is not.")
     A("")
-    A("Quote the FRAMES column, never the filename.")
+    A("Quote the FRAMES column, never the filename -- and when simulating a")
+    A("trace, use the ARENA column of SUMMARY.txt instead (see below).")
     A("")
     A("")
     A("EVERY RUN")
@@ -226,26 +253,32 @@ def readme(manifest) -> str:
     A("WHAT THE COLUMNS MEAN")
     A("-" * 78)
     A("FRAMES     physical pages the kernel allowed the program to hold at")
-    A("           once. This is the real capacity, read back from the kernel.")
-    A("FAULTS     times the program touched a page that was not resident, so")
+    A("           once, read back from the kernel. This is the whole")
+    A("           process: the traced data AND its own code and stack, which")
+    A("           the trace does not contain. The frames the traced pages")
+    A("           actually had are the ARENA column of SUMMARY.txt, a few")
+    A("           fewer; simulate a trace at ARENA, not FRAMES.")
+    A("FAULTS     times the program touched a page that was swapped out, so")
     A("           the kernel had to fetch it from swap.")
     A("EVICTIONS  times a resident page had to be thrown out to make room.")
     A("")
-    A("Faults and evictions differ by a small constant: the first pages")
-    A("loaded into an empty frame set cost a fault but evict nothing.")
+    A("In every log, EVICTIONS = FAULTS + zero_faults (first touches of")
+    A("never-used pages) - the frames that were still free when measuring")
+    A("began.")
     A("")
     A("")
     A("HOW THE TRACES WERE COLLECTED")
     A("-" * 78)
-    A("Each benchmark funnels its memory accesses through one accessor that")
-    A("appends 'T <page>' into a 4 KB buffer. The buffer is written to a file")
+    A("Every access a benchmark makes to its data goes through an accessor")
+    A("that appends 'R <page>' or 'W <page>' to a 4 KB buffer. The buffer is")
+    A("written to a file")
     A("inside the xv6 filesystem whenever it fills -- roughly one write per")
     A("several hundred references. After the emulator exits, the file is")
     A("extracted from the disk image on the host, so the reference stream")
     A("never passes through the console.")
     A("")
-    A("Hardware prefetching is disabled during tracing, so these are traces of")
-    A("pure demand paging with nothing speculative.")
+    A("The kernel's prefetcher is disabled during tracing, so these are")
+    A("traces of pure demand paging with nothing speculative.")
     A("")
     A("The fault and eviction counts come from the kernel separately, printed")
     A("as RESULT lines at the end of each run, and are joined to the trace")

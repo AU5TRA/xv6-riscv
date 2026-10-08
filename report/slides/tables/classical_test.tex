@@ -1,0 +1,10 @@
+\begin{tabular}{lrrrrrrr}
+\toprule
+workload & FIFO & Aging & decayed LFU & LRU & exact LFU & old SD & Belady \\
+\midrule
+btree & 1.126 & 1.118 & 1.125 & 0.994 & 0.943 & 1.040 & 0.550 \\
+graph & 1.418 & 1.286 & 1.399 & 0.990 & $\geq$3.000 & 1.319 & 0.456 \\
+kv & 1.163 & 1.097 & 1.151 & 0.986 & 1.190 & 1.124 & 0.571 \\
+sort & 1.030 & 1.011 & 1.011 & 1.012 & $\geq$2.919 & 1.030 & 0.830 \\
+\bottomrule
+\end{tabular}

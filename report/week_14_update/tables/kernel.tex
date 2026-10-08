@@ -1,0 +1,13 @@
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{faults / Clock}} & \multicolumn{2}{c}{\textbf{writes / Clock}} & \multicolumn{2}{c}{\textbf{global model, faults}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+\textbf{Workload} & test & held-out & test & held-out & test & held-out \\
+\midrule
+btree & \best{0.823} & \best{0.854} & 1.022 & \best{0.966} & 0.843 & 0.893 \\
+graph & \best{0.614} & \best{0.541} & \best{0.045} & \best{0.138} & 0.989 & 0.535 \\
+kv & \best{0.871} & \best{0.875} & \best{0.682} & \best{0.875} & 0.875 & 0.878 \\
+matmul & -- & \best{0.973} & -- & \best{0.035} & -- & 1.115 \\
+sort & \best{0.960} & \best{0.933} & \best{0.944} & \best{0.925} & 0.980 & 0.977 \\
+\bottomrule
+\end{tabular}

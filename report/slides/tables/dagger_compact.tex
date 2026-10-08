@@ -1,0 +1,15 @@
+\begin{tabular}{lrrr}
+\toprule
+workload & split & trained under LRU & after DAgger \\
+\midrule
+btree & test & 0.833 & 0.844 \\
+btree & heldout & 0.863 & 0.898 \\
+graph & test & 0.845 & 0.889 \\
+graph & heldout & 0.798 & 0.804 \\
+kv & test & 0.905 & 0.905 \\
+kv & heldout & 0.905 & 0.905 \\
+matmul & heldout & 0.681 & 0.701 \\
+sort & test & 0.983 & 0.998 \\
+sort & heldout & 0.933 & 0.951 \\
+\bottomrule
+\end{tabular}

@@ -1,7 +1,7 @@
 #ifndef XV6_VMSTATS_H
 #define XV6_VMSTATS_H
 
-#define VMSTATS_VERSION 2
+#define VMSTATS_VERSION 3
 
 #define VM_SET_LIMIT 1
 #define VM_SET_POLICY 2
@@ -13,6 +13,7 @@
 #define VM_TRACE_RESET 8
 #define VM_TRACE_SET_CAPACITY 9
 #define VM_TRACE_SET_MASK 10
+#define VM_SET_ML_WEIGHTS 11   // value: user address of a struct vm_ml_weights
 #define VM_PREFETCH_NO_HINT ((uint64)-1)
 
 #define VM_LIMIT_UNLIMITED 0
@@ -22,7 +23,29 @@
 #define VM_POLICY_CLOCK 1
 #define VM_POLICY_AGING 2
 #define VM_POLICY_LFU 3
-#define VM_POLICY_COUNT 4
+#define VM_POLICY_ML 4          // learned linear score (kernel/mlfeat.h)
+#define VM_POLICY_COUNT 5
+
+// VM_POLICY_ML features (kernel/mlfeat.h computes them), in the order of
+// tools/ml2/pagesim.py FEATURES[4:].
+#define ML_F_REF      0   // accessed bit seen at this scan         (0 or 256)
+#define ML_F_AGING    1   // 8-bit aging counter / 255              (0..256)
+#define ML_F_SFREQ    2   // log1p(scans that found it accessed)
+#define ML_F_IDLE     3   // log1p(scans since last found accessed)
+#define ML_F_AGE      4   // log1p(scans since it was loaded)
+#define ML_F_DIRTY    5   // dirty bit                              (0 or 256)
+#define ML_F_REFAULTS 6   // log1p(times evicted and faulted back)
+#define ML_F_RDIST    7   // log1p(evictions between eviction and refault)
+#define ML_NFEAT      8
+
+// The weights a process scores with (vmctl VM_SET_ML_WEIGHTS).
+struct vm_ml_weights {
+  int n;                    // features used, <= ML_NFEAT
+  int feat[ML_NFEAT];       // ML_F_* ids
+  int qa[ML_NFEAT];         // integer weights: round(W / std * 2^8)
+  int protect_age;          // probation, in scans
+};
+
 
 #define VM_FAIL_NONE 0
 #define VM_FAIL_SWAP_READ 1
@@ -72,6 +95,11 @@ struct vmstats {
   uint64 queued_prefetch;
   uint64 inflight_io;
   uint64 free_swap_slots;
+
+  // Cost of victim selection, for every policy: timer ticks spent choosing
+  // (r_time(), 10 MHz on QEMU virt) and candidates examined.
+  uint64 select_ticks;
+  uint64 candidates_scanned;
 };
 
 #endif
