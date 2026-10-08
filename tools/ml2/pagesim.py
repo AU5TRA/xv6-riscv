@@ -63,7 +63,12 @@ class Model(C.Structure):
                 ("emb", C.POINTER(C.c_float)), ("quant_w", C.c_int),
                 ("qa", C.c_int32 * NF), ("protect_age", C.c_int),
                 ("sample_k", C.c_int), ("sample_scan", C.c_int),
-                ("sample_seed", C.c_int)]
+                ("sample_seed", C.c_int), ("cb", C.c_void_p),
+                ("tree_n", C.c_int), ("tree_base", C.c_float),
+                ("tree_root", C.POINTER(C.c_int32)), ("nd_l", C.POINTER(C.c_int32)),
+                ("nd_r", C.POINTER(C.c_int32)), ("nd_f", C.POINTER(C.c_int16)),
+                ("nd_t", C.POINTER(C.c_float)),
+                ("raw_mask", C.c_uint32), ("rank_mask", C.c_uint32)]
 
 
 class Result(C.Structure):
@@ -88,6 +93,7 @@ _lib.simulate.argtypes = [C.c_int64, C.c_int, C.c_int, C.c_void_p, C.c_void_p,
                           C.c_void_p, C.c_int, C.POINTER(Model),
                           C.POINTER(Recorder), C.c_int64, C.POINTER(Result)]
 _lib.score_rows.argtypes = [C.POINTER(Model), C.c_void_p, C.c_int64, C.c_void_p]
+_lib.score_tree_group.argtypes = [C.POINTER(Model), C.c_void_p, C.c_int, C.c_void_p]
 _lib.score_seq_rows.argtypes = [C.POINTER(Model), C.c_void_p, C.c_void_p,
                                 C.c_void_p, C.c_void_p, C.c_int64, C.c_void_p]
 assert _lib.pagesim_nf() == NF, "feature list out of sync with pagesim.c"
@@ -215,7 +221,7 @@ class ScoredModel:
         self.kind = kind
         self.kw = kw
         self.c = Model()
-        self.c.kind = {"mlp": 0, "gru": 1, "embed": 2}[kind]
+        self.c.kind = {"mlp": 0, "gru": 1, "embed": 2, "callback": 3, "trees": 4}[kind]
         self.c.protect_age = int(kw.get("protect_age", 0))
         # sampled scoring: sample_k random residents per eviction (0 = all);
         # sample_scan=1 also restricts the accessed-bit scan to the sample
@@ -223,7 +229,37 @@ class ScoredModel:
         self.c.sample_scan = int(kw.get("sample_scan", 0))
         self.c.sample_seed = int(kw.get("sample_seed", 1))
         self._keep = []
-        if kind == "mlp":
+        if kind == "callback":
+            # fn(feat[n][NF] float32, hist[n][GRU_K] float32) -> scores[n]; set
+            # and sequence models run in Python over the whole candidate set
+            fn = kw["fn"]
+
+            def cb(n, feat, hist, out, fn=fn):
+                f = np.ctypeslib.as_array(feat, (n, NF))
+                h = np.ctypeslib.as_array(hist, (n, GRU_K))
+                np.ctypeslib.as_array(out, (n,))[:] = fn(f, h)
+            self._cbf = _CB(cb)
+            self.c.cb = C.cast(self._cbf, C.c_void_p)
+        elif kind == "trees":
+            # flat node arrays: nd_f < 0 marks a leaf holding its value in nd_t;
+            # f in [NF, 2NF) tests the candidate-set percentile rank of f - NF
+            arrs = [np.ascontiguousarray(kw[k], t) for k, t in
+                    (("roots", np.int32), ("left", np.int32), ("right", np.int32),
+                     ("feat", np.int16), ("thr", np.float32))]
+            self._keep += arrs
+            self.c.tree_n = len(arrs[0])
+            self.c.tree_base = float(kw.get("base", 0.0))
+            for name, a, ct in zip(("tree_root", "nd_l", "nd_r", "nd_f", "nd_t"), arrs,
+                                   (C.c_int32, C.c_int32, C.c_int32, C.c_int16, C.c_float)):
+                setattr(self.c, name, a.ctypes.data_as(C.POINTER(ct)))
+            f = arrs[3]
+            raw, rank = 0, 0
+            for v in set(f[f >= 0].tolist()):
+                if v < NF: raw |= 1 << v
+                else: rank |= 1 << (v - NF)
+            self.c.raw_mask = raw | rank
+            self.c.rank_mask = rank
+        elif kind == "mlp":
             feats = kw["features"]
             self.c.n_in = len(feats)
             for j, f in enumerate(feats):
@@ -265,6 +301,18 @@ class ScoredModel:
         sizes[0] = layers[0][0].shape[1]
         for l, (W, _) in enumerate(layers):
             sizes[l + 1] = W.shape[0]
+
+
+_CB = C.CFUNCTYPE(None, C.c_int, C.POINTER(C.c_float), C.POINTER(C.c_float),
+                  C.POINTER(C.c_float))
+
+
+def score_tree_group(model, feat):
+    """C tree scorer over one candidate set [n][NF] (rank features need the set)."""
+    feat = np.ascontiguousarray(feat, np.float32)
+    out = np.zeros(len(feat), np.float32)
+    _lib.score_tree_group(C.byref(model.c), feat.ctypes.data, len(feat), out.ctypes.data)
+    return out
 
 
 def score_rows(model, feat):

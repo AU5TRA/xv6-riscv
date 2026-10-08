@@ -95,6 +95,15 @@ struct model {
   int sample_k;
   int sample_scan;
   int sample_seed;
+  // Callback scorer (kind 3): cb(n, feat[n][NF], hist[n][GRU_K], out[n]) scores
+  // the whole candidate set at once (set / sequence models run in Python).
+  void *cb;
+  // Tree ensemble (kind 4): score = base + sum of trees. Node f < 0 is a leaf
+  // (value in thr); f in [0, NF) tests the raw feature, f in [NF, 2NF) tests the
+  // candidate's percentile rank of feature f - NF within the candidate set.
+  int tree_n; float tree_base;
+  const int32_t *tree_root, *nd_l, *nd_r; const int16_t *nd_f; const float *nd_t;
+  uint32_t raw_mask, rank_mask;
 };
 
 struct result {
@@ -327,6 +336,57 @@ static double score_one(struct state *s, const struct model *m, int p,
   return mlp_forward(m->head_layers, m->head_sizes, m->head_w, x);
 }
 
+// Percentile rank of x[i] among the n candidates' values of one feature:
+// (#less + 0.5 * (#equal - 1)) / (n - 1), 0.5 when n == 1.
+static int cmpf(const void *a, const void *b) {
+  float x = *(const float *)a, y = *(const float *)b;
+  return x < y ? -1 : x > y;
+}
+static void rank_column(const float *X, int n, int f, float *out) {
+  static float *srt; static int cap_s;
+  if (n > cap_s) { cap_s = n; srt = realloc(srt, sizeof(float) * cap_s); }
+  for (int i = 0; i < n; i++) srt[i] = X[(int64_t)i * NF + f];
+  qsort(srt, n, sizeof(float), cmpf);
+  for (int i = 0; i < n; i++) {
+    float v = X[(int64_t)i * NF + f];
+    int lo = 0, hi = n;                         // first index with srt >= v
+    while (lo < hi) { int mid = (lo + hi) / 2; if (srt[mid] < v) lo = mid + 1; else hi = mid; }
+    int less = lo;
+    hi = n;                                     // first index with srt > v
+    while (lo < hi) { int mid = (lo + hi) / 2; if (srt[mid] <= v) lo = mid + 1; else hi = mid; }
+    int eq = lo - less;
+    out[i] = n > 1 ? (less + 0.5f * (eq - 1)) / (n - 1) : 0.5f;
+  }
+}
+
+static void tree_scores(const struct model *m, const float *X, int n, float *out) {
+  static float *R; static int cap_r;
+  if ((int64_t)n * NF > cap_r) { cap_r = n * NF; R = realloc(R, sizeof(float) * cap_r); }
+  static float col[1 << 16];
+  for (int f = 0; f < NF; f++)
+    if (m->rank_mask >> f & 1) {
+      float *c = n <= (1 << 16) ? col : malloc(sizeof(float) * n);
+      rank_column(X, n, f, c);
+      for (int i = 0; i < n; i++) R[(int64_t)i * NF + f] = c[i];
+      if (c != col) free(c);
+    }
+  for (int i = 0; i < n; i++) {
+    float acc = m->tree_base;
+    for (int t = 0; t < m->tree_n; t++) {
+      int k = m->tree_root[t];
+      while (m->nd_f[k] >= 0) {
+        int f = m->nd_f[k];
+        float v = f < NF ? X[(int64_t)i * NF + f] : R[(int64_t)i * NF + f - NF];
+        k = v <= m->nd_t[k] ? m->nd_l[k] : m->nd_r[k];
+      }
+      acc += m->nd_t[k];
+    }
+    out[i] = acc;
+  }
+}
+
+typedef void (*cand_cb)(int n, const float *feat, const float *hist, float *out);
+
 static int choose(struct state *s, int policy, const struct model *m,
                   int64_t t, double *score) {
   switch (policy) {
@@ -371,6 +431,31 @@ static int choose(struct state *s, int policy, const struct model *m,
       }
     }
     int any_old = 0;
+    if (m->kind == 3 || m->kind == 4) {
+      static float *X, *H, *O; static int cap_x;
+      int n = s->count;
+      if (n > cap_x) {
+        cap_x = n;
+        X = realloc(X, sizeof(float) * (int64_t)n * NF);
+        H = realloc(H, sizeof(float) * (int64_t)n * GRU_K);
+        O = realloc(O, sizeof(float) * n);
+      }
+      uint32_t need = m->kind == 3 ? 0xFFFFFFFFu : (m->raw_mask | m->rank_mask);
+      for (int k = 0; k < n; k++) {
+        int p = s->res[k];
+        for (int f = 0; f < NF; f++)
+          X[(int64_t)k * NF + f] = (need >> f & 1) ? feature(s, p, t, f) : 0.0f;
+        if (m->kind == 3) memcpy(H + (int64_t)k * GRU_K, s->hist + (int64_t)p * GRU_K,
+                                 sizeof(float) * GRU_K);
+      }
+      if (m->kind == 3) ((cand_cb)m->cb)(n, X, H, O);
+      else tree_scores(m, X, n, O);
+      for (int k = 0; k < n; k++) {
+        score[k] = O[k];
+        if (m->protect_age && s->scans - s->load_scan[s->res[k]] >= m->protect_age)
+          any_old = 1;
+      }
+    } else
     if (m->kind == 0 && m->n_layers > 1 && !m->quant_w) {
       // MLP over all candidates at once, candidates innermost so the loop
       // vectorises. Each candidate's sums are accumulated in the same order
@@ -965,6 +1050,11 @@ void score_rows(const struct model *m, const float *feat, int64_t n,
       x[j] = (feat[i * NF + m->feat[j]] - m->mean[j]) / m->std[j];
     out[i] = mlp_forward(m->n_layers, m->sizes, m->w, x);
   }
+}
+
+// Tree ensemble over one candidate set ([n][NF] raw features), as at an eviction.
+void score_tree_group(const struct model *m, const float *feat, int n, float *out) {
+  tree_scores(m, feat, n, out);
 }
 
 // GRU / embedding scorer over recorded rows, exactly as score_one() computes
