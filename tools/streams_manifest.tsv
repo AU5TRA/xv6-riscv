@@ -190,6 +190,22 @@ pat-switch-s3	200	dataset	patbench 1024 8000 1000000 3 switch 9
 pat-switch-s4	200	dataset	patbench 1024 8000 1000000 4 switch 9
 pat-switch-s5	200	dataset	patbench 1024 8000 1000000 5 switch 9
 pat-switch-s1-rep	200	pilot	patbench 1024 8000 1000000 1 switch 9
+app-chase-s1	300	pilot	appbench 8000 1000000 1 chase 9
+app-chase-s2	300	dataset	appbench 8000 1000000 2 chase 9
+app-chase-s3	300	dataset	appbench 8000 1000000 3 chase 9
+app-chase-s1-rep	300	pilot	appbench 8000 1000000 1 chase 9
+app-spmv-s1	300	pilot	appbench 8000 1000000 1 spmv 9
+app-spmv-s2	300	dataset	appbench 8000 1000000 2 spmv 9
+app-spmv-s3	300	dataset	appbench 8000 1000000 3 spmv 9
+app-spmv-s1-rep	300	pilot	appbench 8000 1000000 1 spmv 9
+app-hashjoin-s1	300	pilot	appbench 8000 1000000 1 hashjoin 9
+app-hashjoin-s2	300	dataset	appbench 8000 1000000 2 hashjoin 9
+app-hashjoin-s3	300	dataset	appbench 8000 1000000 3 hashjoin 9
+app-hashjoin-s1-rep	300	pilot	appbench 8000 1000000 1 hashjoin 9
+app-bloom-s1	300	pilot	appbench 8000 1000000 1 bloom 9
+app-bloom-s2	300	dataset	appbench 8000 1000000 2 bloom 9
+app-bloom-s3	300	dataset	appbench 8000 1000000 3 bloom 9
+app-bloom-s1-rep	300	pilot	appbench 8000 1000000 1 bloom 9
 kv-T4-s1	60	pilot	kvbench 2000 8000 6702 1 T4 9
 kv-T4-s1-rep	60	pilot	kvbench 2000 8000 6702 1 T4 9
 kv-T17-s1	151	pilot	kvbench 2000 8000 30221 1 T17 9

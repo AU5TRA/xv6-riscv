@@ -84,6 +84,12 @@ VARIANTS = [
     ("pat-phase", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} phase %d" % FILE),
     ("pat-phaseshort", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} phaseshort %d" % FILE),
     ("pat-switch", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} switch %d" % FILE),
+    # appbench <margin> <accesses> <seed> <mode> (user/appbench.c): application-shaped
+    # element-level access strings with exact host models; all held out
+    ("app-chase", 300, SEEDS3, "appbench {m} 1000000 {s} chase %d" % FILE),
+    ("app-spmv", 300, SEEDS3, "appbench {m} 1000000 {s} spmv %d" % FILE),
+    ("app-hashjoin", 300, SEEDS3, "appbench {m} 1000000 {s} hashjoin %d" % FILE),
+    ("app-bloom", 300, SEEDS3, "appbench {m} 1000000 {s} bloom %d" % FILE),
     # kvbench mode T<cluster>: replay a Twitter cache-trace key stream (user/twk<c>.bin,
     # tools/gen_tw_keys.py); op count = the stream's length. One seed: the replay is deterministic. All held out.
     ("kv-T4", 60, [1], "kvbench 2000 {m} 6702 {s} T4 %d" % FILE),
