@@ -70,6 +70,20 @@ VARIANTS = [
     # freezes it (~4.0M refs); 30 also drives one CLEAR (~6.1M refs).
     ("lzw-r20", 570, SEEDS6, "lzwbench {m} 20 %d {s}" % FILE),
     ("lzw-r30", 850, SEEDS6, "lzwbench {m} 30 %d {s}" % FILE),
+    # patbench <footprint> <margin> <accesses> <seed> <mode> <flags>
+    # (user/patbench.c): synthetic patterns with known answers, 1M accesses on
+    # 1024 pages. The variant is the mode name.
+    ("pat-loop", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} loop %d" % FILE),
+    ("pat-scanhot", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} scanhot %d" % FILE),
+    ("pat-scanhotlo", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} scanhotlo %d" % FILE),
+    ("pat-zipf060", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} zipf060 %d" % FILE),
+    ("pat-zipf080", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} zipf080 %d" % FILE),
+    ("pat-zipf099", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} zipf099 %d" % FILE),
+    ("pat-zipf120", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} zipf120 %d" % FILE),
+    ("pat-uniform", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} uniform %d" % FILE),
+    ("pat-phase", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} phase %d" % FILE),
+    ("pat-phaseshort", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} phaseshort %d" % FILE),
+    ("pat-switch", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} switch %d" % FILE),
 ]
 
 # Graph repeats cost ~11 min each; one graph repeat covers the code path the

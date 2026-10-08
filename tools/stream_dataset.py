@@ -60,7 +60,8 @@ ML = STREAMS / "ml"
 NEVER = np.uint32(0xFFFFFFFF)
 CAPACITY_GRID = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
 HELD_OUT = {"kv-F", "btree-scan", "graph-bfs2000", "sort-n60000",
-            "matmul-naive128", "matmul-blocked128", "lzw-r30"}
+            "matmul-naive128", "matmul-blocked128", "lzw-r30",
+            "pat-zipf120", "pat-switch"}
 STEM_RE = re.compile(r"^(?P<variant>(?P<workload>[a-z]+)-[A-Za-z0-9]+)-s(?P<seed>\d+)$")
 
 
