@@ -85,13 +85,13 @@ VARIANTS = [
     ("pat-phaseshort", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} phaseshort %d" % FILE),
     ("pat-switch", 200, SEEDS5, "patbench 1024 {m} 1000000 {s} switch %d" % FILE),
     # kvbench mode T<cluster>: replay a Twitter cache-trace key stream (user/twk<c>.bin,
-    # tools/gen_tw_keys.py); op count = the stream's length. All held out.
-    ("kv-T4", 60, [1, 2], "kvbench 2000 {m} 6702 {s} T4 %d" % FILE),
-    ("kv-T17", 151, [1, 2], "kvbench 2000 {m} 30221 {s} T17 %d" % FILE),
-    ("kv-T18", 83, [1, 2], "kvbench 2000 {m} 16660 {s} T18 %d" % FILE),
-    ("kv-T24", 200, [1, 2], "kvbench 2000 {m} 40000 {s} T24 %d" % FILE),
-    ("kv-T35", 65, [1, 2], "kvbench 2000 {m} 13011 {s} T35 %d" % FILE),
-    ("kv-T52", 60, [1, 2], "kvbench 2000 {m} 4751 {s} T52 %d" % FILE),
+    # tools/gen_tw_keys.py); op count = the stream's length. One seed: the replay is deterministic. All held out.
+    ("kv-T4", 60, [1], "kvbench 2000 {m} 6702 {s} T4 %d" % FILE),
+    ("kv-T17", 151, [1], "kvbench 2000 {m} 30221 {s} T17 %d" % FILE),
+    ("kv-T18", 83, [1], "kvbench 2000 {m} 16660 {s} T18 %d" % FILE),
+    ("kv-T24", 200, [1], "kvbench 2000 {m} 40000 {s} T24 %d" % FILE),
+    ("kv-T35", 65, [1], "kvbench 2000 {m} 13011 {s} T35 %d" % FILE),
+    ("kv-T52", 60, [1], "kvbench 2000 {m} 4751 {s} T52 %d" % FILE),
 ]
 
 # Graph repeats cost ~11 min each; one graph repeat covers the code path the
