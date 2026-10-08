@@ -18,12 +18,16 @@ import pagesim as ps
 
 R = ps.ROOT / "report" / "results2"
 OUT = R / "transfer.csv"
+OUT_REAL = R / "transfer_real.csv"
 FRACS = ("0.05", "0.1", "0.2")
 CLASSIC = ["fifo", "lru", "clock", "belady", "mru", "arc", "s3fifo", "s3scan", "mglru", "lhd"]
 HEADER = ["model", "stem", "workload", "fraction", "frames", "faults", "writebacks", "aborted"]
 MODES = ["loop", "scanhot", "scanhotlo", "zipf060", "zipf080", "zipf099", "zipf120",
          "uniform", "phase", "phaseshort", "switch"]
 TW = [4, 17, 18, 24, 35, 52]
+
+
+REAL = ["redis-real-s1", "sqlite-real-s1"]
 
 
 def stems():
@@ -53,10 +57,11 @@ def job(args):
     return rows
 
 
-def run(jobs):
-    tasks = [(st, fr) for st in stems() for fr in FRACS]
+def run(jobs, real=False):
+    out = OUT_REAL if real else OUT
+    tasks = [(st, fr) for st in (REAL if real else stems()) for fr in FRACS]
     t0 = time.time()
-    with Pool(jobs) as pool, open(OUT, "w", newline="") as f:
+    with Pool(jobs) as pool, open(out, "w", newline="") as f:
         w = csv.writer(f); w.writerow(HEADER)
         for i, rows in enumerate(pool.imap_unordered(job, tasks), 1):
             w.writerows(rows); f.flush()
@@ -65,7 +70,7 @@ def run(jobs):
 
 
 def report():
-    rows = list(csv.DictReader(open(OUT)))
+    rows = list(csv.DictReader(open(OUT))) + (list(csv.DictReader(open(OUT_REAL))) if OUT_REAL.exists() else [])
     f = {(r["model"], r["stem"], r["fraction"]): int(r["faults"]) for r in rows}
     models = sorted({r["model"] for r in rows}, key=lambda m: (not m in CLASSIC, CLASSIC.index(m) if m in CLASSIC else 0, m))
     print("faults / Clock, geo-mean over the 3 capacities and the seeds of a mode")
@@ -81,6 +86,6 @@ def report():
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("--jobs", type=int, default=6)
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("--jobs", type=int, default=6); ap.add_argument("--real", action="store_true")
     a = ap.parse_args()
-    run(a.jobs) if a.cmd == "run" else report()
+    run(a.jobs, a.real) if a.cmd == "run" else report()
