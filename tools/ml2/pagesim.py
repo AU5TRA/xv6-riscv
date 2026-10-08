@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import ctypes as C
 import json
+import os
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -19,11 +20,15 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 DATA = ROOT / "traces2" / "ML"
-SRC = HERE / "pagesim.c"
-LIB = HERE / "libpagesim.so"
+# PAGESIM_SRC / PAGESIM_LIB point at a sandbox copy of the simulator
+# (e.g. pagesim_dev.c / libpagesim_dev.so) while it is being developed.
+SRC = HERE / os.environ.get("PAGESIM_SRC", "pagesim.c")
+LIB = HERE / os.environ.get("PAGESIM_LIB", "libpagesim.so")
 
 POLICIES = ["fifo", "clock", "aging", "lru", "lfu_exact", "lfu_kernel",
-            "belady", "learned", "sd_old", "gru", "embed"]
+            "belady", "learned", "sd_old", "gru", "embed",
+            # list-based / reference policies (same order as the C enum)
+            "mru", "arc", "s3fifo", "s3scan", "mglru", "lhd"]
 FEATURES = ["rec", "freq", "sd", "wr",                       # F: full-stream
             "ref", "aging", "sfreq", "idle", "age", "dirty",  # K: kernel-observable
             "refaults", "rdist"]                              # K+: refault bookkeeping
@@ -39,7 +44,6 @@ def _build():
     # Compile to a temporary name and rename into place: processes that
     # already have the old library mapped (a running sweep) keep their copy.
     if not LIB.exists() or LIB.stat().st_mtime < SRC.stat().st_mtime:
-        import os
         tmp = LIB.with_suffix(f".{os.getpid()}.tmp")
         subprocess.run(["gcc", "-O3", "-march=native", "-shared", "-fPIC",
                         "-Wall", "-Wextra", "-o", str(tmp), str(SRC), "-lm"],

@@ -29,6 +29,8 @@
 enum policy {
   P_FIFO, P_CLOCK, P_AGING, P_LRU, P_LFU_EXACT, P_LFU_KERNEL, P_BELADY,
   P_LEARNED, P_SD_OLD, P_GRU, P_EMBED,
+  // list-based and reference policies (pagesim.py POLICIES keeps this order)
+  P_MRU, P_ARC, P_S3FIFO, P_S3SCAN, P_MGLRU, P_LHD,
 };
 
 // Feature layout of every recorded / scored candidate row.
@@ -207,6 +209,16 @@ struct state {
   int32_t *order; int order_n; int64_t hand;   // Clock candidate list
   int32_t ring[EMB_W]; int ring_i;             // last EMB_W pages referenced
   uint64_t srng; int32_t *samp;                // sampled-scoring rng / chosen indices
+  // doubly linked lists over page ids (ARC, S3-FIFO); head = MRU / newest
+  int32_t *lnx, *lpv; int8_t *lin; int32_t lhead[4], ltail[4]; int llen[4];
+  int arc_p;                                   // ARC target size of T1
+  uint8_t *s3freq, *s3fresh;                   // S3-FIFO per-page counter / "ignore load touch"
+  int s3_small_cap, s3_main_cap;
+  // MGLRU (generations): gen[p] = sequence number, gst[p] = order within it
+  int64_t *gen, *gst; int gcnt[4]; int64_t gmin, gmax, gctr;
+  // LHD (scan form): hit ages of the last two hits, per-class age histograms
+  int32_t *la1, *la2;
+  int64_t lh[16][256], le[16][256], ld[16][256]; int lshift; int64_t lnev, lrec;
 };
 
 static float feature(const struct state *s, int p, int64_t t, int f) {
@@ -319,7 +331,7 @@ static int choose(struct state *s, int policy, const struct model *m,
                   int64_t t, double *score) {
   switch (policy) {
   case P_FIFO: case P_AGING: case P_LFU_KERNEL: case P_LFU_EXACT:
-  case P_LRU: case P_BELADY: case P_SD_OLD:
+  case P_LRU: case P_BELADY: case P_SD_OLD: case P_MRU:
     for (int k = 0; k < s->count; k++) {
       int p = s->res[k];
       switch (policy) {
@@ -328,6 +340,7 @@ static int choose(struct state *s, int policy, const struct model *m,
       case P_LFU_KERNEL: score[k] = -(double)s->kfreq[p]; break;
       case P_LFU_EXACT: score[k] = -(double)s->freq[p]; break;
       case P_LRU: score[k] = (double)(t - s->last_acc[p]); break;
+      case P_MRU: score[k] = (double)(s->last_acc[p]); break;
       case P_BELADY:
         score[k] = s->nxt[p] == INF_T ? INFINITY : (double)(s->nxt[p] - t);
         break;
@@ -336,12 +349,12 @@ static int choose(struct state *s, int policy, const struct model *m,
         break;
       }
     }
-    if (policy == P_LRU || policy == P_BELADY) {  // exact: no float ties
+    if (policy == P_LRU || policy == P_BELADY || policy == P_MRU) {  // exact: no float ties
       int best = 0;
       for (int k = 1; k < s->count; k++) {
         int p = s->res[k], q = s->res[best];
-        int64_t a = policy == P_LRU ? -s->last_acc[p] : s->nxt[p];
-        int64_t b = policy == P_LRU ? -s->last_acc[q] : s->nxt[q];
+        int64_t a = policy == P_LRU ? -s->last_acc[p] : policy == P_MRU ? s->last_acc[p] : s->nxt[p];
+        int64_t b = policy == P_LRU ? -s->last_acc[q] : policy == P_MRU ? s->last_acc[q] : s->nxt[q];
         if (a > b) best = k;
       }
       return best;
@@ -451,6 +464,255 @@ static int clock_choose(struct state *s) {
   return (int)(s->hand++ % n);
 }
 
+// ---- doubly linked lists over page ids ---------------------------------------
+enum { L_T1, L_T2, L_B1, L_B2 };        // ARC; S3-FIFO uses L_T1=small, L_T2=main, L_B1=ghost
+
+static void dl_remove(struct state *s, int p) {
+  int l = s->lin[p];
+  if (l < 0) return;
+  int a = s->lpv[p], b = s->lnx[p];
+  if (a >= 0) s->lnx[a] = b; else s->lhead[l] = b;
+  if (b >= 0) s->lpv[b] = a; else s->ltail[l] = a;
+  s->llen[l]--; s->lin[p] = -1;
+}
+
+static void dl_push_head(struct state *s, int l, int p) {
+  s->lpv[p] = -1; s->lnx[p] = s->lhead[l];
+  if (s->lhead[l] >= 0) s->lpv[s->lhead[l]] = p; else s->ltail[l] = p;
+  s->lhead[l] = p; s->lin[p] = (int8_t)l; s->llen[l]++;
+}
+
+// ---- ARC (Megiddo & Modha, FAST 2003), integer adaptation steps ---------------
+// Called on every fault; returns the page to evict (-1 if the cache is not
+// full) and puts p into T1 or T2. Hits go through arc_hit().
+static void arc_hit(struct state *s, int p) {
+  dl_remove(s, p); dl_push_head(s, L_T2, p);
+}
+
+static int arc_replace(struct state *s, int in_b2) {
+  int c = s->cap, v;
+  if (s->llen[L_T1] >= 1 && ((in_b2 && s->llen[L_T1] == s->arc_p) || s->llen[L_T1] > s->arc_p)) {
+    v = s->ltail[L_T1]; dl_remove(s, v); dl_push_head(s, L_B1, v);
+  } else {
+    v = s->ltail[L_T2]; dl_remove(s, v); dl_push_head(s, L_B2, v);
+  }
+  (void)c;
+  return v;
+}
+
+static int arc_fault(struct state *s, int p) {
+  int c = s->cap, v = -1, w = s->lin[p];
+  if (w == L_B1) {
+    int d = s->llen[L_B1] >= s->llen[L_B2] ? 1 : s->llen[L_B2] / s->llen[L_B1];
+    s->arc_p = s->arc_p + d < c ? s->arc_p + d : c;
+    v = arc_replace(s, 0);
+    dl_remove(s, p); dl_push_head(s, L_T2, p);
+  } else if (w == L_B2) {
+    int d = s->llen[L_B2] >= s->llen[L_B1] ? 1 : s->llen[L_B1] / s->llen[L_B2];
+    s->arc_p = s->arc_p - d > 0 ? s->arc_p - d : 0;
+    v = arc_replace(s, 1);
+    dl_remove(s, p); dl_push_head(s, L_T2, p);
+  } else {
+    int l1 = s->llen[L_T1] + s->llen[L_B1];
+    int tot = l1 + s->llen[L_T2] + s->llen[L_B2];
+    if (l1 == c) {
+      if (s->llen[L_T1] < c) { dl_remove(s, s->ltail[L_B1]); v = arc_replace(s, 0); }
+      else { v = s->ltail[L_T1]; dl_remove(s, v); }
+    } else if (tot >= c) {
+      if (tot == 2 * c) dl_remove(s, s->ltail[L_B2]);
+      v = arc_replace(s, 0);
+    }
+    dl_push_head(s, L_T1, p);
+  }
+  return v;
+}
+
+// ---- S3-FIFO (Yang et al., SOSP 2023) -----------------------------------------
+// small queue (10% of the cache), main queue, ghost queue (main's size).
+// per-access form: a hit adds 1 to the page's counter (cap 3).
+// scan form: the counter is raised from the accessed bit when a page reaches a
+// queue head (what a kernel that only scans A bits can do); the touch that
+// loaded the page is ignored, as the original starts new objects at 0.
+static void s3_examine(struct state *s, int p, int scan) {
+  if (!scan) return;
+  if (s->s3fresh[p]) { s->s3fresh[p] = 0; s->abit[p] = 0; return; }
+  if (s->abit[p]) { if (s->s3freq[p] < 3) s->s3freq[p]++; s->abit[p] = 0; }
+}
+
+static int s3_evict_main(struct state *s, int scan) {
+  for (;;) {
+    int t = s->ltail[L_T2];
+    s3_examine(s, t, scan);
+    if (s->s3freq[t] > 0) { s->s3freq[t]--; dl_remove(s, t); dl_push_head(s, L_T2, t); }
+    else { dl_remove(s, t); return t; }
+  }
+}
+
+static int s3_evict(struct state *s, int scan) {
+  if (s->llen[L_T1] * 10 >= s->cap || s->llen[L_T2] == 0) {
+    while (s->llen[L_T1] > 0) {
+      int t = s->ltail[L_T1];
+      s3_examine(s, t, scan);
+      dl_remove(s, t);
+      if (s->s3freq[t] > 1) {
+        dl_push_head(s, L_T2, t);
+        if (s->llen[L_T2] > s->s3_main_cap) return s3_evict_main(s, scan);
+      } else {
+        dl_push_head(s, L_B1, t);
+        if (s->llen[L_B1] > s->s3_main_cap) dl_remove(s, s->ltail[L_B1]);
+        return t;
+      }
+    }
+  }
+  return s3_evict_main(s, scan);
+}
+
+static int s3_fault(struct state *s, int p, int scan) {
+  int v = -1;
+  if (s->count >= s->cap) v = s3_evict(s, scan);
+  int ghost = s->lin[p] == L_B1;       // after evicting, as in the paper (the eviction can trim p)
+  s->s3freq[p] = 0; s->s3fresh[p] = 1;
+  if (ghost) { dl_remove(s, p); dl_push_head(s, L_T2, p); }
+  else dl_push_head(s, L_T1, p);
+  return v;
+}
+
+static void s3_hit(struct state *s, int p) {
+  if (s->s3freq[p] < 3) s->s3freq[p]++;
+}
+
+// ---- MGLRU analogue for anonymous memory --------------------------------------
+// Linux's multi-generational LRU as a kernel that only reads accessed bits sees
+// it: up to 4 generations (>= 2 kept), new pages join the youngest; an aging
+// walk (run only when too few older generations remain, rules from
+// cache_ext's eBPF port) opens a new youngest generation and promotes every
+// page found accessed into it; eviction takes the oldest page of the oldest
+// generation and rescues it into the youngest if its accessed bit is set.
+// (Tiers and the refault PID controller apply to file pages accessed through
+// read/write; anonymous pages have a single tier, so they are not modelled.)
+#define MG_MIN_GENS 2
+#define MG_MAX_GENS 4
+static inline int gi(int64_t q) { return (int)(q & 3); }
+
+static void mg_move(struct state *s, int p, int64_t to) {
+  if (s->gen[p] >= 0) s->gcnt[gi(s->gen[p])]--;
+  s->gen[p] = to; s->gcnt[gi(to)]++; s->gst[p] = ++s->gctr;
+}
+
+static void mg_retire(struct state *s) {
+  while (s->gcnt[gi(s->gmin)] == 0 && s->gmin < s->gmax) s->gmin++;
+}
+
+static int mg_should_age(struct state *s) {
+  int64_t n = s->gmax - s->gmin + 1;
+  if (n <= MG_MIN_GENS) return 1;
+  if (n >= MG_MAX_GENS) return 0;
+  int total = 0;
+  for (int64_t q = s->gmin; q <= s->gmax; q++) total += s->gcnt[gi(q)];
+  int young = s->gcnt[gi(s->gmax)], old = s->gcnt[gi(s->gmax - MG_MIN_GENS)];
+  return young * MG_MIN_GENS > total || old * (MG_MIN_GENS + 2) < total;
+}
+
+static void mg_age(struct state *s) {
+  if (s->gmax - s->gmin + 1 == MG_MAX_GENS) {
+    if (s->gcnt[gi(s->gmin)] != 0) return;      // the oldest generation is still in use
+    s->gmin++;
+  }
+  s->gmax++;
+  // promote the accessed pages together, keeping their relative order (oldest
+  // first), so the result does not depend on the resident array's layout
+  int m = 0;
+  for (int k = 0; k < s->count; k++)
+    if (s->abit[s->res[k]]) s->samp[m++] = s->res[k];
+  for (int i = 1; i < m; i++) {
+    int x = s->samp[i], j = i - 1;
+    while (j >= 0 && s->gst[s->samp[j]] > s->gst[x]) { s->samp[j + 1] = s->samp[j]; j--; }
+    s->samp[j + 1] = x;
+  }
+  for (int i = 0; i < m; i++) { s->abit[s->samp[i]] = 0; mg_move(s, s->samp[i], s->gmax); }
+}
+
+static int mg_victim(struct state *s) {
+  mg_retire(s);
+  if (mg_should_age(s)) mg_age(s);
+  for (;;) {
+    mg_retire(s);
+    int best = -1;
+    for (int k = 0; k < s->count; k++) {
+      int p = s->res[k];
+      if (s->gen[p] == s->gmin && (best < 0 || s->gst[p] < s->gst[best])) best = p;
+    }
+    if (best < 0) return -1;
+    if (s->abit[best]) { s->abit[best] = 0; mg_move(s, best, s->gmax); continue; }
+    return best;
+  }
+}
+
+// ---- LHD (Beckmann, Chen, Cidon, NSDI 2018), scan form ---------------------------
+// Evict the page with the lowest hit density: expected future hits per unit of
+// cache space-time, estimated per (class, age) from histograms of hit and
+// eviction ages. Following cache_ext's port: 16 classes from the sum of a
+// page's last two hit ages, 256 age buckets, histograms decayed by 0.9 at each
+// re-estimation, densities initialised GDSF-like. Adapted to a kernel that
+// sees accessed bits at scans: time is counted in eviction scans, a "hit" is
+// a page found accessed at a scan (the load's own touch is ignored), and the
+// densities are re-estimated every LHD_RECONF = 4*cap + 256 evictions. These
+// parameters were fixed a priori, not tuned.
+#define LHD_CL 16
+#define LHD_AGES 256
+#define LHD_HS 256
+#define LHD_SCALE (1 << 20)
+
+static int lhd_class(int64_t sum) {
+  if (sum == 0) return 0;
+  int c = 0;
+  while (sum < LHD_AGES && c < LHD_CL - 1) { sum <<= 1; c++; }
+  return c;
+}
+static int lhd_bucket(const struct state *s, int p) {
+  int64_t a = (s->scans - s->last_seen[p]) >> s->lshift;
+  return a >= LHD_AGES ? LHD_AGES - 1 : (int)a;
+}
+static void lhd_reconfigure(struct state *s) {
+  for (int c = 0; c < LHD_CL; c++) {
+    for (int a = 0; a < LHD_AGES; a++) { s->lh[c][a] = s->lh[c][a] * 9 / 10; s->le[c][a] = s->le[c][a] * 9 / 10; }
+    int64_t hits = s->lh[c][LHD_AGES - 1], events = hits + s->le[c][LHD_AGES - 1], life = events;
+    for (int a = LHD_AGES - 2; a >= 0; a--) {
+      hits += s->lh[c][a]; events += s->lh[c][a] + s->le[c][a]; life += events;
+      s->ld[c][a] = events > LHD_HS ? hits * LHD_SCALE / life : 0;
+    }
+  }
+}
+static void lhd_init(struct state *s, int cap) {
+  int sh = 0;
+  while (((int64_t)LHD_AGES << sh) < 4 * (int64_t)cap) sh++;
+  s->lshift = sh;
+  for (int c = 0; c < LHD_CL; c++)
+    for (int a = 0; a < LHD_AGES; a++) s->ld[c][a] = (int64_t)LHD_SCALE * (c + 1) / (a + 1);
+}
+static void lhd_scan(struct state *s) {
+  for (int k = 0; k < s->count; k++) {
+    int p = s->res[k];
+    if (s->s3fresh[p]) { s->s3fresh[p] = 0; s->abit[p] = 0; continue; }
+    if (!s->abit[p]) continue;
+    int b = lhd_bucket(s, p);
+    s->lh[lhd_class((int64_t)s->la1[p] + s->la2[p])][b] += LHD_HS;
+    s->la2[p] = s->la1[p]; s->la1[p] = b;
+    s->last_seen[p] = s->scans; s->abit[p] = 0;
+  }
+}
+static int lhd_victim(struct state *s) {
+  int best = -1; int64_t bd = 0;
+  for (int k = 0; k < s->count; k++) {
+    int p = s->res[k], b = lhd_bucket(s, p);
+    int64_t d = b == LHD_AGES - 1 ? 0 : s->ld[lhd_class((int64_t)s->la1[p] + s->la2[p])][b];
+    if (best < 0 || d < bd || (d == bd && s->load_seq[p] < s->load_seq[best])) { best = p; bd = d; }
+  }
+  s->le[lhd_class((int64_t)s->la1[best] + s->la2[best])][lhd_bucket(s, best)] += LHD_HS;
+  if (++s->lnev >= 4 * (int64_t)s->cap + 256) { s->lnev = 0; lhd_reconfigure(s); }
+  return best;
+}
+
 // Append every current candidate as one training row each.
 static void record(struct state *s, struct recorder *r, struct result *o,
                    int64_t t, int32_t group, uint64_t *rng, int32_t *pick) {
@@ -536,6 +798,12 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
            ALLOC(s->hist, (int64_t)n_pages * GRU_K) &&
            ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1) &&
            ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1);
+  int listpol = policy == P_ARC || policy == P_S3FIFO || policy == P_S3SCAN || policy == P_MGLRU || policy == P_LHD;
+  if (ok && listpol)
+    ok = ALLOC(s->lnx, n_pages) && ALLOC(s->lpv, n_pages) && ALLOC(s->lin, n_pages) &&
+         ALLOC(s->s3freq, n_pages) && ALLOC(s->s3fresh, n_pages);
+  if (ok && policy == P_MGLRU) ok = ALLOC(s->gen, n_pages) && ALLOC(s->gst, n_pages);
+  if (ok && policy == P_LHD) ok = ALLOC(s->la1, n_pages) && ALLOC(s->la2, n_pages);
   if (ok && need_bit) ok = ALLOC(s->bit, n + 1) != NULL;
   if (ok && policy == P_GRU)
     ok = ALLOC(s->gru_cache, (int64_t)n_pages * m->gru_h) &&
@@ -546,6 +814,15 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
     if (s->gru_dirty) s->gru_dirty[p] = 1;
   }
   for (int j = 0; j < EMB_W; j++) s->ring[j] = -1;
+  if (listpol) {
+    for (int p = 0; p < n_pages; p++) s->lin[p] = -1;
+    for (int l = 0; l < 4; l++) s->lhead[l] = s->ltail[l] = -1;
+    s->s3_small_cap = cap / 10 > 0 ? cap / 10 : 1;
+    s->s3_main_cap = cap - s->s3_small_cap;
+  }
+  if (policy == P_MGLRU)
+    for (int p = 0; p < n_pages; p++) s->gen[p] = -1;
+  if (policy == P_LHD) lhd_init(s, cap);
   uint64_t rng = r ? (r->rng ? r->rng : 88172645463325252ull) : 1;
   int32_t group = 0;
   s->srng = 0x9E3779B97F4A7C15ull ^ ((uint64_t)(m ? m->sample_seed : 0) * 0xD1B54A32D192ED03ull);
@@ -558,6 +835,9 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
     if (s->pos[p] < 0) {                      // ---- fault ----
       o->faults++;
       if (max_faults > 0 && o->faults > max_faults) { o->aborted = 1; break; }
+      int lv = -1;                            // list policies: victim chosen first
+      if (listpol)
+        lv = policy == P_ARC ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
       if (s->count >= cap) {                  // ---- evict ----
         int sampled = sampling && s->count > m->sample_k;
         if (sampled) {
@@ -579,7 +859,12 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         if (r && r->p > 0 && (double)(xs(&rng) >> 11) / 9007199254740992.0 < r->p)
           record(s, r, o, t, group++, &rng, pick);
         int k;
-        if (policy == P_CLOCK) {
+        if (policy == P_MGLRU) lv = mg_victim(s);
+        if (policy == P_LHD) { lhd_scan(s); lv = lhd_victim(s); }
+        if (listpol) {
+          if (lv < 0 || s->pos[lv] < 0) { o->aborted = -1; break; }   // invariant broken
+          k = s->pos[lv];
+        } else if (policy == P_CLOCK) {
           int idx = clock_choose(s);
           k = s->pos[s->order[idx]];
           memmove(s->order + idx, s->order + idx + 1,
@@ -591,6 +876,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
           k = choose(s, policy, m, t, score);
         }
         int v = s->res[k];
+        if (policy == P_MGLRU) { s->gcnt[gi(s->gen[v])]--; s->gen[v] = -1; }
         if (s->dbit[v] || !s->has_copy[v]) { o->writebacks++; s->has_copy[v] = 1; }
         s->abit[v] = s->dbit[v] = 0;
         s->evicted_at[v] = s->scans;
@@ -615,9 +901,13 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       s->abit[p] = 1;
       s->dbit[p] = (uint8_t)w;
       if (policy == P_CLOCK) s->order[s->order_n++] = p;
+      if (policy == P_MGLRU) mg_move(s, p, s->gmax);
+      if (policy == P_LHD) { s->la1[p] = 0; s->la2[p] = LHD_AGES; s->s3fresh[p] = 1; }
     } else {                                  // ---- hit ----
       s->abit[p] = 1;
       s->dbit[p] |= (uint8_t)w;
+      if (policy == P_ARC) arc_hit(s, p);
+      else if (policy == P_S3FIFO) s3_hit(s, p);
     }
     // ---- exact (full-stream) bookkeeping, every access ----
     if (s->last_acc[p] >= 0) {
@@ -648,6 +938,8 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   free(s->dbit); free(s->aging); free(s->has_copy); free(s->seen_now);
   free(s->hist); free(s->order); free(score); free(s->bit); free(pick);
   free(s->gru_cache); free(s->gru_dirty); free(s->samp);
+  free(s->gen); free(s->gst); free(s->la1); free(s->la2);
+  free(s->lnx); free(s->lpv); free(s->lin); free(s->s3freq); free(s->s3fresh);
   return 0;
 }
 
