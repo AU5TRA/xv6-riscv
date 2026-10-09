@@ -32,6 +32,12 @@ usage(void)
 int
 main(int argc, char **argv)
 {
+  int log = 0;
+  if(argc > 1 && strcmp(argv[1], "-v") == 0){   // -v: log every victim on the console
+    log = 1;
+    argc--;
+    argv++;
+  }
   if(argc < 3)
     usage();
   int policy = -1;
@@ -81,6 +87,8 @@ main(int argc, char **argv)
   }
   if(prog >= argc)
     usage();
+  if(log)
+    vmctl(VM_LOG_VICTIMS, 1);
   if(vmctl(VM_SET_POLICY, policy) < 0){
     fprintf(2, "vmrun: vmctl VM_SET_POLICY failed\n");
     exit(1);

@@ -33,6 +33,7 @@ struct vmstate {
   // ml_scans is protected by vmpage.c's frame_table.lock, like owned_head.
   struct vm_ml_weights ml;
   uint64 ml_scans;
+  int log_victims;          // VM_LOG_VICTIMS: print every victim (debugging the policies)
   uint64 ml_rng;            // xorshift state of the candidate sampler (0 = unseeded)
   // Head/tail of this process's owned-frame list (vm_page.owner_next/prev).
   // Protected by vmpage.c's frame_table.lock, NOT this struct's own .lock --

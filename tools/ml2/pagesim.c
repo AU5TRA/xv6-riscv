@@ -107,6 +107,8 @@ struct model {
   uint32_t raw_mask, rank_mask;
   // Integer network (kind 5): evaluated by kernel/mlnet.h on the kernel's own Q8 features.
   const struct mlnet *net;
+  // Optional log of every eviction: victim page id and candidate count (2 ints per eviction).
+  int32_t *vlog; int64_t vlog_cap, vlog_n;
 };
 
 struct result {
@@ -984,6 +986,11 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
           k = choose(s, policy, m, t, score);
         }
         int v = s->res[k];
+        if (m && m->vlog && m->vlog_n < m->vlog_cap) {
+          ((struct model *)m)->vlog[2 * m->vlog_n] = v;
+          ((struct model *)m)->vlog[2 * m->vlog_n + 1] = s->count;
+          ((struct model *)m)->vlog_n++;
+        }
         if (policy == P_MGLRU) { s->gcnt[gi(s->gen[v])]--; s->gen[v] = -1; }
         if (s->dbit[v] || !s->has_copy[v]) { o->writebacks++; s->has_copy[v] = 1; }
         s->abit[v] = s->dbit[v] = 0;

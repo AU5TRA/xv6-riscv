@@ -244,7 +244,8 @@ def five_models():
         else "graph " + r["split"]
     by = defaultdict(list)
     for r in rows:
-        by[(grp(r), r["policy"] + (":" + r["model"] if r["model"] else ""))].append(f(r) / clock[r["stem"]])
+        if r["stem"] in clock:
+            by[(grp(r), r["policy"] + (":" + r["model"] if r["model"] else ""))].append(f(r) / clock[r["stem"]])
     cols = ["kv test", "kv heldout", "kv-T", "graph test", "graph heldout"]
     pols = [("fifo", "FIFO"), ("aging", "Aging"), ("ml:global", "linear, global"), ("ml:kv", "linear, kv"), ("ml:graph", "linear, graph"),
             ("ml:cnn-kv", "CNN on aging bits (kv)"), ("ml:mlp-kv", "deeper MLP (kv)"), ("ml:trees-kv", "boosted trees (kv)"),
@@ -288,6 +289,35 @@ def five_models():
     plt.close(fig)
 
 
+def full_tests():
+    """Every policy on every workload in xv6, for each memory size run: faults relative to Clock (geometric mean over
+    the test and held-out streams of the workload)."""
+    p = R / "kernel_eval_w16.csv"
+    if not p.exists():
+        return
+    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok"]
+    f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"])
+    clock = {(r["stem"], r["fraction"]): f(r) for r in rows if r["policy"] == "clock"}
+    grp = lambda r: "kv-T" if r["stem"].startswith("kv-T") else r["stem"].split("-")[0]
+    by = defaultdict(list)
+    for r in rows:
+        if (r["stem"], r["fraction"]) in clock:
+            by[(r["fraction"], grp(r), r["policy"] + (":" + r["model"] if r["model"] else ""))].append(f(r) / clock[(r["stem"], r["fraction"])])
+    cols = ["btree", "graph", "kv", "kv-T", "lzw", "matmul", "sort", "pat", "app"]
+    pols = [("fifo", "FIFO"), ("aging", "Aging"), ("lfu", "LFU"), ("ml:global", "linear, global"), ("ml:own", "linear, own workload"),
+            ("ml:cnn-kv", "CNN on aging bits"), ("ml:mlp-kv", "deeper MLP"), ("ml:trees-kv", "boosted trees"),
+            ("ml:attention-graph", "set-attention"), ("ml:ranktrees-graph", "ranking trees")]
+    for frac in sorted({r["fraction"] for r in rows}):
+        body = []
+        for key, name in pols:
+            line = [name]
+            for c in cols:
+                k = (frac, c, key if key != "ml:own" else "ml:" + ("kv" if c == "kv-T" else c))
+                line.append(f"{gm(by[k]):.2f}" if k in by else "--")
+            body.append(line)
+        write(f"full_{frac.replace('.', '')}.tex", tab(body, ["policy"] + cols))
+
+
 if __name__ == "__main__":
     dataset()
     extra()
@@ -295,6 +325,7 @@ if __name__ == "__main__":
     kernel()
     kernel2()
     five_models()
+    full_tests()
     noise()
     (OUT / "tables" / "numbers.tex").write_text("".join(f"\\expandafter\\def\\csname v@{k}\\endcsname{{{v}}}\n" for k, v in NUM.items()))
     print("written", OUT)

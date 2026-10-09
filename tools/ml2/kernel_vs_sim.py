@@ -40,7 +40,25 @@ import netint
 NETS = {name: src for name, src in export_nets.MODELS}
 
 
+WARM = False     # --warm: put one populate sweep in front of the stream, as the kernel's benchmarks have
+
+
 def simulate(s, frames, r):
+    if WARM:
+        import warm_start
+        r2 = dict(r)
+        global_warm, globals()["WARM"] = True, False
+        try:
+            cold = simulate(s, frames, r)
+            t = warm_start.warm(s)
+            full = simulate(t, frames, r)
+            import copy
+            u = copy.copy(t)
+            u.n = t.prefix
+            pre = simulate(u, frames, r)
+        finally:
+            globals()["WARM"] = global_warm
+        return {"faults": full["faults"] - pre["faults"], "writebacks": full["writebacks"] - pre["writebacks"]}
     if r["policy"] == "ml" and r["model"].split("@")[0] in NETS:
         return ps.run(s, frames, "learned", netint.scored(Z.load_spec(NETS[r["model"].split("@")[0]]), 2))
     if r["policy"] == "ml":
@@ -94,8 +112,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="", help="comma-separated stem prefixes")
     ap.add_argument("--tag", default="", help="suffix of the output files")
+    ap.add_argument("--warm", action="store_true", help="start the simulator from a populated memory, as the kernel does")
     ap.add_argument("--input", default="kernel_eval.csv", help="in-kernel results file in report/results2")
     a = ap.parse_args()
+    globals()["WARM"] = a.warm
     pre = tuple(a.only.split(",")) if a.only else ()
     rows = [r for r in csv.DictReader(open(R / a.input)) if r["status"] == "ok"
             and (not pre or r["stem"].startswith(pre))]

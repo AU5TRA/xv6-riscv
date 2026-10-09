@@ -126,6 +126,9 @@ vmstate_ctl(struct proc *p, int command, uint64 value)
     else
       p->vm.resident_limit = value;
     break;
+  case VM_LOG_VICTIMS:
+    p->vm.log_victims = value ? 1 : 0;
+    break;
   case VM_SET_POLICY:
     if(value >= VM_POLICY_COUNT)
       result = -1;

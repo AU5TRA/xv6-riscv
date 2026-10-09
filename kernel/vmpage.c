@@ -428,6 +428,8 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     release(&frame_table.lock);
     return VM_FRAME_ERROR;
   }
+  if(p->vm.log_victims)
+    printk("VICTIM %lu %lx %d\n", p->vm.ml_scans, victim->va >> 12, candidate_count);
   sample_page(victim, 0);
   // The A and D bits the policy actually saw, captured before anything
   // clears them. Without this the trace recorded which page was evicted but

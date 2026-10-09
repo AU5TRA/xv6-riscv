@@ -80,7 +80,7 @@ def parse(text):
 
 
 def make_lane(i):
-    lane = Path(f"/tmp/xv6lane{i}")
+    lane = Path(f"{os.environ.get('KERNEL_EVAL_LANES', '/tmp/xv6lane')}{i}")   # separate prefixes let two runs share the machine
     if lane.exists():
         shutil.rmtree(lane)
     subprocess.run(["rsync", "-a", "--exclude", "traces", "--exclude", "traces2",
@@ -132,6 +132,7 @@ def main():
     ap.add_argument("--only", default="", help="comma-separated stem prefixes")
     ap.add_argument("--timeout", type=int, default=10800)
     ap.add_argument("--models", default="", help="comma-separated ML model names (e.g. lzw@32): run only these ml policies")
+    ap.add_argument("--nonml", default="", help="comma-separated non-ML policies to run (with --models, or alone)")
     ap.add_argument("--accesses", type=int, default=0, help="run patbench/appbench for this many accesses only")
     a = ap.parse_args()
     idx = json.load(open(INDEX))["streams"]
@@ -148,7 +149,12 @@ def main():
             continue
         for frac in a.fracs.split(","):
             frames = e["capacities"][frac]
-            pl = [("ml", m) for m in a.models.split(",")] if a.models else policies(e["workload"])
+            own = e["workload"] if e["workload"] in TRAINED else "global"
+            if a.models or a.nonml:
+                pl = [(n, "") for n in a.nonml.split(",") if n] + \
+                     [("ml", m.replace("own", own)) for m in a.models.split(",") if m]
+            else:
+                pl = policies(e["workload"])
             for pol, model in pl:
                 if (e["stem"], frac, pol, model) in done:
                     continue

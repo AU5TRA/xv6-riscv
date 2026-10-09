@@ -14,6 +14,7 @@
 #define VM_TRACE_SET_CAPACITY 9
 #define VM_TRACE_SET_MASK 10
 #define VM_SET_ML_WEIGHTS 11   // value: user address of a struct vm_ml_weights
+#define VM_LOG_VICTIMS 14      // value 1: print one line per eviction (vpn, candidates) on the console
 #define VM_PREFETCH_NO_HINT ((uint64)-1)
 
 #define VM_LIMIT_UNLIMITED 0

@@ -69,7 +69,7 @@ class Model(C.Structure):
                 ("nd_r", C.POINTER(C.c_int32)), ("nd_f", C.POINTER(C.c_int16)),
                 ("nd_t", C.POINTER(C.c_float)),
                 ("raw_mask", C.c_uint32), ("rank_mask", C.c_uint32),
-                ("net", C.c_void_p)]
+                ("net", C.c_void_p), ("vlog", C.c_void_p), ("vlog_cap", C.c_int64), ("vlog_n", C.c_int64)]
 
 
 class Result(C.Structure):
@@ -213,6 +213,18 @@ def record(s, cap, behavior, p, max_rows, seed=1, model=None, seq=False,
     if seq:
         out.update(hist=hist[:n], page=page[:n], ctx=ctx[:n])
     return out
+
+
+def victims(s, cap, model, max_n=2_000_000):
+    """Run `model` (a ScoredModel) and return the victims in order: (absolute vpn, candidate count) per eviction."""
+    buf = np.zeros(2 * max_n, np.int32)
+    model.c.vlog = buf.ctypes.data
+    model.c.vlog_cap = max_n
+    model.c.vlog_n = 0
+    run(s, cap, "learned", model)
+    n = model.c.vlog_n
+    model.c.vlog = None
+    return s.vpns[buf[0:2 * n:2]], buf[1:2 * n:2].copy()
 
 
 class ScoredModel:
