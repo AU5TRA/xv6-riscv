@@ -15,7 +15,8 @@
 # Settings, all overridable from the environment:
 #   OUT            where this campaign writes          (traces/sweep-rw)
 #   BASE           the campaign it is checked against  (traces/sweep)
-#   WORKLOADS      which to run, cheapest first        (kv btree matmul sort graph lzw)
+#   WORKLOADS      which to run, cheapest first        (kv btree matmul sort graph lzw
+#                                                       pat chase join bloom spmv heap)
 #   TIMEOUT        per-run limit in seconds            (5400)
 #   GRAPH_TIMEOUT  per-run limit for graphbench        (10800)
 #   LZW_TIMEOUT    per-run limit for lzwbench          (14400)
@@ -46,7 +47,7 @@ unset VM_DEBUG
 
 OUT="${OUT:-traces/sweep-rw}"
 BASE="${BASE:-traces/sweep}"
-WORKLOADS="${WORKLOADS:-kv btree matmul sort graph lzw}"
+WORKLOADS="${WORKLOADS:-kv btree matmul sort graph lzw pat chase join bloom spmv heap}"
 TIMEOUT="${TIMEOUT:-5400}"
 GRAPH_TIMEOUT="${GRAPH_TIMEOUT:-10800}"
 LZW_TIMEOUT="${LZW_TIMEOUT:-14400}"
@@ -61,6 +62,9 @@ for w in $WORKLOADS; do
   case "$w" in
     kv|btree|matmul|sort|graph) TOTAL=$((TOTAL + 6)) ;;
     lzw) TOTAL=$((TOTAL + 12)) ;;
+    pat) TOTAL=$((TOTAL + 70)) ;;
+    chase|join|heap) TOTAL=$((TOTAL + 18)) ;;
+    bloom|spmv) TOTAL=$((TOTAL + 12)) ;;
     *) echo "collect_v2: unknown workload '$w' in WORKLOADS" >&2; exit 1 ;;
   esac
 done
@@ -327,6 +331,85 @@ done
 want sort && for spec in "5 4" "10 8" "15 12" "20 16" "25 20" "30 24"; do
   set -- $spec
   run_one sortbench "$1%" "$2" "sort-p$1-c$2" sortbench 2000 "$2" 40000 1 9
+done
+
+# joinbench: hash join, |R| = 65536, seed 1. uni and zipf touch all 1280
+# pages (623,039 / 567,481 refs), r4 all 2048 (1,082,885 refs). The table
+# is 256 pages: from 20% up it fits beside the scans and FIFO faults only
+# a few thousand times; the tight capacities are where policies differ.
+want join && for v in uni zipf; do
+  for spec in "5 64" "10 128" "15 192" "20 256" "25 320" "30 384"; do
+    set -- $spec
+    run_one "join-$v" "$1%" "$2" "join-$v-p$1-c$2" joinbench 1280 "$2" 65536 1 "$v" 9
+  done
+done
+want join && for spec in "5 102" "10 205" "15 307" "20 410" "25 512" "30 614"; do
+  set -- $spec
+  run_one join-r4 "$1%" "$2" "join-r4-p$1-c$2" joinbench 2048 "$2" 65536 1 r4 9
+done
+
+# spmvbench: CSR SpMV, 2 iterations, seed 1: ~4.2M refs over 1667 pages
+# for both structures. band's x window (128 pages) fits from 10% up, where
+# only compulsory misses are left; rand faults heavily up to 10-15%.
+want spmv && for v in rand band; do
+  for spec in "5 83" "10 167" "15 250" "20 333" "25 417" "30 500"; do
+    set -- $spec
+    run_one "spmv-$v" "$1%" "$2" "spmv-$v-p$1-c$2" spmvbench 1680 "$2" 2 1 "$v" 9
+  done
+done
+
+# heapbench: K&R malloc/free, 24000 operations, seed 1. Pages touched:
+# small 409, mixed 1469, churn 438. Most references are free-list walks,
+# with good locality: FIFO faults ~0.5-0.9M times even at 5%.
+want heap && for spec in "small 20 41 61 82 102 123" "mixed 73 147 220 294 367 441" \
+                         "churn 22 44 66 88 110 131"; do
+  set -- $spec
+  v=$1; shift
+  pct=5
+  for c in "$@"; do
+    run_one "heap-$v" "$pct%" "$c" "heap-$v-p$pct-c$c" heapbench 2048 "$c" 24000 1 "$v" 9
+    pct=$((pct + 5))
+  done
+done
+
+# patbench: eleven synthetic patterns, 2,000,000 accesses each over 1024
+# pages, every one of which each variant touches; 5-30% of them, seed 1.
+# loop also runs at 80/90/95/99% of its loop length (all 1024 pages): its
+# known answer (MRU and Belady miss only L - C per pass) shows only close
+# to L. Under FIFO every loop run misses on all 2M accesses, ~0.8 ms each
+# (~30 min); the rest fault less.
+want pat && for v in loop scanhot scanhotlo zipf060 zipf080 zipf099 zipf120 \
+                     uniform phase phaseshort switch; do
+  for spec in "5 51" "10 102" "15 154" "20 205" "25 256" "30 307"; do
+    set -- $spec
+    run_one "pat-$v" "$1%" "$2" "pat-$v-p$1-c$2" patbench 1024 "$2" 2000000 1 "$v" 9
+  done
+done
+want pat && for spec in "80 819" "90 922" "95 973" "99 1014"; do
+  set -- $spec
+  run_one pat-loop "$1%" "$2" "pat-loop-p$1-c$2" patbench 1024 "$2" 2000000 1 loop 9
+done
+
+# chasebench: pointer chasing over 1024 pages of nodes, ~2.0M refs, all
+# 1024 pages touched by every variant, seed 1. chase-n256 is the tree with
+# 256-byte nodes. Up to ~1.9M faults (list at 5%), ~30 min.
+want chase && for v in "list 4000 list" "tree 160000 tree" "n256 180000 tree256"; do
+  set -- $v
+  name=$1 ops=$2 mode=$3
+  for spec in "5 51" "10 102" "15 154" "20 205" "25 256" "30 307"; do
+    set -- $spec
+    run_one "chase-$name" "$1%" "$2" "chase-$name-p$1-c$2" chasebench 1024 "$2" "$ops" 1 "$mode" 9
+  done
+done
+
+# bloombench: a 512-page Bloom filter, 131072 keys, seed 1: k3 1.45M refs,
+# k7 3.03M. Probes are uniform over the filter, so FIFO misses about
+# 1 - C/512 of them: up to 2.9M faults (k7 at 5%, ~45 min).
+want bloom && for v in k3 k7; do
+  for spec in "5 26" "10 51" "15 77" "20 102" "25 128" "30 154"; do
+    set -- $spec
+    run_one "bloom-$v" "$1%" "$2" "bloom-$v-p$1-c$2" bloombench 512 "$2" 131072 1 "$v" 9
+  done
 done
 
 # lzwbench (compress(1)'s encoder) at two repeat counts, 5-30% of the pages

@@ -74,5 +74,5 @@ for p in "${pids[@]}"; do
   wait "$p" || true
 done
 
-echo "done. collected: $(ls "$OUT"/*.ok 2>/dev/null | wc -l) streams;" \
+echo "done. collected: $(ls "$OUT"/*/*.ok 2>/dev/null | wc -l) streams;" \
      "failed this pass: $(cat "$OUT"/RESULTS-lane*.tsv 2>/dev/null | grep -c FAILED)"

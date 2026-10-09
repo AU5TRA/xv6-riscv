@@ -13,7 +13,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 R = ROOT / "report" / "results2"
 FIG = ROOT / "report" / "figures2"
-WL = ["btree", "graph", "kv", "lzw", "matmul", "sort"]
+WL = ["bloom", "btree", "chase", "graph", "heap", "join", "kv", "lzw", "matmul", "pat",
+      "sort", "spmv"]
 COL = {"clock": "#7f7f7f", "F": "#b5540a", "K": "#2c6e8f", "K+K+": "#2e7d4f",
        "F+K": "#8e44ad", "belady": "#222222", "lru": "#bbbbbb", "fifo": "#dddddd",
        "aging": "#999999", "lfu_exact": "#e0a458", "lfu_kernel": "#6ea8c8"}

@@ -25,7 +25,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 R = ROOT / "report" / "results2"
-WORKLOADS = ["btree", "graph", "kv", "lzw", "matmul", "sort"]
+WORKLOADS = ["bloom", "btree", "chase", "graph", "heap", "join", "kv", "lzw", "matmul",
+             "pat", "sort", "spmv"]
 FRACS = ("0.05", "0.1", "0.2")
 F = ["rec", "freq", "sd", "wr"]
 K = ["ref", "aging", "sfreq", "idle", "age", "dirty"]

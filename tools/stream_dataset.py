@@ -34,6 +34,11 @@ Splits, fixed so every experiment reports against the same data:
   * lzwbench has seeds 0-5 (seed = input text), so lzw-r20 splits like the
     others -- seeds 0-3 train, 4 validation, 5 test -- and lzw-r30 is
     held out.
+  * the newer workloads hold out one variant each, a behaviour their other
+    variants do not show: pat-zipf120 (the steepest skew), chase-n256
+    (four times fewer nodes to a page), join-r4 (twice the probe side),
+    bloom-k7 (more probes per operation), spmv-band (indirect access with
+    locality), heap-churn (a high free rate).
 
 Capacities are fractions of the stream's own distinct pages (CAPACITY_GRID).
 The streams were collected at a generous margin, so no kernel run exists at
@@ -67,7 +72,8 @@ HELD_OUT = {"kv-F", "btree-scan", "graph-bfs2000", "sort-n60000",
             "heap-small", "heap-mixed", "heap-churn", "join-r4", "join-uni", "join-zipf", "spmv-band", "spmv-rand",
             "patb-loop", "patb-scanhot", "patb-scanhotlo", "patb-zipf060", "patb-zipf099", "patb-zipf120", "patb-uniform",
             "patb-phase", "patb-phaseshort", "patb-switch",
-            "kv-T4", "kv-T17", "kv-T18", "kv-T24", "kv-T35", "kv-T52"}
+            "kv-T4", "kv-T17", "kv-T18", "kv-T24", "kv-T35", "kv-T52",
+            "chase-n256", "bloom-k7"}
 STEM_RE = re.compile(r"^(?P<variant>(?P<workload>[a-z]+)-[A-Za-z0-9]+)-s(?P<seed>\d+)$")
 
 
