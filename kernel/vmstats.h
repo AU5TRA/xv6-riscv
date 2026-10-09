@@ -44,6 +44,7 @@ struct vm_ml_weights {
   int feat[ML_NFEAT];       // ML_F_* ids
   int qa[ML_NFEAT];         // integer weights: round(W / std * 2^8)
   int protect_age;          // probation, in scans
+  int sample_k;             // 0 = scan and score every candidate; k > 0 = a random sample of k per eviction
 };
 
 

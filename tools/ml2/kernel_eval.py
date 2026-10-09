@@ -130,6 +130,7 @@ def main():
     ap.add_argument("--splits", default="test,heldout")
     ap.add_argument("--only", default="", help="comma-separated stem prefixes")
     ap.add_argument("--timeout", type=int, default=10800)
+    ap.add_argument("--models", default="", help="comma-separated ML model names (e.g. lzw@32): run only these ml policies")
     ap.add_argument("--accesses", type=int, default=0, help="run patbench/appbench for this many accesses only")
     a = ap.parse_args()
     idx = json.load(open(INDEX))["streams"]
@@ -146,7 +147,8 @@ def main():
             continue
         for frac in a.fracs.split(","):
             frames = e["capacities"][frac]
-            for pol, model in policies(e["workload"]):
+            pl = [("ml", m) for m in a.models.split(",")] if a.models else policies(e["workload"])
+            for pol, model in pl:
                 if (e["stem"], frac, pol, model) in done:
                     continue
                 jobs.append((e["stem"], e["split"], e["workload"], e["variant"], frac,

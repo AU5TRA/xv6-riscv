@@ -38,14 +38,25 @@ main(int argc, char **argv)
     usage();
   int prog = 2;
   if(policy == VM_POLICY_ML){
+    // "model@k": the same model, scanning and scoring only k random candidates per eviction
+    char name[32];
+    int sample_k = 0;
+    strcpy(name, argv[2]);
+    for(char *at = name; *at; at++)
+      if(*at == '@'){
+        *at = 0;
+        sample_k = atoi(at + 1);
+        break;
+      }
     for(int i = 0; i < ML_NMODELS; i++){
-      if(strcmp(argv[2], ml_models[i].name) == 0){
+      if(strcmp(name, ml_models[i].name) == 0){
         struct vm_ml_weights w = ml_models[i].w;
+        w.sample_k = sample_k;
         if(vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0){
           fprintf(2, "vmrun: vmctl VM_SET_ML_WEIGHTS failed\n");
           exit(1);
         }
-        printf("vmrun: policy=ml model=%s\n", ml_models[i].name);
+        printf("vmrun: policy=ml model=%s sample_k=%d\n", ml_models[i].name, sample_k);
         prog = 3;
         break;
       }

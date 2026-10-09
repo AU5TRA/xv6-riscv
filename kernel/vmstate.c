@@ -44,6 +44,7 @@ vmstate_reset(struct proc *p)
   p->vm.next_prefetch_id = 1;
   p->vm.ml = ml_default_weights;
   p->vm.ml_scans = 0;
+  p->vm.ml_rng = 0;
 #ifdef VM_DEBUG
   p->vm.invalid_policy_once = 0;
 #endif
@@ -65,6 +66,7 @@ vmstate_inherit(struct proc *child, struct proc *parent)
   child->vm.clock_hand = 0;
   child->vm.ml = parent->vm.ml;
   child->vm.ml_scans = 0;
+  child->vm.ml_rng = 0;
   child->vm.prefetch_head = 0;
   child->vm.prefetch_count = 0;
   child->vm.next_prefetch_id = 1;
@@ -95,7 +97,8 @@ set_ml_weights(struct proc *p, uint64 addr)
   // spinlock is held.
   if(copyin(p->pagetable, p->sz, (char *)&w, addr, sizeof(w)) < 0)
     return -1;
-  if(w.n < 1 || w.n > ML_NFEAT || w.protect_age < 0 || w.protect_age > 1024)
+  if(w.n < 1 || w.n > ML_NFEAT || w.protect_age < 0 || w.protect_age > 1024 ||
+     w.sample_k < 0 || w.sample_k > 4096)
     return -1;
   for(int j = 0; j < w.n; j++)
     if(w.feat[j] < 0 || w.feat[j] >= ML_NFEAT)

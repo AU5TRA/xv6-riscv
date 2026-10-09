@@ -274,10 +274,34 @@ ml_feature(struct proc *p, struct vm_page *page, int f)
   return 0;
 }
 
+// Sampled scoring, like cache_ext's bpf_cache_ext_list_sample: move k distinct
+// random candidates to the front (partial Fisher-Yates) and let the policy
+// look only at those. Pages outside the sample are neither scanned nor scored
+// this time, so their accessed bits keep accumulating until a later sample.
+static void
+ml_sample(struct proc *p, struct vm_page **candidates, int count, int k)
+{
+  uint64 x = p->vm.ml_rng ? p->vm.ml_rng : 0x9E3779B97F4A7C15ULL;
+  for(int i = 0; i < k; i++){
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    int j = i + (int)(x % (uint64)(count - i));
+    struct vm_page *t = candidates[i];
+    candidates[i] = candidates[j];
+    candidates[j] = t;
+  }
+  p->vm.ml_rng = x;
+}
+
 static struct vm_page *
 choose_ml(struct proc *p, struct vm_page **candidates, int count)
 {
   const struct vm_ml_weights *w = &p->vm.ml;
+  if(w->sample_k > 0 && count > w->sample_k){
+    ml_sample(p, candidates, count, w->sample_k);
+    count = w->sample_k;
+  }
   uint64 now = p->vm.ml_scans;
   int cleared = 0;
   int any_old = 0;
