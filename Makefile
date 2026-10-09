@@ -237,6 +237,11 @@ endif
 
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
+# QEMU_ICOUNT=1: virtual time advances with executed instructions (1 timer tick = 100 instructions),
+# so tick counts do not depend on host load. Used for the cost measurements.
+ifdef QEMU_ICOUNT
+QEMUOPTS += -icount shift=0,sleep=off
+endif
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 

@@ -45,6 +45,7 @@ struct vm_ml_weights {
   int qa[ML_NFEAT];         // integer weights: round(W / std * 2^8)
   int protect_age;          // probation, in scans
   int sample_k;             // 0 = scan and score every candidate; k > 0 = a random sample of k per eviction
+  int model_id;             // 0 = the linear weights above; k > 0 = built-in network / trees number k (mlnets.h)
 };
 
 
@@ -101,6 +102,11 @@ struct vmstats {
   // (r_time(), 10 MHz on QEMU virt) and candidates examined.
   uint64 select_ticks;
   uint64 candidates_scanned;
+  // Wider timing: collect_ticks = building the candidate list; path_ticks = the whole
+  // reclaim (collect + select + bookkeeping), without the wait for the swap-out write, summed
+  // over evictions.
+  uint64 collect_ticks;
+  uint64 path_ticks;
 };
 
 #endif

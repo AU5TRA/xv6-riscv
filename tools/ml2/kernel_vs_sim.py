@@ -34,9 +34,15 @@ def final_models():
 
 
 FM = final_models()
+import extra_core as Z
+import export_nets
+import netint
+NETS = {name: src for name, src in export_nets.MODELS}
 
 
 def simulate(s, frames, r):
+    if r["policy"] == "ml" and r["model"].split("@")[0] in NETS:
+        return ps.run(s, frames, "learned", netint.scored(Z.load_spec(NETS[r["model"].split("@")[0]]), 2))
     if r["policy"] == "ml":
         spec = FM[r["model"]]
         sm = ps.ScoredModel("mlp", features=spec["features"], mean=spec["mean"],
@@ -88,9 +94,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="", help="comma-separated stem prefixes")
     ap.add_argument("--tag", default="", help="suffix of the output files")
+    ap.add_argument("--input", default="kernel_eval.csv", help="in-kernel results file in report/results2")
     a = ap.parse_args()
     pre = tuple(a.only.split(",")) if a.only else ()
-    rows = [r for r in csv.DictReader(open(R / "kernel_eval.csv")) if r["status"] == "ok"
+    rows = [r for r in csv.DictReader(open(R / a.input)) if r["status"] == "ok"
             and (not pre or r["stem"].startswith(pre))]
     by = {}
     for r in rows:

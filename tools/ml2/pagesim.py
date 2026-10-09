@@ -68,7 +68,8 @@ class Model(C.Structure):
                 ("tree_root", C.POINTER(C.c_int32)), ("nd_l", C.POINTER(C.c_int32)),
                 ("nd_r", C.POINTER(C.c_int32)), ("nd_f", C.POINTER(C.c_int16)),
                 ("nd_t", C.POINTER(C.c_float)),
-                ("raw_mask", C.c_uint32), ("rank_mask", C.c_uint32)]
+                ("raw_mask", C.c_uint32), ("rank_mask", C.c_uint32),
+                ("net", C.c_void_p)]
 
 
 class Result(C.Structure):
@@ -94,6 +95,7 @@ _lib.simulate.argtypes = [C.c_int64, C.c_int, C.c_int, C.c_void_p, C.c_void_p,
                           C.POINTER(Recorder), C.c_int64, C.POINTER(Result)]
 _lib.score_rows.argtypes = [C.POINTER(Model), C.c_void_p, C.c_int64, C.c_void_p]
 _lib.score_tree_group.argtypes = [C.POINTER(Model), C.c_void_p, C.c_int, C.c_void_p]
+_lib.score_net_group.argtypes = [C.POINTER(Model), C.c_void_p, C.c_void_p, C.c_int, C.c_void_p]
 _lib.score_seq_rows.argtypes = [C.POINTER(Model), C.c_void_p, C.c_void_p,
                                 C.c_void_p, C.c_void_p, C.c_int64, C.c_void_p]
 assert _lib.pagesim_nf() == NF, "feature list out of sync with pagesim.c"
@@ -221,7 +223,7 @@ class ScoredModel:
         self.kind = kind
         self.kw = kw
         self.c = Model()
-        self.c.kind = {"mlp": 0, "gru": 1, "embed": 2, "callback": 3, "trees": 4}[kind]
+        self.c.kind = {"mlp": 0, "gru": 1, "embed": 2, "callback": 3, "trees": 4, "intnet": 5}[kind]
         self.c.protect_age = int(kw.get("protect_age", 0))
         # sampled scoring: sample_k random residents per eviction (0 = all);
         # sample_scan=1 also restricts the accessed-bit scan to the sample
@@ -229,7 +231,11 @@ class ScoredModel:
         self.c.sample_scan = int(kw.get("sample_scan", 0))
         self.c.sample_seed = int(kw.get("sample_seed", 1))
         self._keep = []
-        if kind == "callback":
+        if kind == "intnet":
+            # integer network in kernel/mlnet.h's layout (tools/ml2/netint.py builds `net`)
+            self._net = kw["net"]
+            self.c.net = C.cast(C.pointer(self._net.c), C.c_void_p)
+        elif kind == "callback":
             # fn(feat[n][NF] float32, hist[n][GRU_K] float32) -> scores[n]; set
             # and sequence models run in Python over the whole candidate set
             fn = kw["fn"]
@@ -312,6 +318,15 @@ def score_tree_group(model, feat):
     feat = np.ascontiguousarray(feat, np.float32)
     out = np.zeros(len(feat), np.float32)
     _lib.score_tree_group(C.byref(model.c), feat.ctypes.data, len(feat), out.ctypes.data)
+    return out
+
+
+def score_net_group(model, q, aging):
+    """Kernel integer network over one candidate set: q [n][8] Q8 ints, aging [n] 0..255 -> Q16 scores"""
+    q = np.ascontiguousarray(q, np.int32)
+    aging = np.ascontiguousarray(aging, np.int32)
+    out = np.zeros(len(q), np.int64)
+    _lib.score_net_group(C.byref(model.c), q.ctypes.data, aging.ctypes.data, len(q), out.ctypes.data)
     return out
 
 

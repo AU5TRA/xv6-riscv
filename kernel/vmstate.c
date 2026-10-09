@@ -98,7 +98,7 @@ set_ml_weights(struct proc *p, uint64 addr)
   if(copyin(p->pagetable, p->sz, (char *)&w, addr, sizeof(w)) < 0)
     return -1;
   if(w.n < 1 || w.n > ML_NFEAT || w.protect_age < 0 || w.protect_age > 1024 ||
-     w.sample_k < 0 || w.sample_k > 4096)
+     w.sample_k < 0 || w.sample_k > 4096 || w.model_id < 0 || w.model_id > 16)
     return -1;
   for(int j = 0; j < w.n; j++)
     if(w.feat[j] < 0 || w.feat[j] >= ML_NFEAT)

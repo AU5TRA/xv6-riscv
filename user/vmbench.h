@@ -198,6 +198,8 @@ struct vmbench_delta {
   long free_swap_slots;
   long select_ticks;        // victim-selection time (r_time ticks)
   long candidates_scanned;  // candidates examined by the policy
+  long collect_ticks;       // building the candidate list
+  long path_ticks;          // whole reclaim except the swap-out wait
 };
 
 // Snapshot wrapper (exits the process with a message on failure --

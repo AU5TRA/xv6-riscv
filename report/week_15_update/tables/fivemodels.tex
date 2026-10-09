@@ -1,0 +1,16 @@
+\begin{tabular}{lrrrrr}
+\toprule
+policy & kv test & kv heldout & kv-T & graph test & graph heldout \\
+\midrule
+FIFO & 1.280 & 1.310 & 1.315 & 2.096 & 1.289 \\
+Aging & 1.106 & 1.133 & 1.123 & 1.585 & 1.264 \\
+linear, global & 0.874 & 0.885 & 0.846 & 0.946 & 0.573 \\
+linear, kv & 0.871 & 0.878 & 0.876 & -- & -- \\
+linear, graph & -- & -- & -- & 0.618 & 0.541 \\
+CNN on aging bits (kv) & 0.849 & 0.850 & 0.853 & -- & -- \\
+deeper MLP (kv) & 0.853 & 0.848 & 0.860 & -- & -- \\
+boosted trees (kv) & 0.871 & 0.903 & 0.853 & -- & -- \\
+set-attention (graph) & -- & -- & -- & 1.145 & 0.917 \\
+ranking trees (graph) & -- & -- & -- & 0.697 & 0.676 \\
+\bottomrule
+\end{tabular}

@@ -28,12 +28,12 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "report" / "results2" / "kernel_eval.csv"
+OUT = ROOT / "report" / "results2" / (os.environ.get("KERNEL_EVAL_OUT") or "kernel_eval.csv")
 INDEX = ROOT / "traces2" / "ML" / "index.json"
 MANIFEST = ROOT / "tools" / "streams_manifest.tsv"
 HEADER = ["stem", "split", "workload", "variant", "fraction", "frames", "policy",
           "model", "status", "swap_faults", "evictions", "page_writes", "select_ticks",
-          "candidates_scanned", "zero_faults", "wall_s", "transcript", "accesses"]
+          "candidates_scanned", "zero_faults", "wall_s", "transcript", "accesses", "collect_ticks", "path_ticks"]
 TRACE_BITS = 9      # trace | file-sink flag bits (tools/make_stream_manifest.py)
 
 
@@ -120,7 +120,8 @@ def run_one(lane, job, timeout, accesses=0):
     return [stem, split, wl, variant, frac, frames, pol, model or "", status,
             d.get("swap_faults", ""), d.get("evictions", ""), d.get("page_writes", ""),
             d.get("select_ticks", ""), d.get("candidates_scanned", ""),
-            d.get("zero_faults", ""), f"{wall:.0f}", path, accesses or ""]
+            d.get("zero_faults", ""), f"{wall:.0f}", path, accesses or "",
+            d.get("collect_ticks", ""), d.get("path_ticks", "")]
 
 
 def main():

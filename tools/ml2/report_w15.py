@@ -232,12 +232,69 @@ def noise():
     write("noise.tex", tab(body, ["feature group", "faults/Clock per data seed", "range"], "lll"))
 
 
+def five_models():
+    """In-kernel results of the five extra models next to the linear scorers, and their measured cost."""
+    p = R / "kernel_eval_w16.csv"
+    if not p.exists():
+        return
+    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok"]
+    f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"])
+    clock = {r["stem"]: f(r) for r in rows if r["policy"] == "clock"}
+    grp = lambda r: ("kv-T" if r["stem"].startswith("kv-T") else "kv " + r["split"]) if r["stem"].startswith("kv-") \
+        else "graph " + r["split"]
+    by = defaultdict(list)
+    for r in rows:
+        by[(grp(r), r["policy"] + (":" + r["model"] if r["model"] else ""))].append(f(r) / clock[r["stem"]])
+    cols = ["kv test", "kv heldout", "kv-T", "graph test", "graph heldout"]
+    pols = [("fifo", "FIFO"), ("aging", "Aging"), ("ml:global", "linear, global"), ("ml:kv", "linear, kv"), ("ml:graph", "linear, graph"),
+            ("ml:cnn-kv", "CNN on aging bits (kv)"), ("ml:mlp-kv", "deeper MLP (kv)"), ("ml:trees-kv", "boosted trees (kv)"),
+            ("ml:attention-graph", "set-attention (graph)"), ("ml:ranktrees-graph", "ranking trees (graph)")]
+    body = []
+    for key, name in pols:
+        body.append([name] + [f"{gm(by[(c, key)]):.3f}" if (c, key) in by else "--" for c in cols])
+    write("fivemodels.tex", tab(body, ["policy"] + cols))
+    t = list(csv.DictReader(open(R / "timing.csv")))
+    first = {}
+    for r in t:
+        first.setdefault((r["policy"], r["model"]), r)
+    names = {("fifo", ""): "FIFO (floor)", ("clock", ""): "Clock", ("aging", ""): "Aging", ("lfu", ""): "LFU",
+             ("ml", "global"): "linear, global", ("ml", "kv"): "linear, kv", ("ml", "kv@32"): "linear, kv, 32 sampled",
+             ("ml", "kv@16"): "linear, kv, 16 sampled", ("ml", "cnn-kv"): "CNN on aging bits", ("ml", "mlp-kv"): "deeper MLP",
+             ("ml", "trees-kv"): "boosted trees", ("ml", "attention-graph"): "set-attention", ("ml", "ranktrees-graph"): "ranking trees"}
+    lin = int(float(first[("ml", "kv")]["select_instructions_per_eviction"]))
+    body = []
+    for k, name in names.items():
+        r = first[k]
+        ins = int(float(r["select_instructions_per_eviction"]))
+        body.append([name, f"{ins:,}", f"{ins / lin:.2f}", f"{int(float(r['path_ticks_per_eviction']) * 100):,}"])
+    write("timing.tex", tab(body, ["policy", "instructions to choose", "x linear (kv)", "instructions, whole eviction"]))
+    # figure: cost against faults on the kv streams
+    fig, ax = plt.subplots(figsize=(6.2, 3.6))
+    pts = [("clock", "Clock"), ("aging", "Aging"), ("ml:global", "linear, global"), ("ml:kv", "linear, kv"),
+           ("ml:cnn-kv", "CNN"), ("ml:mlp-kv", "MLP"), ("ml:trees-kv", "trees")]
+    tk = {("clock", ""): "clock", ("aging", ""): "aging", ("ml", "global"): "ml:global", ("ml", "kv"): "ml:kv", ("ml", "cnn-kv"): "ml:cnn-kv",
+          ("ml", "mlp-kv"): "ml:mlp-kv", ("ml", "trees-kv"): "ml:trees-kv"}
+    inv = {v: k for k, v in tk.items()}
+    for key, name in pts:
+        x = float(first[inv[key]]["select_instructions_per_eviction"])
+        y = gm(by[("kv test", key)] + by[("kv heldout", key)])
+        ax.scatter(x, y)
+        ax.annotate(name, (x, y), fontsize=7, xytext=(4, 3), textcoords="offset points")
+    ax.set_xscale("log")
+    ax.set_xlabel("instructions to choose one victim (log scale)")
+    ax.set_ylabel("faults / Clock, kv streams in xv6")
+    fig.tight_layout()
+    fig.savefig(OUT / "figs" / "cost_vs_faults.pdf")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     dataset()
     extra()
     transfer()
     kernel()
     kernel2()
+    five_models()
     noise()
     (OUT / "tables" / "numbers.tex").write_text("".join(f"\\expandafter\\def\\csname v@{k}\\endcsname{{{v}}}\n" for k, v in NUM.items()))
     print("written", OUT)

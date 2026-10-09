@@ -59,6 +59,10 @@ sizes of 5, 10 and 20\% of each program's pages.
   policy cuts faults by 16\% on lzw (0.84), 15\% on the Twitter replays (0.85) and 15\% on patbench (0.85)
   against Clock, and does nothing on the application programs (1.00). The simulator predicts kernel faults to
   within about 4\%, with one unexplained exception (Section~\ref{sec:kernel}). Sampled scoring, now in the kernel, roughly halves the selection cost for 1--2.5\% more faults.
+\item \textbf{Five extra models were ported to the kernel and their time delay measured} (Section~\ref{sec:five}). On kv a CNN over the
+  aging bits and a deeper MLP are about 2.5\% better than the linear model, but cost 85 and 148 times its instructions per eviction
+  (1.7 and 2.9 million instructions against 19\,000); boosted trees equal it at 21 times; on graph the linear model is clearly
+  better. Timing is repeatable to under 0.3\% because QEMU's clock is driven by instruction count.
 \item \textbf{A reproducibility bug was found and fixed.} Training samples depended on Python's per-process
   string hashing, so datasets could not be rebuilt identically. All models were refit; Clock, LRU and
   the other classical results are unchanged.
@@ -218,18 +222,68 @@ per eviction (Clock: 24). ``@k'' scans and scores only k random candidates per e
   0.98 on lzw, 0.96--0.98 on patbench and appbench (prefix replay), and 0.98--1.01 for the Twitter replays
   with the global and kernel-only models. The differences come from the kernel's own pages (code, stack) and
   capacity cliffs.
-\item \textbf{One exception, not explained.} For the kv-scope model on the Twitter replays the kernel is about 10\% better
-  than the simulator (0.90; kernel 0.88 of Clock against 0.98 in the simulator); the same model agrees to 0.3\%
-  on the other kv streams in week 14. Clock, the global model and the kernel-only kv model agree on the
-  replays. A candidate cause is that the replay program reads its key file through a small buffer outside the arena,
-  which the simulator's trace does not contain; it has not been tested. The Twitter-replay kernel numbers for the kv model
-  should be read with that in mind.
+\item \textbf{One exception, not explained.} For the kv-scope linear model on the Twitter replays the kernel is about 10\% better
+  than the simulator (0.90; kernel 0.88 of Clock against 0.98 in the simulator). My first guess, that the replay program
+  reads its key file through a buffer the simulator's trace does not contain, is contradicted by the later runs: the
+  CNN, MLP and boosted-tree models agree with the simulator to 1\% on the same replays. The cause is specific to that one
+  linear model and is still open.
 \item The learned policy saves 16\% of faults on lzw (per-workload model; 6\% for the global model), 15\% on the
   Twitter replays and 15\% on patbench, and does not help on the application programs.
 \item \textbf{Cost, and sampled scoring.} The full scorer costs 170--430 ticks per eviction against 24 for
   Clock (7--17$\times$). Scanning and scoring a random sample of 32 candidates takes 40--80\% of that (136
   ticks on lzw, 157 on the Twitter replays, 182 on patbench) for 0--1\% more faults; 16 candidates takes 30--55\% for 1--2.5\%. The
   sampler is a partial Fisher--Yates over the candidate array and needs no extra memory.
+\end{itemize}
+
+\section{The five extra models in the kernel}
+\label{sec:five}
+
+The extra models that use only kernel-visible signals were ranked on validation data (no test data used). The best of each of five
+kinds were converted to whole-number arithmetic and put into the kernel as built-in models, chosen with
+\code{vmrun ml <name>}: a CNN over the aging bits (trained on kv), set-attention (graph), a deeper MLP (kv),
+ranking boosted trees (graph) and boosted trees (kv). The integer versions choose the same victim as the original models on
+381--399 of 400 recorded decisions, and give the same faults in the simulator to within 0.5\% (one exception: ranking
+trees on one graph stream, 13\% more). In xv6 they were run on every kv and graph test and held-out stream and the Twitter
+replays at 10\% memory.
+
+\begin{table}[h]
+\centering\small
+\input{tables/fivemodels}
+\caption{Faults relative to Clock in xv6 (geometric mean over streams). Each new model is shown only on the workload it was
+trained for.}
+\end{table}
+
+\textbf{Time delay.} The kernel now counts, per eviction, the time to build the candidate list, to choose the victim and for
+the whole eviction without the wait for the swap-out write. QEMU is run in a mode where its clock advances with the
+instructions executed (\code{QEMU\_ICOUNT=1}), so the numbers do not depend on how busy the host is: two runs of the same
+policy differ by under 0.3\% (0\% for most). One run at a time, same stream and memory size for every policy.
+
+\begin{table}[h]
+\centering\small
+\input{tables/timing}
+\caption{Instructions per eviction on one kv stream (57 candidates per eviction). FIFO scans nothing, so it is the floor: the
+timer reads and the surrounding eviction code. At one nanosecond per instruction, 1\,658\,487 instructions is 1.7\,ms.}
+\end{table}
+
+\begin{figure}[h]
+\centering\includegraphics[width=.8\linewidth]{figs/cost_vs_faults.pdf}
+\caption{Fault reduction against the cost of choosing a victim on the kv streams.}
+\end{figure}
+
+\begin{itemize}
+\item \textbf{On kv, the CNN and the MLP are about 2.5\% better than the linear kv model} (0.849 and 0.853 against 0.871 on
+  test; 0.850 and 0.848 against 0.878 held-out), less than the 5--6\% the simulator predicted, and cost 85 and 148 times the
+  linear model's instructions to choose. The boosted trees equal the linear model (0.871) at 21 times the cost.
+\item \textbf{On the Twitter replays} the three kv models are 0.853--0.860 against 0.876 for the linear kv model and 0.846 for
+  the global linear model, so the global linear model is as good as the expensive ones there.
+\item \textbf{On graph the linear model wins clearly}: 0.618 (test) and 0.541 (held-out) against 0.697 and 0.676 for the ranking trees
+  and 1.145 and 0.917 for set-attention, which is worse than Clock on test.
+\item \textbf{Kernel against simulator.} For the CNN, MLP and trees the kernel agrees with the simulator to 0.4--2.4\% on kv and
+  to 1\% on the replays, so the conversion and the kernel code are right. On graph the kernel and simulator disagree more
+  (ranking trees 1.06, set-attention 1.59 times the simulator's faults), but graph is noisy for every policy (Clock itself is 0.85
+  times its simulated faults) because of capacity cliffs. The poor set-attention result in the kernel is not explained.
+\item \textbf{Cheaper linear scoring is the better trade.} Scoring 16 sampled candidates costs 0.3 times the full linear model's
+  instructions for 1--2.5\% more faults.
 \end{itemize}
 
 \section{Noise floor}
@@ -248,10 +302,10 @@ the other sources of variance (the choice of streams, which the bootstrap interv
   hash-sampled to 1\,024 keys, which preserves each key's request sequence but not the original working-set size.
 \item Neural models were not scored on 1M+ reference streams, so the patbench and appbench groups compare trees only.
 \item The kernel runs of patbench and appbench use 50\,000 accesses, not the full 1M, for time.
-\item Selection cost is the kernel's selection-ticks counter; a full-eviction-path timer and a no-op policy arm to
-  calibrate it are not done.
-\item Next: use real kernel runs to decide whether the aging-bit CNN is worth a kernel port (it passes the 2\%
-  bar on kv at high cost), and add a heap/allocator-churn program.
+\item Selection cost is measured in instructions on one kv stream with 57 candidates per eviction; it grows with the
+  number of candidates, which was not varied. The timing floor is FIFO, not a separate empty policy.
+\item Next: add a heap/allocator-churn program; explain the kv-scope linear model's gap on the replays and the set-attention gap
+  on graph; measure cost against the number of candidates.
 \end{itemize}
 
 \section*{Reproducing}

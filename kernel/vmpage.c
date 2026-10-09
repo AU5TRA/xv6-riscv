@@ -10,6 +10,8 @@
 #include "swap.h"
 #include "vmtrace.h"
 #include "mlfeat.h"
+#include "mlnet.h"
+#include "mlnets.h"
 
 #define NPHYS_PAGES ((PHYSTOP - KERNBASE) / PGSIZE)
 
@@ -294,13 +296,20 @@ ml_sample(struct proc *p, struct vm_page **candidates, int count, int k)
   p->vm.ml_rng = x;
 }
 
+static struct mlcand ml_cands[MLNET_MAXN];     // scratch for the built-in networks (frame_table.lock held)
+static long long ml_scores[MLNET_MAXN];
+
 static struct vm_page *
 choose_ml(struct proc *p, struct vm_page **candidates, int count)
 {
   const struct vm_ml_weights *w = &p->vm.ml;
-  if(w->sample_k > 0 && count > w->sample_k){
-    ml_sample(p, candidates, count, w->sample_k);
-    count = w->sample_k;
+  int net = w->model_id > 0 && w->model_id < ML_NNETS;
+  int k = w->sample_k;
+  if(net && (k == 0 || k > MLNET_MAXN))
+    k = MLNET_MAXN;
+  if(k > 0 && count > k){
+    ml_sample(p, candidates, count, k);
+    count = k;
   }
   uint64 now = p->vm.ml_scans;
   int cleared = 0;
@@ -321,6 +330,15 @@ choose_ml(struct proc *p, struct vm_page **candidates, int count)
   if(cleared)
     sfence_vma();
 
+  if(net){
+    for(int i = 0; i < count; i++){
+      for(int j = 0; j < 8; j++)
+        ml_cands[i].q[j] = ml_feature(p, candidates[i], j);
+      ml_cands[i].aging = candidates[i]->aging_counter & 0xff;
+    }
+    mlnet_score(ml_nets[w->model_id], ml_cands, count, ml_scores);
+  }
+
   struct vm_page *victim = 0;
   long best = 0;
   for(int i = 0; i < count; i++){
@@ -328,8 +346,12 @@ choose_ml(struct proc *p, struct vm_page **candidates, int count)
     if(any_old && now - page->ml_load_scan < (uint64)w->protect_age)
       continue;
     long score = 0;
-    for(int j = 0; j < w->n; j++)
-      score += (long)w->qa[j] * ml_feature(p, page, w->feat[j]);
+    if(net){
+      score = (long)ml_scores[i];
+    } else {
+      for(int j = 0; j < w->n; j++)
+        score += (long)w->qa[j] * ml_feature(p, page, w->feat[j]);
+    }
     if(victim == 0 || score > best ||
        (score == best && page->load_sequence < victim->load_sequence)){
       victim = page;
@@ -384,6 +406,7 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   struct vm_page *victim = 0;
   int fallback = 0;
 
+  uint64 path_start = r_time();
   acquire(&frame_table.lock);
   // Walk only this process's own owned-frame list rather than scanning
   // every physical frame in the system: page_is_candidate() already
@@ -398,6 +421,7 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
       frame_table.candidates[candidate_count++] = candidate;
   }
   uint64 select_start = r_time();
+  uint64 collect_ticks = select_start - path_start;
   victim = choose_policy_victim(p, candidate_count, &fallback);
   uint64 select_ticks = r_time() - select_start;
   if(victim == 0){
@@ -472,7 +496,10 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
     vmtrace_emit(p, VMTRACE_SWAP_WRITE_BEGIN, victimva, -1, victim_state,
                  report_flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
                  VMTRACE_NONE, 0);
-  if(new_slot && swap_page_write(slot, pa) < 0){
+  uint64 io_start = r_time();
+  int wrote = new_slot ? swap_page_write(slot, pa) : 0;
+  uint64 io_ticks = r_time() - io_start;     // waiting for the swap-out, excluded from path_ticks
+  if(new_slot && wrote < 0){
     vmtrace_emit(p, VMTRACE_SWAP_WRITE_END, victimva, -1, victim_state,
                  report_flags, (pa - KERNBASE) / PGSIZE, slot, VMTRACE_NONE,
                  VMTRACE_NONE, -1);
@@ -524,6 +551,8 @@ reclaim_frame(struct proc *p, pagetable_t newpt, uint64 newva, int purpose,
   p->vm.stats.evictions++;
   p->vm.stats.select_ticks += select_ticks;
   p->vm.stats.candidates_scanned += candidate_count;
+  p->vm.stats.collect_ticks += collect_ticks;
+  p->vm.stats.path_ticks += r_time() - path_start - io_ticks;
   release(&p->vm.lock);
   *result = pa;
   return VM_FRAME_OK;

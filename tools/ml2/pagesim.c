@@ -19,6 +19,7 @@
 #include <math.h>
 #include <stdint.h>
 #include "../../kernel/mlfeat.h"   // the kernel's own integer features
+#include "../../kernel/mlnet.h"    // the kernel's own integer networks / trees
 #include <stdlib.h>
 #include <string.h>
 
@@ -104,6 +105,8 @@ struct model {
   int tree_n; float tree_base;
   const int32_t *tree_root, *nd_l, *nd_r; const int16_t *nd_f; const float *nd_t;
   uint32_t raw_mask, rank_mask;
+  // Integer network (kind 5): evaluated by kernel/mlnet.h on the kernel's own Q8 features.
+  const struct mlnet *net;
 };
 
 struct result {
@@ -431,6 +434,26 @@ static int choose(struct state *s, int policy, const struct model *m,
       }
     }
     int any_old = 0;
+    if (m->kind == 5) {
+      static struct mlcand *CD; static long long *CO; static int cap_c;
+      int n = s->count;
+      if (n > cap_c) {
+        cap_c = n;
+        CD = realloc(CD, sizeof(struct mlcand) * n);
+        CO = realloc(CO, sizeof(long long) * n);
+      }
+      for (int k = 0; k < n; k++) {
+        int p = s->res[k];
+        for (int j = 0; j < 8; j++) CD[k].q[j] = (int)feature_q8(s, p, t, 4 + j);
+        CD[k].aging = s->aging[p];
+      }
+      mlnet_score(m->net, CD, n, CO);
+      for (int k = 0; k < n; k++) {
+        score[k] = (double)CO[k];
+        if (m->protect_age && s->scans - s->load_scan[s->res[k]] >= m->protect_age)
+          any_old = 1;
+      }
+    } else
     if (m->kind == 3 || m->kind == 4) {
       static float *X, *H, *O; static int cap_x;
       int n = s->count;
@@ -1055,6 +1078,17 @@ void score_rows(const struct model *m, const float *feat, int64_t n,
 // Tree ensemble over one candidate set ([n][NF] raw features), as at an eviction.
 void score_tree_group(const struct model *m, const float *feat, int n, float *out) {
   tree_scores(m, feat, n, out);
+}
+
+// Integer network over one candidate set (q[n][8] Q8 kernel features, aging[n]): the kernel's scorer.
+void score_net_group(const struct model *m, const int *q, const int *aging, int n, long long *out) {
+  static struct mlcand *cd; static int cap_d;
+  if (n > cap_d) { cap_d = n; cd = realloc(cd, sizeof(struct mlcand) * n); }
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < 8; j++) cd[i].q[j] = q[i * 8 + j];
+    cd[i].aging = aging[i];
+  }
+  mlnet_score(m->net, cd, n, out);
 }
 
 // GRU / embedding scorer over recorded rows, exactly as score_one() computes

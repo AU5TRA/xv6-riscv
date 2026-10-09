@@ -11,6 +11,7 @@
 #include "kernel/vmstats.h"
 #include "user/user.h"
 #include "user/mlmodels.h"
+#include "user/mlnet_names.h"
 
 static const char *names[] = { "fifo", "clock", "aging", "lfu", "ml" };
 
@@ -21,7 +22,10 @@ usage(void)
              "models:");
   for(int i = 0; i < ML_NMODELS; i++)
     fprintf(2, " %s", ml_models[i].name);
-  fprintf(2, "\n");
+  fprintf(2, "\nnetworks / trees:");
+  for(int i = 0; i < ML_NET_NAMES; i++)
+    fprintf(2, " %s", ml_net_names[i].name);
+  fprintf(2, "\n(append @k to score only k random candidates per eviction)\n");
   exit(1);
 }
 
@@ -48,7 +52,20 @@ main(int argc, char **argv)
         sample_k = atoi(at + 1);
         break;
       }
-    for(int i = 0; i < ML_NMODELS; i++){
+    for(int i = 0; i < ML_NET_NAMES; i++){
+      if(strcmp(name, ml_net_names[i].name) == 0){
+        // built-in network or trees: probation 2 as in the simulator runs; the weights field is only a stub
+        struct vm_ml_weights w = { 1, { 0 }, { 0 }, 2, sample_k, ml_net_names[i].id };
+        if(vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0){
+          fprintf(2, "vmrun: vmctl VM_SET_ML_WEIGHTS failed\n");
+          exit(1);
+        }
+        printf("vmrun: policy=ml net=%s sample_k=%d\n", name, sample_k);
+        prog = 3;
+        break;
+      }
+    }
+    for(int i = 0; prog == 2 && i < ML_NMODELS; i++){
       if(strcmp(name, ml_models[i].name) == 0){
         struct vm_ml_weights w = ml_models[i].w;
         w.sample_k = sample_k;

@@ -126,6 +126,8 @@ vmbench_delta(const struct vmstats *before, const struct vmstats *after,
   out->select_ticks = (long)after->select_ticks - (long)before->select_ticks;
   out->candidates_scanned =
     (long)after->candidates_scanned - (long)before->candidates_scanned;
+  out->collect_ticks = (long)after->collect_ticks - (long)before->collect_ticks;
+  out->path_ticks = (long)after->path_ticks - (long)before->path_ticks;
 }
 
 void
@@ -133,10 +135,12 @@ vmbench_print_delta(const char *label, const struct vmbench_delta *d)
 {
   printf("[%s] zero_faults=%ld swap_faults=%ld evictions=%ld "
          "page_reads=%ld page_writes=%ld resident_count=%ld "
-         "free_swap_slots=%ld select_ticks=%ld candidates_scanned=%ld\n",
+         "free_swap_slots=%ld select_ticks=%ld candidates_scanned=%ld "
+         "collect_ticks=%ld path_ticks=%ld\n",
          label, d->zero_faults, d->swap_faults, d->evictions,
          d->page_reads, d->page_writes, d->resident_count,
-         d->free_swap_slots, d->select_ticks, d->candidates_scanned);
+         d->free_swap_slots, d->select_ticks, d->candidates_scanned,
+         d->collect_ticks, d->path_ticks);
 }
 
 void

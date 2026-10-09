@@ -1,0 +1,19 @@
+\begin{tabular}{lrrr}
+\toprule
+policy & instructions to choose & x linear (kv) & instructions, whole eviction \\
+\midrule
+FIFO (floor) & 327 & 0.02 & 6,658 \\
+Clock & 513 & 0.03 & 6,744 \\
+Aging & 6,870 & 0.35 & 13,250 \\
+LFU & 6,776 & 0.35 & 13,182 \\
+linear, global & 18,512 & 0.95 & 24,650 \\
+linear, kv & 19,422 & 1.00 & 25,538 \\
+linear, kv, 32 sampled & 11,542 & 0.59 & 17,654 \\
+linear, kv, 16 sampled & 5,824 & 0.30 & 11,968 \\
+CNN on aging bits & 1,658,487 & 85.39 & 1,664,638 \\
+deeper MLP & 2,868,034 & 147.67 & 2,874,219 \\
+boosted trees & 416,962 & 21.47 & 423,127 \\
+set-attention & 1,523,492 & 78.44 & 1,529,675 \\
+ranking trees & 410,089 & 21.11 & 416,099 \\
+\bottomrule
+\end{tabular}
