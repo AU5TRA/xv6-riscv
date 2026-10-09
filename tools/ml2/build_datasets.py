@@ -26,10 +26,12 @@ import numpy as np
 
 import pagesim as ps
 
-CACHE = ps.ROOT / "traces2" / "ml2_cache"
+CACHE = Path(os.environ["ML2_CACHE"]) if os.environ.get("ML2_CACHE") else ps.ROOT / "traces2" / "ml2_cache"
 SALT = os.environ.get("BUILD_SEED_SALT", "")
 
 RESULTS = ps.ROOT / "report" / "results2"
+if os.environ.get("ML2_CACHE"):
+    RESULTS = CACHE      # a side build (noise-floor runs) must not overwrite the committed summaries
 TRAIN_FRACS = ("0.05", "0.1", "0.2")
 MAX_CAND = 32
 N_RECENT = 4   # of the MAX_CAND slots, always the most recently accessed

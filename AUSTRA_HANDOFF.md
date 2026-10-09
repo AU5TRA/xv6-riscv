@@ -1,4 +1,4 @@
-# Handoff to AU5TRA: everything done on the ML side (as of 2026-10-01)
+# Handoff to AU5TRA: everything done on the ML side (as of 2026-10-09; week-15 addendum below)
 
 **Written for**: AU5TRA, picking up after GawwyG's work of 2026-09-28 to
 2026-10-01. This file covers what was built, where every result lives, what
@@ -20,6 +20,61 @@ headline results came from broken traces and must not be cited.
   then §4.5 (in-kernel results).
 * `report/slides/ml_results.pdf` — the 20-page deck. The kernel section is
   slides 14–18.
+
+---
+
+## Week 15 addendum (2026-10-09): what changed since the sections below were written
+
+Report: `report/week_15_update/week_15_update_report.pdf` (tables/figures from `tools/ml2/report_w15.py`).
+All work is on branch `GawwyDev`, one commit per step (`git log --oneline` from `c2cff42`).
+
+**Read this first: results of earlier sections that moved.**
+* Python's `hash()` was seeding the training samples, so datasets were not reproducible. Fixed
+  (`build_datasets.py`: CRC32 seed, optional `BUILD_SEED_SALT`). All models were refit; classical results are
+  unchanged (4272 rows). Numbers in the week-14 report therefore differ slightly from a fresh run; the
+  global default kernel model changed (`kernel/mlweights.h`, now 5 features).
+* lzw (your fixed benchmark) is in the full pipeline (`tools/ml2/lzw_update.py` drove the gated update).
+
+**New workloads (all held out; they only test).** Each has a host model and, where marked, host-generated streams:
+| workload | program | model / generator | streams |
+|---|---|---|---|
+| patbench (11 synthetic modes) | `user/patbench.c` | `tools/patbench_model.py`, `tools/pat_hostgen.py` | `traces2/pat/` (9 kernel-collected, rest host-generated, HOSTGEN line in log) |
+| Twitter replays `kv-T<cluster>` | `kvbench ... T<cluster>`, keys in `user/twk<N>.bin` | `tools/twitter_extract.py` (needs `~/.venvs/twx`), `tools/gen_tw_keys.py` | `traces2/kv/kv-T*` (kernel-collected) |
+| real Redis/SQLite | host recordings, `T <page>` lines, no R/W | `tools/import_real_traces.py` | `traces2/redis`, `traces2/sqlite` |
+| appbench (chase, spmv, hashjoin, bloom) | `user/appbench.c` | `tools/appbench_model.py`, `tools/app_hostgen.py` | `traces2/app/` (host-generated; kernel runs checked equal for 30k refs/mode) |
+Dataset: `python3 tools/stream_dataset.py prepare` (176 streams in `traces2/ML`; `traces2/ml` is a symlink to it).
+
+**Simulator additions** (`tools/ml2/pagesim.c/.py`): MRU, ARC, S3-FIFO (two forms), MGLRU-anon, LHD
+(tests: `test_baselines.py`, 475/475 vs independent references); scorer kinds `trees` (C, with candidate-set rank
+features) and `callback` (Python, for set/sequence nets). Checks that must pass after any change:
+`validate.py`, `validate_kernel.py`, `test_baselines.py`, `test_zoo.py`, `test_zoo_nn.py`.
+
+**Experiments and where results live** (`report/results2/`): `baselines_ext.csv` (E1 literature baselines),
+`transfer*.csv` (`exp_transfer.py`), `zoo_cells.csv` + `zoo_summary.csv` (`zoo_trees.py`/`zoo_nn.py`/`zoo_report.py`;
+models in `report/models2/zoo/*.pkl`), `kernel_eval.csv` + `kernel_vs_sim_w15.csv`, `noise_floor.csv`
+(`exp_noise.py`). Headline: with kernel-observable inputs no richer model beats the linear scorer by the 2%/2x-cost
+bar overall; oracle-input models gain up to 6% in distribution and fail on the real Redis/SQLite traces.
+
+**Kernel**: `VM_POLICY_ML` has sampled scoring: `struct vm_ml_weights.sample_k`, `vmrun ml <model>@<k>`
+(`ml_sample()` in `kernel/vmpage.c`). In xv6 at 10%: lzw `ml lzw` 0.84 of Clock, kv-T `ml global` 0.85,
+patbench `ml global` 0.85, appbench 1.00; `@32` costs 0-1% more faults at 40-80% of the selection ticks, `@16`
+30-55% of the ticks for 1-2.5%. **Open discrepancy**: for the kv-scope model on the Twitter replays the kernel is ~10%
+better than the simulator (kv/kv-k/global agree elsewhere); suspected cause (untested): the replay reads its key file
+through a one-page buffer outside the arena.
+
+**Reproduce**: see the last section of the week-15 report. Long runs (use a monitor, not a sleep loop):
+`zoo_trees.py select/test` (~1-2 h each), `kernel_eval.py` (lzw runs take ~16 min each per lane).
+
+**New gotchas**
+* `pkill -f <pattern>` kills the shell that runs it if the pattern appears in the command line; use PIDs.
+* `grep -i error` matches the `-Werror` flag in every compile line; grep for `error:`.
+* A large embedded table in a user program breaks `vmbench_burn` (the FIFO burn evicts the oldest pages, i.e. the
+  table, before reaching the arena): read data from a file after setup instead (as `kvbench T` does).
+* Set `OMP_NUM_THREADS=1` (zoo modules do) before numpy loads when running several simulator workers: BLAS threads
+  made the numpy callbacks 10x slower.
+* `check_streams.py` requires different seeds to give different strings; deterministic replays (kv-T) have one seed.
+* The neural zoo models are not run on streams longer than 400k references (callback cost); only trees are.
+* Quick appbench/patbench kernel runs use `--accesses 50000` in `kernel_eval.py`; `kernel_vs_sim.py` replays the prefix.
 
 ---
 
@@ -313,9 +368,8 @@ the 4-decimal summaries.
 
 ## 8. What is still open (suggested next steps)
 
-1. **Cheaper selection.** Score a sample or batch of candidates, as MGLRU
-   does with generations, instead of all ~106 per eviction. This is the
-   biggest gap between the current kernel version and a deployable one.
+1. **Cheaper selection.** *Done in week 15 (sampled scoring, `vmrun ml model@k`); remaining: a full-eviction-path
+   timer and a no-op policy arm to calibrate the selection-tick counter.*
 2. **In-kernel runs at 5% and 20%**:
    `python3 kernel_eval.py --fracs 0.05,0.2`. It needs no changes, just
    hours of QEMU time, and would show the kernel result isn't specific to
@@ -346,9 +400,9 @@ the 4-decimal summaries.
      under the same memory-cgroup limits: refaults, writeback, and reclaim
      CPU time.
 7. **Not covered**:
-   * lzw (its trace exceeds xv6's maximum file size);
+   * lzw: covered since week 15 (see the addendum);
    * kvbench's TTL mode;
-   * the real Redis/SQLite traces in `traces/old/`.
+   * the real Redis/SQLite traces: covered in the simulator since week 15 (not in the kernel).
 
 ## 9. Gotchas hit along the way
 

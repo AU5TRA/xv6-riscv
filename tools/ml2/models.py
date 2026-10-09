@@ -12,6 +12,7 @@ would cost milliseconds.
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -19,7 +20,7 @@ import numpy as np
 
 import pagesim as ps
 
-CACHE = ps.ROOT / "traces2" / "ml2_cache"
+CACHE = Path(os.environ["ML2_CACHE"]) if os.environ.get("ML2_CACHE") else ps.ROOT / "traces2" / "ml2_cache"
 MODELS = ps.ROOT / "report" / "models2"
 WORKLOADS = ["btree", "graph", "kv", "lzw", "matmul", "sort"]
 RIDGE = 1e-4

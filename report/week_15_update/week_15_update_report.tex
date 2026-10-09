@@ -1,0 +1,267 @@
+\documentclass[10.5pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{textcomp}
+\usepackage{amsmath}
+\usepackage{placeins}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\captionsetup{font=small,labelfont=bf}
+\setlist{itemsep=1pt,topsep=3pt}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{3em}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\textfraction}{0.1}
+\newcommand{\code}[1]{\texttt{#1}}
+\definecolor{good}{HTML}{1c5cab}
+\newcommand{\best}[1]{\textbf{\textcolor{good}{#1}}}
+
+\title{\textbf{Learned Page Replacement in xv6}\\[2pt]
+\large Week 15 update: new workloads, a wider model search, and the kernel}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+\section*{Summary}
+
+Week 14 showed that a small linear model over signals the kernel can see (accessed and dirty bits and cheap
+bookkeeping) beats Clock by 10--15\% in faults on our benchmarks. This week tested how far that result
+reaches. All numbers are faults relative to Clock (below 1 is better), averaged geometrically over memory
+sizes of 5, 10 and 20\% of each program's pages.
+
+\begin{itemize}
+\item \textbf{More, harder workloads.} Added the fixed \code{lzw} benchmark to the full pipeline, a synthetic
+  pattern suite with known answers (\code{patbench}), replays of real Twitter cache traces, real Redis and
+  SQLite page traces, and four application-shaped programs (pointer chase, sparse matrix--vector product, hash
+  join, Bloom filter). Every program's access string is checked reference by reference against an independent
+  model.
+\item \textbf{Literature baselines.} ARC, S3-FIFO, an MGLRU analogue, LHD and exact MRU are implemented in the
+  simulator and checked against independent reference implementations. LHD is the strongest untrained policy
+  (0.90--0.93 on our data); ARC and S3-FIFO are mixed, and S3-FIFO is worse than Clock on graph, matmul and sort.
+\item \textbf{Model zoo.} Trees (CART, random forest, boosted trees, ranking boosted trees, logistic regression)
+  and neural nets (deeper MLP, set-attention, CNN and LSTM over page history, a CNN over the kernel's own
+  scan-bit history, mixed models) were fitted on every scope and selected on validation only. With signals the
+  kernel can actually observe, \best{no model class beats the linear scorer by the 2\% and at-most-2$\times$-cost
+  bar overall}. Gains of 5--12\% appear on single workloads (kv, the Twitter replays);
+  models given oracle information gain up to 6\% in distribution and fail badly on the real Redis and SQLite traces.
+\item \textbf{In the xv6 kernel} (157 runs on the new workloads, plus 61 with sampled scoring): the learned
+  policy cuts faults by 16\% on lzw (0.84), 15\% on the Twitter replays (0.85) and 15\% on patbench (0.85)
+  against Clock, and does nothing on the application programs (1.00). The simulator predicts kernel faults to
+  within about 4\%, with one unexplained exception (Section~\ref{sec:kernel}). Sampled scoring, now in the kernel, roughly halves the selection cost for 1--2.5\% more faults.
+\item \textbf{A reproducibility bug was found and fixed.} Training samples depended on Python's per-process
+  string hashing, so datasets could not be rebuilt identically. All models were refit; Clock, LRU and
+  the other classical results are unchanged.
+\end{itemize}
+
+\section{What changed in the data and the pipeline}
+
+\textbf{Reproducibility fix.} The sampling seed of each training stream used Python's \code{hash()}, which is
+randomised per process, so two builds of the same dataset differed. The seed is now a CRC32 of the stream name, a
+capacity and an optional salt. Rebuilding twice is bit-identical (checked over 11 dataset files); all 4\,272
+classical result rows of the original streams are unchanged. Because the old caches could not be recovered,
+every model was refit, so numbers move slightly from week 14 (for example the global default kernel model now
+has five features instead of four). The noise floor from sampling alone is measured in Section~\ref{sec:noise}.
+
+\textbf{lzw.} The corrected lzw benchmark from the team (\code{lzw-r20} for training, validation and test;
+\code{lzw-r30} held out) now runs through the whole pipeline: simulator sweep, neural models, selection, test,
+kernel export.
+
+\section{New workloads}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{p{2.4cm}p{6.8cm}p{4.6cm}}
+\toprule
+workload & what it does & why it is in the study \\
+\midrule
+\code{patbench} & 11 synthetic modes over 1\,024 pages: cyclic loop, scan with a hot set (two sizes),
+Zipf with skew 0.6--1.2, uniform, hot set that moves (two speeds), loop/Zipf switching & Known answers: a loop defeats LRU, FIFO and Clock and
+is solved by MRU; \code{uniform} has nothing to learn, so any gain there is a leak \\
+\code{kv-T} (Twitter) & kvbench driven by real key streams from six production cache clusters, keys hash-sampled
+to kvbench's 1\,024-key space (4\,700--40\,000 operations) & Real popularity and write mix; whole
+clusters are held out \\
+real traces & Redis and SQLite page-touch strings collected on a host (12.3M and 8.6M references, no read/write
+marks) & Programs we did not write; tests transfer to a different kind of recording \\
+\code{appbench} & pointer chase (mcf-like), CSR sparse matrix--vector, hash join, Bloom filter, each with an
+explicit multi-array layout & Irregular, scan-plus-random structure the other programs lack \\
+\bottomrule
+\end{tabular}
+\caption{Workloads added this week. All are held out of training: they only test.}
+\end{table}
+
+\textbf{How strings are validated.} Each program's reference string has an exact host-side model. The kernel's
+trace equals the model line for line for all 11 patbench modes (24 short runs and 9 full runs), and for all
+four appbench modes (30\,000 references each, with matching read, write and checksum counters). The remaining
+production traces were then generated from the model rather than by booting xv6 for 17--45 minutes each; their logs carry
+a marker saying so and no kernel fault counters. The Twitter streams and the real traces are not
+generated: kvbench ran them in the kernel, and the Redis/SQLite files are the host recordings.
+
+\begin{table}[h]
+\centering\small
+\input{tables/dataset}
+\caption{The study dataset after this week (176 streams).}
+\end{table}
+
+\section{Literature baselines}
+
+Implemented in the simulator and cross-checked against independent reference implementations on 475 cases
+(identical counts): ARC (integer adaptation), S3-FIFO (as published, and a form that reads accessed bits only
+at queue heads), an MGLRU analogue for anonymous memory (generations, aging walk, rescue at eviction), LHD in
+a scan form, and exact MRU. MRU equals Belady on cyclic loops (9 of 9 checks), and LRU, FIFO and Clock miss every
+access of a loop larger than memory, as theory says. Table~\ref{tab:zoo} shows them next to the learned models.
+
+\section{Transfer to unseen workloads}
+
+\begin{figure}[h]
+\centering\includegraphics[width=\linewidth]{figs/transfer.pdf}
+\caption{Faults relative to Clock on workloads no model was trained on. Linear (K+) is the global linear model
+over all kernel signals.}
+\end{figure}
+
+\begin{itemize}
+\item \best{patbench known answers hold.} On \code{loop} FIFO, LRU, Clock, ARC and LHD miss everything and MRU
+  matches Belady; on \code{uniform} every online policy is within 0.0003 of $1-C/P$, so \code{uniform} is a clean
+  leak control: no model gains there.
+\item The linear kernel-signal model beats ARC, S3-FIFO and LHD on the skewed and scan-plus-hot patterns
+  (for example 0.76 against 0.85, 0.81 and 0.90 on Zipf 0.99) and on the Twitter replays (in the kernel, Section~\ref{sec:kernel}).
+\item \textbf{Where it loses.} Moving-hot-set patterns, SpMV and hash join. The oracle-feature variant (F+K)
+  raises faults 2.6-fold on the moving hot set and reaches the 3$\times$-Clock cap on Redis. The global kernel-signal linear model is 24\% and 14\%
+  worse than Clock on SpMV and hash join. Real Redis/SQLite traces carry no write information, so dirty-bit
+  signals are absent there, and LRU (0.93, 0.91) is the best simple policy.
+\end{itemize}
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/transfer}
+\caption{Faults / Clock per stream group (geometric mean over streams and the three memory sizes). Simulator results; the three last columns are linear models (global kernel signals, global oracle+kernel signals, kv-scope kernel signals).}
+\end{table}
+
+\section{Model zoo}
+
+\textbf{Protocol.} The grid was written before any result: kernel-observable inputs (K) or all inputs (FK),
+with or without candidate-set rank features; CART (depth 4, 8), random forest, boosted trees (30 and 100 trees,
+8 and 16 leaves), ranking boosted trees, logistic regression; eight neural architectures. Candidate
+sets come from the same recorded eviction decisions as before; the target is the log of the next-use distance.
+Probation is fixed at 2 scans. Selection is on validation streams at 10\% memory only; the chosen models are
+then replayed on test, held-out and transfer streams at 5, 10 and 20\%. Intervals are 95\% stream-level
+bootstraps. The neural models run as numpy callbacks in the simulator (checked against PyTorch to $10^{-6}$)
+and are not run on streams of more than 400\,000 references for cost; the C tree scorer is checked against
+scikit-learn and LightGBM to $3\times10^{-6}$. A follow-up added four- to sixteen-tree boosted ensembles to
+meet the cost bar.
+
+\begin{figure}[h]
+\centering\includegraphics[width=\linewidth]{figs/zoo.pdf}
+\caption{Faults relative to the best linear scorer (below 1: the model is better), with 95\% intervals.
+Models with oracle inputs (blue-grey, orange-red, ``oracle'') cannot run in a kernel.}
+\label{fig:zoo}
+\end{figure}
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/zoo}
+\caption{Faults / Clock on test and held-out streams. ``linear K'' is the week-14 model class (kernel signals);
+``tree K'' and ``NN K'' use kernel signals only; ``NN K$^{\dagger}$'' also reads the oracle reuse history; ``FK''
+adds oracle inputs. A dash: not run (cost rule) or not selected.}
+\label{tab:zoo}
+\end{table}
+
+\textbf{What the zoo says.}
+\begin{itemize}
+\item \best{Richer models help only where they are given information a kernel does not have.} With oracle inputs
+  the best tree and neural models are 2--5\% better than the best linear model in distribution; with kernel
+  inputs only, trees tie the linear model (btree 0.834 against 0.835, graph held-out 0.765 against 0.798,
+  global 0.890 against 0.870) and small boosted ensembles (4--16 trees) are \emph{worse}: lzw 1.19 and
+  1.57 against 0.82 and 0.81 for the linear model.
+\item The deployable neural nets (deep MLP, set-attention, aging-bit CNN) gain 5--6\% on kv and 2\% on btree
+  and lose 2--4\% globally. Their kv gain is the one result that passes the 2\% bar on a workload scope, at roughly
+  100$\times$ the arithmetic of a linear scorer.
+\item \textbf{Robustness is the real difference.} On the Twitter and application streams the kernel-input trees
+  beat the linear model on the Twitter replays by 12\% (0.86 against 0.98) and on the application streams by 3.5\%
+  (1.04 against 1.08), because they do not extrapolate the way a linear score does; but on the real Redis and SQLite traces every complex model is 22--41\% worse than the linear one.
+  None of the extra capacity is free of this trade.
+\item matmul has no validation streams (selection used its training streams), and every richer model is
+  20--30\% worse than the linear one on its held-out streams: more capacity overfits when there is little data.
+\end{itemize}
+
+\section{In the xv6 kernel}
+\label{sec:kernel}
+
+The refit linear models were re-exported to integer weights and the learned policy ran in the real kernel on
+the new workloads (patbench and appbench for 50\,000 accesses; lzw and the Twitter replays in full) at 10\%
+memory, all policies, same frame counts as the simulator.
+
+\begin{figure}[h]
+\centering\includegraphics[width=\linewidth]{figs/kernel.pdf}
+\caption{Kernel faults relative to Clock; the number on each bar is the selection cost in timer ticks
+per eviction (Clock: 24). ``@k'' scans and scores only k random candidates per eviction.}
+\end{figure}
+
+\begin{table}[h]
+\centering\small
+\input{tables/kernelruns}
+\caption{In-kernel runs (faults = zero-fill plus swap faults; geometric means over streams).}
+\end{table}
+
+\begin{itemize}
+\item \best{The simulator predicts the kernel.} Kernel over simulator faults, geometric mean per policy:
+  0.98 on lzw, 0.96--0.98 on patbench and appbench (prefix replay), and 0.98--1.01 for the Twitter replays
+  with the global and kernel-only models. The differences come from the kernel's own pages (code, stack) and
+  capacity cliffs.
+\item \textbf{One exception, not explained.} For the kv-scope model on the Twitter replays the kernel is about 10\% better
+  than the simulator (0.90; kernel 0.88 of Clock against 0.98 in the simulator); the same model agrees to 0.3\%
+  on the other kv streams in week 14. Clock, the global model and the kernel-only kv model agree on the
+  replays. A candidate cause is that the replay program reads its key file through a small buffer outside the arena,
+  which the simulator's trace does not contain; it has not been tested. The Twitter-replay kernel numbers for the kv model
+  should be read with that in mind.
+\item The learned policy saves 16\% of faults on lzw (per-workload model; 6\% for the global model), 15\% on the
+  Twitter replays and 15\% on patbench, and does not help on the application programs.
+\item \textbf{Cost, and sampled scoring.} The full scorer costs 170--430 ticks per eviction against 24 for
+  Clock (7--17$\times$). Scanning and scoring a random sample of 32 candidates takes 40--80\% of that (136
+  ticks on lzw, 157 on the Twitter replays, 182 on patbench) for 0--1\% more faults; 16 candidates takes 30--55\% for 1--2.5\%. The
+  sampler is a partial Fisher--Yates over the candidate array and needs no extra memory.
+\end{itemize}
+
+\section{Noise floor}
+\label{sec:noise}
+The linear model was refit from three extra datasets built with different sampling seeds and replayed on
+the same test and held-out cells. \IfFileExists{tables/noise.tex}{The faults/Clock geo-mean of the global
+K+K+ and F+K models for each data seed is
+\begin{center}\small\input{tables/noise}\end{center}
+Data sampling moves the result by at most 0.0005 (kernel signals) and 0.0026 (with oracle signals), under 0.3\%, so the
+differences between models reported above (1--14\%) are not artefacts of which training rows were drawn. It does not measure
+the other sources of variance (the choice of streams, which the bootstrap intervals cover).}{(Result not yet generated.)}
+
+\section{Limits and what is next}
+\begin{itemize}
+\item The real Redis/SQLite traces and the Twitter replays are small or lack read/write marks; the Twitter streams are
+  hash-sampled to 1\,024 keys, which preserves each key's request sequence but not the original working-set size.
+\item Neural models were not scored on 1M+ reference streams, so the patbench and appbench groups compare trees only.
+\item The kernel runs of patbench and appbench use 50\,000 accesses, not the full 1M, for time.
+\item Selection cost is the kernel's selection-ticks counter; a full-eviction-path timer and a no-op policy arm to
+  calibrate it are not done.
+\item Next: use real kernel runs to decide whether the aging-bit CNN is worth a kernel port (it passes the 2\%
+  bar on kv at high cost), and add a heap/allocator-churn program.
+\end{itemize}
+
+\section*{Reproducing}
+\small
+\begin{verbatim}
+python3 tools/ml2/zoo_trees.py fit | select | test      # tree + neural zoo (zoo_nn.py fit first)
+python3 tools/ml2/zoo_report.py                          # zoo vs linear vs baselines
+python3 tools/ml2/exp_transfer.py run [--set real|app]   # transfer streams
+python3 tools/ml2/kernel_eval.py --only lzw,kv-T --fracs 0.1  [--models lzw@32]
+python3 tools/ml2/kernel_vs_sim.py --only lzw,kv-T,pat,app --tag _w15
+python3 tools/ml2/report_w15.py                          # tables and figures of this report
+\end{verbatim}
+\end{document}
