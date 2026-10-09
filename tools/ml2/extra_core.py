@@ -1,10 +1,10 @@
-"""Model zoo core: training data with candidate-set ranks, tree converters, spec ->
+"""Extra models core: training data with candidate-set ranks, tree converters, spec ->
 simulator model, and cell evaluation with a resumable CSV.
 
-A spec is a pickled dict in report/models2/zoo/<name>.pkl:
+A spec is a pickled dict in report/models2/extra/<name>.pkl:
   {"kind": "trees", roots, left, right, feat, thr, base, protect_age}   (feat < NF raw, >= NF rank)
   {"kind": "linear", ...}   (models.py layout)
-  {"kind": "np", "net": <zoo_nn net dict>, "protect_age": n}   (numpy set / sequence model)
+  {"kind": "np", "net": <extra_nn net dict>, "protect_age": n}   (numpy set / sequence model)
 """
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ import pagesim as ps
 
 NF = ps.NF
 R = ps.ROOT / "report" / "results2"
-ZOO = ps.ROOT / "report" / "models2" / "zoo"
-CELLS = R / "zoo_cells.csv"
+EXTRA = ps.ROOT / "report" / "models2" / "extra"
+CELLS = R / "extra_cells.csv"
 HEADER = ["model", "scope", "stem", "split", "fraction", "faults", "writebacks", "aborted"]
 TIER_K = list(range(4, NF))          # kernel-observable: K and K+ features
 TIER_ALL = list(range(NF))
@@ -116,13 +116,13 @@ def from_lgbm(booster, colmap):
 
 
 def save_spec(name, spec):
-    ZOO.mkdir(parents=True, exist_ok=True)
-    with open(ZOO / f"{name}.pkl", "wb") as f:
+    EXTRA.mkdir(parents=True, exist_ok=True)
+    with open(EXTRA / f"{name}.pkl", "wb") as f:
         pickle.dump(spec, f)
 
 
 def load_spec(name):
-    with open(ZOO / f"{name}.pkl", "rb") as f:
+    with open(EXTRA / f"{name}.pkl", "rb") as f:
         return pickle.load(f)
 
 
@@ -133,8 +133,8 @@ def scored(spec, protect_age=None):
                               feat=spec["feat"], thr=spec["thr"], base=spec["base"], protect_age=pa)
     if spec["kind"] == "linear":
         return M.to_scored(spec, protect_age=pa)
-    import zoo_nn
-    return ps.ScoredModel("callback", fn=zoo_nn.make_fn(spec["net"]), protect_age=pa)
+    import extra_nn
+    return ps.ScoredModel("callback", fn=extra_nn.make_fn(spec["net"]), protect_age=pa)
 
 
 # ---- evaluation --------------------------------------------------------------

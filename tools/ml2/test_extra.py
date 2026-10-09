@@ -1,4 +1,4 @@
-"""Checks for the model-zoo plumbing: C tree scorer == sklearn/lightgbm predictions
+"""Checks for the model-extra plumbing: C tree scorer == sklearn/lightgbm predictions
 (raw and candidate-rank features), rank columns == C rank_column, the callback
 scorer reproduces a linear model's simulation, determinism."""
 import numpy as np
@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 import models as M
 import pagesim as ps
-import zoo_core as Z
+import extra_core as Z
 
 d = Z.load("train", "sort")
 cols = Z.TIER_K
@@ -56,4 +56,4 @@ print("native", a["faults"], a["writebacks"], "callback", c["faults"], c["writeb
 assert c == c2 or (c["faults"], c["writebacks"]) == (c2["faults"], c2["writebacks"]), "callback not deterministic"
 assert abs(c["faults"] - a["faults"]) <= max(3, 0.002 * a["faults"]), "callback differs from native linear"
 # tree as single stump on feature K_IDLE: equals scoring by idle
-print("zoo checks passed")
+print("extra checks passed")

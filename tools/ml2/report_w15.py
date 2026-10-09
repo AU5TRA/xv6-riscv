@@ -54,9 +54,9 @@ def dataset():
     NUM["nstreams"] = len(idx)
 
 
-# ---- zoo / baselines ------------------------------------------------------------
-def zoo():
-    rows = [r for r in csv.DictReader(open(R / "zoo_summary.csv"))]
+# ---- extra / baselines ------------------------------------------------------------
+def extra():
+    rows = [r for r in csv.DictReader(open(R / "extra_summary.csv"))]
     val = defaultdict(dict)
     for r in rows:
         if "/" not in r["system"]:
@@ -73,10 +73,10 @@ def zoo():
             d = val.get((sc, g))
             if not d:
                 continue
-            cells = [pick(d, p) for p in ("lru", "arc", "s3fifo", "lhd", "lin-K+K+", "zooK-trees", "zooKF-nn", "zooK-nn", "zoo-trees", "zoo-nn", "belady")]
+            cells = [pick(d, p) for p in ("lru", "arc", "s3fifo", "lhd", "lin-K+K+", "extraK-trees", "extraKF-nn", "extraK-nn", "extra-trees", "extra-nn", "belady")]
             out.append([sc, g] + ["--" if c is None else f"{c:.3f}" for c in cells])
     hdr = ["scope", "split", "LRU", "ARC", "S3F", "LHD", "linear K", "tree K", "NN K", "NN K$^{\\dagger}$", "tree FK", "NN FK", "Belady"]
-    write("zoo.tex", tab(out, hdr, "ll" + "r" * 11))
+    write("model_comparison.tex", tab(out, hdr, "ll" + "r" * 11))
     # forest plot: ratio vs the matching linear model with 95% CI
     pts = []
     for r in rows:
@@ -84,11 +84,11 @@ def zoo():
             lo, hi = [float(x) for x in r["cells"].split()[1].split("-")]
             pts.append((r["scope"], r["group"], r["system"].split(":")[0], float(r["geo_ratio_vs_clock"]), lo, hi))
     fig, ax = plt.subplots(figsize=(7.6, 6.4))
-    classes = ["zooS-trees", "zooK-trees", "zooKF-nn", "zooK-nn", "zoo-trees", "zoo-nn"]
+    classes = ["extraS-trees", "extraK-trees", "extraKF-nn", "extraK-nn", "extra-trees", "extra-nn"]
     colors = dict(zip(classes, ["#1b9e77", "#1c5cab", "#7570b3", "#d95f02", "#8da0cb", "#fc8d62"]))
-    legend = {"zooS-trees": "GBDT, 4-16 trees, kernel inputs", "zooK-trees": "best tree model, kernel inputs",
-              "zooKF-nn": "NN, kernel inputs only (deployable)", "zooK-nn": "best NN, kernel inputs + oracle history",
-              "zoo-trees": "best tree model, oracle inputs", "zoo-nn": "best NN, oracle inputs"}
+    legend = {"extraS-trees": "GBDT, 4-16 trees, kernel inputs", "extraK-trees": "best tree model, kernel inputs",
+              "extraKF-nn": "NN, kernel inputs only (deployable)", "extraK-nn": "best NN, kernel inputs + oracle history",
+              "extra-trees": "best tree model, oracle inputs", "extra-nn": "best NN, oracle inputs"}
     labels = []
     for sc in scopes:
         for g in ("test", "held-out", "pat", "kv-T", "app", "real"):
@@ -112,7 +112,7 @@ def zoo():
     ax.legend(fontsize=7, loc="lower right")
     ax.set_xlim(0.8, 1.6)
     fig.tight_layout()
-    fig.savefig(OUT / "figs" / "zoo.pdf")
+    fig.savefig(OUT / "figs" / "model_comparison.pdf")
     plt.close(fig)
 
 
@@ -234,7 +234,7 @@ def noise():
 
 if __name__ == "__main__":
     dataset()
-    zoo()
+    extra()
     transfer()
     kernel()
     kernel2()

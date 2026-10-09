@@ -47,11 +47,11 @@ Dataset: `python3 tools/stream_dataset.py prepare` (176 streams in `traces2/ML`;
 **Simulator additions** (`tools/ml2/pagesim.c/.py`): MRU, ARC, S3-FIFO (two forms), MGLRU-anon, LHD
 (tests: `test_baselines.py`, 475/475 vs independent references); scorer kinds `trees` (C, with candidate-set rank
 features) and `callback` (Python, for set/sequence nets). Checks that must pass after any change:
-`validate.py`, `validate_kernel.py`, `test_baselines.py`, `test_zoo.py`, `test_zoo_nn.py`.
+`validate.py`, `validate_kernel.py`, `test_baselines.py`, `test_extra.py`, `test_extra_nn.py`.
 
 **Experiments and where results live** (`report/results2/`): `baselines_ext.csv` (E1 literature baselines),
-`transfer*.csv` (`exp_transfer.py`), `zoo_cells.csv` + `zoo_summary.csv` (`zoo_trees.py`/`zoo_nn.py`/`zoo_report.py`;
-models in `report/models2/zoo/*.pkl`), `kernel_eval.csv` + `kernel_vs_sim_w15.csv`, `noise_floor.csv`
+`transfer*.csv` (`exp_transfer.py`), `extra_cells.csv` + `extra_summary.csv` (`extra_trees.py`/`extra_nn.py`/`extra_report.py`;
+models in `report/models2/extra/*.pkl`), `kernel_eval.csv` + `kernel_vs_sim_w15.csv`, `noise_floor.csv`
 (`exp_noise.py`). Headline: with kernel-observable inputs no richer model beats the linear scorer by the 2%/2x-cost
 bar overall; oracle-input models gain up to 6% in distribution and fail on the real Redis/SQLite traces.
 
@@ -63,17 +63,17 @@ better than the simulator (kv/kv-k/global agree elsewhere); suspected cause (unt
 through a one-page buffer outside the arena.
 
 **Reproduce**: see the last section of the week-15 report. Long runs (use a monitor, not a sleep loop):
-`zoo_trees.py select/test` (~1-2 h each), `kernel_eval.py` (lzw runs take ~16 min each per lane).
+`extra_trees.py select/test` (~1-2 h each), `kernel_eval.py` (lzw runs take ~16 min each per lane).
 
 **New gotchas**
 * `pkill -f <pattern>` kills the shell that runs it if the pattern appears in the command line; use PIDs.
 * `grep -i error` matches the `-Werror` flag in every compile line; grep for `error:`.
 * A large embedded table in a user program breaks `vmbench_burn` (the FIFO burn evicts the oldest pages, i.e. the
   table, before reaching the arena): read data from a file after setup instead (as `kvbench T` does).
-* Set `OMP_NUM_THREADS=1` (zoo modules do) before numpy loads when running several simulator workers: BLAS threads
+* Set `OMP_NUM_THREADS=1` (the extra_* modules do) before numpy loads when running several simulator workers: BLAS threads
   made the numpy callbacks 10x slower.
 * `check_streams.py` requires different seeds to give different strings; deterministic replays (kv-T) have one seed.
-* The neural zoo models are not run on streams longer than 400k references (callback cost); only trees are.
+* The neural extra models are not run on streams longer than 400k references (callback cost); only trees are.
 * Quick appbench/patbench kernel runs use `--accesses 50000` in `kernel_eval.py`; `kernel_vs_sim.py` replays the prefix.
 
 ---

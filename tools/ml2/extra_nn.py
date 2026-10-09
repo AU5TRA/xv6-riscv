@@ -11,9 +11,9 @@
 
 Inputs: feature tiers K (kernel-observable) or FK; the history models read the oracle interval
 history (F) except agecnn (K). Loss: weighted MSE on log1p(next-use distance), as the other models.
-Selection on validation, never on test (see zoo_trees.py select/test/report, which also handle these).
+Selection on validation, never on test (see extra_trees.py select/test/report, which also handle these).
 
-    python3 zoo_nn.py fit [--scopes global kv ...]
+    python3 extra_nn.py fit [--scopes global kv ...]
 """
 import argparse
 import os
@@ -28,7 +28,7 @@ import torch.nn as nn
 
 import models as M
 import pagesim as ps
-import zoo_core as Z
+import extra_core as Z
 
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 NH = 8                      # history length
@@ -261,7 +261,7 @@ def fit(scopes):
         for fs in FEATSETS:
             for arch, _ in GRID:
                 nm = name_of(scope, arch, fs)
-                if (Z.ZOO / f"{nm}.pkl").exists():
+                if (Z.EXTRA / f"{nm}.pkl").exists():
                     continue
                 net, norm, cols, v = train(scope, arch, fs)
                 Z.save_spec(nm, dict(kind="np", protect_age=0, net=export(net, norm, cols, arch), val_loss=v))

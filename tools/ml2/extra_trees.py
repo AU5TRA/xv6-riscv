@@ -4,10 +4,10 @@ regression, CART, random forest, GBDT (regression and lambdarank), each on kerne
 observable features (K: K and K+ tiers) or all features (FK), with and without
 candidate-set rank features ("r"). The grid is fixed below, before any result.
 
-    python3 zoo_trees.py fit [--scopes global kv ...]   fit the grid -> report/models2/zoo/*.pkl
-    python3 zoo_trees.py select [--jobs 6]              each fit on validation cells at 10%
-    python3 zoo_trees.py test [--jobs 6]                best per scope x family on test/held-out/transfer
-    python3 zoo_trees.py report                         tables
+    python3 extra_trees.py fit [--scopes global kv ...]   fit the grid -> report/models2/extra/*.pkl
+    python3 extra_trees.py select [--jobs 6]              each fit on validation cells at 10%
+    python3 extra_trees.py test [--jobs 6]                best per scope x family on test/held-out/transfer
+    python3 extra_trees.py report                         tables
 
 Selection is on validation only (matmul has no validation streams: its training streams).
 """
@@ -29,7 +29,7 @@ from sklearn.tree import DecisionTreeRegressor
 
 import models as M
 import pagesim as ps
-import zoo_core as Z
+import extra_core as Z
 
 SCOPES = M.WORKLOADS + ["global"]
 FEATSETS = {"K": Z.TIER_K, "FK": Z.TIER_ALL}
@@ -111,7 +111,7 @@ def fit(scopes):
             for rel in (False, True):
                 for fam, p in GRID:
                     name = name_of(scope, fam, p, fs, rel)
-                    if (Z.ZOO / f"{name}.pkl").exists():
+                    if (Z.EXTRA / f"{name}.pkl").exists():
                         continue
                     spec = fit_one(d, scope, fam, p, fs, rel)
                     if spec is not None:
@@ -121,8 +121,8 @@ def fit(scopes):
 
 
 def names(scope):
-    """Every fitted model of the scope (any family: trees here, neural nets from zoo_nn.py)."""
-    out = sorted(p.stem for p in Z.ZOO.glob(f"{scope}.*.pkl"))
+    """Every fitted model of the scope (any family: trees here, neural nets from extra_nn.py)."""
+    out = sorted(p.stem for p in Z.EXTRA.glob(f"{scope}.*.pkl"))
     if scope == "global":      # the global scope is 5x the validation cost: fixed pruning of the smaller variants
         out = [n for n in out if n.split(".", 3)[1:4:2] not in (["cart", "depth4"], ["gbdt", "trees30-leaves8"],
                                                                   ["gbdt", "trees100-leaves8"], ["rf", "trees30-depth8"])]

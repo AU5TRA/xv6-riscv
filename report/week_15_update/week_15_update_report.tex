@@ -49,7 +49,7 @@ sizes of 5, 10 and 20\% of each program's pages.
 \item \textbf{Literature baselines.} ARC, S3-FIFO, an MGLRU analogue, LHD and exact MRU are implemented in the
   simulator and checked against independent reference implementations. LHD is the strongest untrained policy
   (0.90--0.93 on our data); ARC and S3-FIFO are mixed, and S3-FIFO is worse than Clock on graph, matmul and sort.
-\item \textbf{Model zoo.} Trees (CART, random forest, boosted trees, ranking boosted trees, logistic regression)
+\item \textbf{Wider model comparison.} Trees (CART, random forest, boosted trees, ranking boosted trees, logistic regression)
   and neural nets (deeper MLP, set-attention, CNN and LSTM over page history, a CNN over the kernel's own
   scan-bit history, mixed models) were fitted on every scope and selected on validation only. With signals the
   kernel can actually observe, \best{no model class beats the linear scorer by the 2\% and at-most-2$\times$-cost
@@ -119,7 +119,7 @@ Implemented in the simulator and cross-checked against independent reference imp
 (identical counts): ARC (integer adaptation), S3-FIFO (as published, and a form that reads accessed bits only
 at queue heads), an MGLRU analogue for anonymous memory (generations, aging walk, rescue at eviction), LHD in
 a scan form, and exact MRU. MRU equals Belady on cyclic loops (9 of 9 checks), and LRU, FIFO and Clock miss every
-access of a loop larger than memory, as theory says. Table~\ref{tab:zoo} shows them next to the learned models.
+access of a loop larger than memory, as theory says. Table~\ref{tab:extra} shows them next to the learned models.
 
 \section{Transfer to unseen workloads}
 
@@ -147,7 +147,7 @@ over all kernel signals.}
 \caption{Faults / Clock per stream group (geometric mean over streams and the three memory sizes). Simulator results; the three last columns are linear models (global kernel signals, global oracle+kernel signals, kv-scope kernel signals).}
 \end{table}
 
-\section{Model zoo}
+\section{Wider model comparison}
 
 \textbf{Protocol.} The grid was written before any result: kernel-observable inputs (K) or all inputs (FK),
 with or without candidate-set rank features; CART (depth 4, 8), random forest, boosted trees (30 and 100 trees,
@@ -161,22 +161,22 @@ scikit-learn and LightGBM to $3\times10^{-6}$. A follow-up added four- to sixtee
 meet the cost bar.
 
 \begin{figure}[h]
-\centering\includegraphics[width=\linewidth]{figs/zoo.pdf}
+\centering\includegraphics[width=\linewidth]{figs/model_comparison.pdf}
 \caption{Faults relative to the best linear scorer (below 1: the model is better), with 95\% intervals.
 Models with oracle inputs (blue-grey, orange-red, ``oracle'') cannot run in a kernel.}
-\label{fig:zoo}
+\label{fig:extra}
 \end{figure}
 
 \begin{table}[h]
 \centering\scriptsize
-\input{tables/zoo}
+\input{tables/model_comparison}
 \caption{Faults / Clock on test and held-out streams. ``linear K'' is the week-14 model class (kernel signals);
 ``tree K'' and ``NN K'' use kernel signals only; ``NN K$^{\dagger}$'' also reads the oracle reuse history; ``FK''
 adds oracle inputs. A dash: not run (cost rule) or not selected.}
-\label{tab:zoo}
+\label{tab:extra}
 \end{table}
 
-\textbf{What the zoo says.}
+\textbf{What the wider comparison says.}
 \begin{itemize}
 \item \best{Richer models help only where they are given information a kernel does not have.} With oracle inputs
   the best tree and neural models are 2--5\% better than the best linear model in distribution; with kernel
@@ -257,8 +257,8 @@ the other sources of variance (the choice of streams, which the bootstrap interv
 \section*{Reproducing}
 \small
 \begin{verbatim}
-python3 tools/ml2/zoo_trees.py fit | select | test      # tree + neural zoo (zoo_nn.py fit first)
-python3 tools/ml2/zoo_report.py                          # zoo vs linear vs baselines
+python3 tools/ml2/extra_trees.py fit | select | test      # tree and neural models (extra_nn.py fit first)
+python3 tools/ml2/extra_report.py                          # extra models vs linear vs baselines
 python3 tools/ml2/exp_transfer.py run [--set real|app]   # transfer streams
 python3 tools/ml2/kernel_eval.py --only lzw,kv-T --fracs 0.1  [--models lzw@32]
 python3 tools/ml2/kernel_vs_sim.py --only lzw,kv-T,pat,app --tag _w15
