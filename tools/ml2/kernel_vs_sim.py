@@ -84,29 +84,36 @@ def cliff(args):
 
 
 def main():
-    rows = [r for r in csv.DictReader(open(R / "kernel_eval.csv")) if r["status"] == "ok"]
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", default="", help="comma-separated stem prefixes")
+    ap.add_argument("--tag", default="", help="suffix of the output files")
+    a = ap.parse_args()
+    pre = tuple(a.only.split(",")) if a.only else ()
+    rows = [r for r in csv.DictReader(open(R / "kernel_eval.csv")) if r["status"] == "ok"
+            and (not pre or r["stem"].startswith(pre))]
     by = {}
     for r in rows:
         by.setdefault(r["stem"], []).append(r)
-    with Pool(6) as pool, open(R / "kernel_vs_sim.csv", "w", newline="") as f:
+    with Pool(6) as pool, open(R / f"kernel_vs_sim{a.tag}.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["stem", "split", "workload", "fraction", "frames", "policy", "model",
                     "kernel_faults", "sim_faults", "kernel_over_sim", "kernel_writes",
                     "sim_writes"])
         for out in pool.imap_unordered(job, by.items()):
             w.writerows(out)
-    print("written", R / "kernel_vs_sim.csv")
+    print("written", R / f"kernel_vs_sim{a.tag}.csv")
     # The stream the kernel disagrees on most: is it sitting on a capacity cliff,
     # where the frame or two of difference in the kernel's limit dominates?
-    res = list(csv.DictReader(open(R / "kernel_vs_sim.csv")))
+    res = list(csv.DictReader(open(R / f"kernel_vs_sim{a.tag}.csv")))
     worst = min(res, key=lambda r: float(r["kernel_over_sim"]))["stem"]
-    with Pool(6) as pool, open(R / "kernel_cliff.csv", "w", newline="") as f:
+    with Pool(6) as pool, open(R / f"kernel_cliff{a.tag}.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["stem", "policy", "model", "frames", "kernel_faults"]
                     + [f"sim_plus{d}" for d in CLIFF])
         for out in pool.imap_unordered(cliff, [(worst, [r]) for r in by[worst]]):
             w.writerows(out)
-    print("written", R / "kernel_cliff.csv", "for", worst)
+    print("written", R / f"kernel_cliff{a.tag}.csv", "for", worst)
 
 
 if __name__ == "__main__":

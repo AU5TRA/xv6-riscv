@@ -37,7 +37,12 @@ HEADER = ["stem", "split", "workload", "variant", "fraction", "frames", "policy"
 TRACE_BITS = 9      # trace | file-sink flag bits (tools/make_stream_manifest.py)
 
 
+TRAINED = {"btree", "graph", "kv", "lzw", "matmul", "sort"}
+
+
 def policies(workload):
+    if workload not in TRAINED:      # patbench / appbench / real: only the global models apply
+        return [("fifo", ""), ("clock", ""), ("aging", ""), ("lfu", ""), ("ml", "global"), ("ml", "global-k")]
     return [("fifo", ""), ("clock", ""), ("aging", ""), ("lfu", ""),
             ("ml", "global"), ("ml", workload), ("ml", workload + "-k")]
 

@@ -4,17 +4,19 @@
 #include "kernel/vmstats.h"
 struct ml_model { const char *name; struct vm_ml_weights w; };
 static const struct ml_model ml_models[] = {
-  { "btree-k", { 4, { 0, 3, 4, 5, 0, 0, 0, 0 }, { 220, 212, -158, 225, 0, 0, 0, 0 }, 0 } },  // ref+idle+age+dirty
-  { "btree", { 5, { 1, 3, 4, 5, 6, 0, 0, 0 }, { 96, 203, -167, 164, -52, 0, 0, 0 }, 0 } },  // aging+idle+age+dirty+refaults
-  { "global-k", { 3, { 1, 3, 4, 0, 0, 0, 0, 0 }, { -1087, 110, -59, 0, 0, 0, 0, 0 }, 0 } },  // aging+idle+age
-  { "global", { 4, { 3, 5, 6, 7, 0, 0, 0, 0 }, { 126, 36, -113, 122, 0, 0, 0, 0 }, 4 } },  // idle+dirty+refaults+rdist
-  { "graph-k", { 3, { 2, 3, 5, 0, 0, 0, 0, 0 }, { -9, 157, -403, 0, 0, 0, 0, 0 }, 4 } },  // sfreq+idle+dirty
-  { "graph", { 4, { 2, 3, 5, 7, 0, 0, 0, 0 }, { -2, 159, -347, 24, 0, 0, 0, 0 }, 4 } },  // sfreq+idle+dirty+rdist
-  { "kv-k", { 4, { 0, 1, 3, 4, 0, 0, 0, 0 }, { 183, -11, 248, -156, 0, 0, 0, 0 }, 4 } },  // ref+aging+idle+age
-  { "kv", { 5, { 1, 3, 5, 6, 7, 0, 0, 0 }, { -76, 157, -97, -51, 102, 0, 0, 0 }, 2 } },  // aging+idle+dirty+refaults+rdist
-  { "matmul-k", { 4, { 0, 1, 3, 5, 0, 0, 0, 0 }, { 630, -1853, -194, 248, 0, 0, 0, 0 }, 0 } },  // ref+aging+idle+dirty
-  { "matmul", { 5, { 1, 3, 5, 6, 7, 0, 0, 0 }, { 393, 501, 291, 20, 351, 0, 0, 0 }, 0 } },  // aging+idle+dirty+refaults+rdist
-  { "sort-k", { 1, { 1, 0, 0, 0, 0, 0, 0, 0 }, { -2255, 0, 0, 0, 0, 0, 0, 0 }, 0 } },  // aging
-  { "sort", { 4, { 0, 5, 6, 7, 0, 0, 0, 0 }, { -653, 102, -241, 201, 0, 0, 0, 0 }, 4 } },  // ref+dirty+refaults+rdist
+  { "btree-k", { 3, { 3, 4, 5, 0, 0, 0, 0, 0 }, { 186, -154, 226, 0, 0, 0, 0, 0 }, 0 } },  // idle+age+dirty
+  { "btree", { 3, { 3, 4, 5, 0, 0, 0, 0, 0 }, { 186, -154, 226, 0, 0, 0, 0, 0 }, 0 } },  // idle+age+dirty
+  { "global-k", { 4, { 0, 1, 2, 3, 0, 0, 0, 0 }, { 484, -1144, -63, 115, 0, 0, 0, 0 }, 0 } },  // ref+aging+sfreq+idle
+  { "global", { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 204, -107, 82, -135, 98, 0, 0, 0 }, 4 } },  // idle+age+dirty+refaults+rdist
+  { "graph-k", { 3, { 2, 3, 5, 0, 0, 0, 0, 0 }, { -10, 156, -405, 0, 0, 0, 0, 0 }, 4 } },  // sfreq+idle+dirty
+  { "graph", { 4, { 2, 3, 5, 7, 0, 0, 0, 0 }, { -3, 158, -356, 21, 0, 0, 0, 0 }, 4 } },  // sfreq+idle+dirty+rdist
+  { "kv-k", { 4, { 0, 1, 3, 4, 0, 0, 0, 0 }, { 174, 0, 249, -155, 0, 0, 0, 0 }, 4 } },  // ref+aging+idle+age
+  { "kv", { 6, { 0, 1, 3, 5, 6, 7, 0, 0 }, { -224, 175, 163, -93, -52, 101, 0, 0 }, 1 } },  // ref+aging+idle+dirty+refaults+rdist
+  { "lzw-k", { 3, { 0, 3, 4, 0, 0, 0, 0, 0 }, { -2, 65, -64, 0, 0, 0, 0, 0 }, 4 } },  // ref+idle+age
+  { "lzw", { 5, { 0, 1, 3, 5, 7, 0, 0, 0 }, { -53, 65, 32, 38, 70, 0, 0, 0 }, 1 } },  // ref+aging+idle+dirty+rdist
+  { "matmul-k", { 4, { 0, 1, 3, 5, 0, 0, 0, 0 }, { 624, -1857, -203, 246, 0, 0, 0, 0 }, 0 } },  // ref+aging+idle+dirty
+  { "matmul", { 5, { 1, 3, 5, 6, 7, 0, 0, 0 }, { 375, 489, 291, 19, 355, 0, 0, 0 }, 0 } },  // aging+idle+dirty+refaults+rdist
+  { "sort-k", { 1, { 1, 0, 0, 0, 0, 0, 0, 0 }, { -2257, 0, 0, 0, 0, 0, 0, 0 }, 0 } },  // aging
+  { "sort", { 4, { 0, 5, 6, 7, 0, 0, 0, 0 }, { -657, 97, -241, 200, 0, 0, 0, 0 }, 4 } },  // ref+dirty+refaults+rdist
 };
 #define ML_NMODELS (sizeof(ml_models) / sizeof(ml_models[0]))
