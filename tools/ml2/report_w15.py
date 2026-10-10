@@ -430,6 +430,29 @@ def ci_tables():
         write("paired.tex", tab(body, ["workload", "model", "streams", "faults vs linear [95\\% interval]", "result"], "llrrl"))
 
 
+def guard_tables():
+    """safety-guard prototype (simulator): learned policy alone against guarded versions, on the streams the settings were tuned on and on others"""
+    out = {}
+    for tag, f, keep in (("tuned", "guard.csv", ("learned", "guard W=n/200 K=20 margin=0.0", "guard W=n/100 K=10 margin=0.0")),
+                         ("heldout", "guard_heldout.csv", ("learned", "guard W=n/200 K=20 margin=0.0", "guard W=n/100 K=10 margin=0.0"))):
+        p = R / f
+        if not p.exists():
+            return
+        cells = defaultdict(dict)
+        for r in csv.DictReader(open(p)):
+            cells[(r["stem"], r["fraction"])][r["policy"]] = int(r["faults"])
+        n = max(len(v) for v in cells.values())
+        done = [k for k, v in cells.items() if len(v) == n]
+        lose = [k for k in done if cells[k]["learned"] / cells[k]["clock"] > 1.02]
+        win = [k for k in done if cells[k]["learned"] / cells[k]["clock"] < 0.95]
+        rat = lambda pol, ks: [cells[k][pol] / cells[k]["clock"] for k in ks]
+        body = []
+        for pol in keep:
+            name = "learned policy alone" if pol == "learned" else "guarded, window n/%s, retest every %s windows" % (pol.split("n/")[1].split(" ")[0], pol.split("K=")[1].split(" ")[0])
+            body.append([name, f"{gm(rat(pol, done)):.3f}", f"{gm(rat(pol, lose)):.3f}", f"{gm(rat(pol, win)):.3f}", f"{max(rat(pol, done)):.3f}"])
+        write(f"guard_{tag}.tex", tab(body, ["policy", f"all {len(done)} cells", f"{len(lose)} cells where learned loses", f"{len(win)} cells where it wins", "worst cell"], "lrrrr"))
+
+
 if __name__ == "__main__":
     dataset()
     extra()
@@ -440,6 +463,7 @@ if __name__ == "__main__":
     full_tests()
     cost_tables()
     ci_tables()
+    guard_tables()
     noise()
     (OUT / "tables" / "numbers.tex").write_text("".join(f"\\expandafter\\def\\csname v@{k}\\endcsname{{{v}}}\n" for k, v in NUM.items()))
     print("written", OUT)

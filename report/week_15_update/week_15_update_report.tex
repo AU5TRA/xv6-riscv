@@ -470,6 +470,36 @@ its streams (10\,000 times) to get a 95\% interval, and compared each extra mode
 On kv the CNN and the MLP use 2.9\% and 2.7\% fewer faults than the linear kv model (intervals 0.966--0.977 and 0.968--0.979 over 11 streams); on the Twitter replays 2.7\% and 1.9\%,
 and so do the boosted trees (2.7\%). Everywhere else they use more faults than the linear model. The gain on kv is small but clearly not noise.
 
+\section{A safety guard (prototype, simulator only)}
+\label{sec:guard}
+
+The linear model loses to Clock on some workloads (SpMV, parts of matmul and graph). A guard should stop that. The prototype alternates the two policies on the same memory:
+one window of $W$ accesses under the learned policy, one under Clock, compare the faults of the two windows, use the better one for the next $K$ windows, and test again.
+It runs in the simulator from a filled-memory start, with the global linear model as the learned policy. I tried window lengths of $n/200$ to $n/50$ of the stream
+and $K$ from 4 to 80 on 11 streams (33 cells) and carried three settings over to 18 streams the grid had never seen (54 cells).
+
+\begin{table}[h]
+\centering\small
+\input{tables/guard_tuned}
+\caption{Streams the settings were chosen on (faults relative to Clock; ``all cells'' is the geometric mean).}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\input{tables/guard_heldout}
+\caption{Streams the settings were not chosen on.}
+\end{table}
+
+\begin{itemize}
+\item On the streams used to choose the settings the guard looks very good: the worst cell falls from 1.49 to 1.04 and the cells where the learned policy loses from 1.13 to 1.01.
+\item \textbf{On streams it was not tuned on it helps less}: the worst cell falls from 1.86 to 1.36, the cells where the learned policy loses from 1.29 to 1.07, and the average
+  gain drops from 0.861 to 0.881 of Clock. The guard roughly halves the damage; it does not remove it.
+\item The guard hands about 40\% of evictions to Clock even where the learned policy wins, because a window that follows a Clock window starts from memory that Clock has shaped, which
+  makes the learned policy look slightly worse. A better test would remove that bias.
+\item \emph{This is not in the kernel.} The kernel cannot count accesses, which the window length uses; a kernel version needs another measure of progress (for example time),
+  which has its own problems because the learned policy's own running time would count against it. That choice is open.
+\end{itemize}
+
 \section{Noise floor}
 \label{sec:noise}
 The linear model was refit from three extra datasets built with different sampling seeds and replayed on
@@ -495,7 +525,7 @@ the other sources of variance (the choice of streams, which the bootstrap interv
   figures depend on that and on the cost of a fault on the machine in question, which xv6 on QEMU does not give; two example costs are shown.
 \item The week-14 and the current builds of the benchmark programs differ, which moves every policy's fault counts by about 1\%. Results
   were only compared within one build.
-\item Not done: training on the new programs; the Bloom filter 20\% cells above.
+\item Not done: training on the new programs; the Bloom filter 20\% cells above; the guard in the kernel (Section~\ref{sec:guard}); LHD in the kernel; a measured cost of a real page fault.
 \end{itemize}
 
 \section*{Reproducing}

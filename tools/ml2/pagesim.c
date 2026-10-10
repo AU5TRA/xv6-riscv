@@ -109,6 +109,9 @@ struct model {
   const struct mlnet *net;
   // Optional log of every eviction: victim page id and candidate count (2 ints per eviction).
   int32_t *vlog; int64_t vlog_cap, vlog_n;
+  // Safety guard (prototype): alternate the learned policy and Clock in windows of guard_w accesses, compare the faults of one window
+  // of each, then use the better one for guard_k windows (margin: the learned policy must be within guard_margin of Clock to be kept).
+  int64_t guard_w; int guard_k; double guard_margin;
 };
 
 struct result {
@@ -116,6 +119,7 @@ struct result {
   int64_t rows, overflow;
   int64_t aborted;          // stopped early: faults exceeded max_faults
   int64_t scanned, scored;  // pages scanned / scored, summed over evictions
+  int64_t guard_clock_evictions;   // evictions made by the Clock side of the guard
 };
 
 struct recorder {
@@ -938,8 +942,20 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   s->srng = 0x9E3779B97F4A7C15ull ^ ((uint64_t)(m ? m->sample_seed : 0) * 0xD1B54A32D192ED03ull);
   if (!s->srng) s->srng = 1;
   int sampling = learned && m && m->kind == 0 && m->sample_k > 0;
+  int guard = learned && m && m->guard_w > 0;
+  int g_mode = 0, g_use_clock = 0, g_left = 0;          // 0: learned trial, 1: Clock trial, 2: exploit the winner
+  int64_t g_start = 0, g_faults0 = 0, g_f_learned = 0;
 
   for (int64_t t = 0; t < n; t++) {
+    if (guard && t - g_start >= m->guard_w) {
+      int64_t wf = o->faults - g_faults0;
+      if (g_mode == 0) { g_f_learned = wf; g_mode = 1; g_use_clock = 1; }
+      else if (g_mode == 1) {
+        g_use_clock = !((double)g_f_learned <= (double)wf * (1.0 + m->guard_margin));   // keep the learned policy unless it is worse
+        g_mode = 2; g_left = m->guard_k;
+      } else if (--g_left <= 0) { g_mode = 0; g_use_clock = 0; }
+      g_start = t; g_faults0 = o->faults;
+    }
     int p = (int)pg[t];
     int w = wr[t];
     if (s->pos[p] < 0) {                      // ---- fault ----
@@ -950,7 +966,10 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         lv = policy == P_ARC ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
       if (s->count >= cap) {                  // ---- evict ----
         int sampled = sampling && s->count > m->sample_k;
-        if (sampled) {
+        int gclock = guard && g_use_clock;
+        if (gclock) {
+          o->guard_clock_evictions++;
+        } else if (sampled) {
           draw_sample(s, m->sample_k);
           if (m->sample_scan) {
             for (int i = 0; i < m->sample_k; i++) scan_one(s, s->res[s->samp[i]]);
@@ -974,7 +993,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         if (listpol) {
           if (lv < 0 || s->pos[lv] < 0) { o->aborted = -1; break; }   // invariant broken
           k = s->pos[lv];
-        } else if (policy == P_CLOCK) {
+        } else if (policy == P_CLOCK || gclock) {
           int idx = clock_choose(s);
           k = s->pos[s->order[idx]];
           memmove(s->order + idx, s->order + idx + 1,
@@ -986,6 +1005,10 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
           k = choose(s, policy, m, t, score);
         }
         int v = s->res[k];
+        if (guard && !gclock) {                       // a learned victim leaves Clock's candidate list too
+          for (int i = 0; i < s->order_n; i++)
+            if (s->order[i] == v) { memmove(s->order + i, s->order + i + 1, sizeof(int32_t) * (s->order_n - i - 1)); s->order_n--; break; }
+        }
         if (m && m->vlog && m->vlog_n < m->vlog_cap) {
           ((struct model *)m)->vlog[2 * m->vlog_n] = v;
           ((struct model *)m)->vlog[2 * m->vlog_n + 1] = s->count;
@@ -1015,7 +1038,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       s->kfreq[p] = 1;
       s->abit[p] = 1;
       s->dbit[p] = (uint8_t)w;
-      if (policy == P_CLOCK) s->order[s->order_n++] = p;
+      if (policy == P_CLOCK || guard) s->order[s->order_n++] = p;
       if (policy == P_MGLRU) mg_move(s, p, s->gmax);
       if (policy == P_LHD) { s->la1[p] = 0; s->la2[p] = LHD_AGES; s->s3fresh[p] = 1; }
     } else {                                  // ---- hit ----

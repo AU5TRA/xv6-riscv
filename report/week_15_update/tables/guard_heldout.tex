@@ -1,0 +1,9 @@
+\begin{tabular}{lrrrr}
+\toprule
+policy & all 54 cells & 6 cells where learned loses & 34 cells where it wins & worst cell \\
+\midrule
+learned policy alone & 0.861 & 1.289 & 0.758 & 1.860 \\
+guarded, window n/200, retest every 20 windows & 0.881 & 1.070 & 0.811 & 1.356 \\
+guarded, window n/100, retest every 10 windows & 0.883 & 1.079 & 0.812 & 1.362 \\
+\bottomrule
+\end{tabular}

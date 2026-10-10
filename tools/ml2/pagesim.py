@@ -69,14 +69,15 @@ class Model(C.Structure):
                 ("nd_r", C.POINTER(C.c_int32)), ("nd_f", C.POINTER(C.c_int16)),
                 ("nd_t", C.POINTER(C.c_float)),
                 ("raw_mask", C.c_uint32), ("rank_mask", C.c_uint32),
-                ("net", C.c_void_p), ("vlog", C.c_void_p), ("vlog_cap", C.c_int64), ("vlog_n", C.c_int64)]
+                ("net", C.c_void_p), ("vlog", C.c_void_p), ("vlog_cap", C.c_int64), ("vlog_n", C.c_int64),
+                ("guard_w", C.c_int64), ("guard_k", C.c_int), ("guard_margin", C.c_double)]
 
 
 class Result(C.Structure):
     _fields_ = [("faults", C.c_int64), ("evictions", C.c_int64),
                 ("writebacks", C.c_int64), ("rows", C.c_int64),
                 ("overflow", C.c_int64), ("aborted", C.c_int64),
-                ("scanned", C.c_int64), ("scored", C.c_int64)]
+                ("scanned", C.c_int64), ("scored", C.c_int64), ("guard_clock_evictions", C.c_int64)]
 
 
 class Recorder(C.Structure):
@@ -181,7 +182,7 @@ def run(s, cap, policy, model=None, max_faults=0):
         raise ValueError("learned policies need a model")
     res = _call(s, cap, policy, model.c if model is not None else None,
                 max_faults=max_faults)
-    return {"faults": res.faults, "evictions": res.evictions,
+    return {"guard_clock_evictions": res.guard_clock_evictions, "faults": res.faults, "evictions": res.evictions,
             "writebacks": res.writebacks, "aborted": bool(res.aborted),
             "scanned": res.scanned, "scored": res.scored}
 
@@ -242,6 +243,10 @@ class ScoredModel:
         self.c.sample_k = int(kw.get("sample_k", 0))
         self.c.sample_scan = int(kw.get("sample_scan", 0))
         self.c.sample_seed = int(kw.get("sample_seed", 1))
+        # safety guard prototype: windows of guard_w accesses, exploit the winner for guard_k windows (0 = off)
+        self.c.guard_w = int(kw.get("guard_w", 0))
+        self.c.guard_k = int(kw.get("guard_k", 8))
+        self.c.guard_margin = float(kw.get("guard_margin", 0.0))
         self._keep = []
         if kind == "intnet":
             # integer network in kernel/mlnet.h's layout (tools/ml2/netint.py builds `net`)

@@ -1,0 +1,463 @@
+stem,fraction,frames,policy,faults,guard_clock_share
+kv-A-s5,0.05,26,clock,14110,0.0
+kv-A-s5,0.05,26,learned,11470,0.0
+kv-A-s5,0.05,26,guard W=n/200 K=10 margin=0.0,12024,0.236
+kv-A-s5,0.05,26,guard W=n/200 K=20 margin=0.0,11889,0.19
+kv-A-s5,0.05,26,guard W=n/200 K=40 margin=0.0,12128,0.302
+kv-A-s5,0.05,26,guard W=n/200 K=80 margin=0.0,12743,0.546
+kv-A-s5,0.05,26,guard W=n/100 K=10 margin=0.0,11986,0.212
+kv-A-s5,0.05,26,guard W=n/100 K=20 margin=0.0,12082,0.276
+kv-A-s5,0.05,26,guard W=n/100 K=40 margin=0.0,12529,0.462
+kv-A-s5,0.05,26,guard W=n/100 K=80 margin=0.0,14048,0.951
+kv-A-s5,0.05,26,guard W=n/50 K=10 margin=0.0,12209,0.33
+kv-A-s5,0.05,26,guard W=n/50 K=20 margin=0.0,12633,0.493
+kv-A-s5,0.05,26,guard W=n/50 K=40 margin=0.0,13628,0.842
+kv-A-s5,0.05,26,guard W=n/50 K=80 margin=0.0,14018,0.951
+kv-A-s5,0.1,53,clock,10342,0.0
+kv-A-s5,0.1,53,learned,9179,0.0
+kv-A-s5,0.1,53,guard W=n/200 K=10 margin=0.0,9546,0.345
+kv-A-s5,0.1,53,guard W=n/200 K=20 margin=0.0,9301,0.18
+kv-A-s5,0.1,53,guard W=n/200 K=40 margin=0.0,9419,0.287
+kv-A-s5,0.1,53,guard W=n/200 K=80 margin=0.0,9786,0.523
+kv-A-s5,0.1,53,guard W=n/100 K=10 margin=0.0,9515,0.298
+kv-A-s5,0.1,53,guard W=n/100 K=20 margin=0.0,9757,0.554
+kv-A-s5,0.1,53,guard W=n/100 K=40 margin=0.0,9654,0.44
+kv-A-s5,0.1,53,guard W=n/100 K=80 margin=0.0,10145,0.81
+kv-A-s5,0.1,53,guard W=n/50 K=10 margin=0.0,9498,0.313
+kv-A-s5,0.1,53,guard W=n/50 K=20 margin=0.0,9645,0.473
+kv-A-s5,0.1,53,guard W=n/50 K=40 margin=0.0,10213,0.823
+kv-A-s5,0.1,53,guard W=n/50 K=80 margin=0.0,10401,0.94
+kv-T17-s1,0.05,26,clock,6028,0.0
+kv-T17-s1,0.05,26,learned,4718,0.0
+kv-T17-s1,0.05,26,guard W=n/200 K=10 margin=0.0,5322,0.42
+kv-T17-s1,0.05,26,guard W=n/200 K=20 margin=0.0,5161,0.334
+kv-T17-s1,0.05,26,guard W=n/200 K=40 margin=0.0,5287,0.464
+kv-T17-s1,0.05,26,guard W=n/200 K=80 margin=0.0,5442,0.57
+kv-T17-s1,0.05,26,guard W=n/100 K=10 margin=0.0,5129,0.315
+kv-T17-s1,0.05,26,guard W=n/100 K=20 margin=0.0,5284,0.444
+kv-T17-s1,0.05,26,guard W=n/100 K=40 margin=0.0,5284,0.46
+kv-T17-s1,0.05,26,guard W=n/100 K=80 margin=0.0,5782,0.792
+kv-T17-s1,0.05,26,guard W=n/50 K=10 margin=0.0,5139,0.33
+kv-T17-s1,0.05,26,guard W=n/50 K=20 margin=0.0,5327,0.488
+kv-T17-s1,0.05,26,guard W=n/50 K=40 margin=0.0,5814,0.808
+kv-T17-s1,0.05,26,guard W=n/50 K=80 margin=0.0,6027,0.909
+kv-A-s5,0.2,106,clock,7286,0.0
+kv-A-s5,0.2,106,learned,6921,0.0
+kv-A-s5,0.2,106,guard W=n/200 K=10 margin=0.0,6877,0.275
+kv-A-s5,0.2,106,guard W=n/200 K=20 margin=0.0,7042,0.419
+kv-A-s5,0.2,106,guard W=n/200 K=40 margin=0.0,6987,0.273
+kv-A-s5,0.2,106,guard W=n/200 K=80 margin=0.0,7309,0.934
+kv-A-s5,0.2,106,guard W=n/100 K=10 margin=0.0,7052,0.573
+kv-A-s5,0.2,106,guard W=n/100 K=20 margin=0.0,7130,0.715
+kv-A-s5,0.2,106,guard W=n/100 K=40 margin=0.0,6967,0.423
+kv-A-s5,0.2,106,guard W=n/100 K=80 margin=0.0,7276,0.926
+kv-A-s5,0.2,106,guard W=n/50 K=10 margin=0.0,6951,0.298
+kv-A-s5,0.2,106,guard W=n/50 K=20 margin=0.0,6992,0.454
+kv-A-s5,0.2,106,guard W=n/50 K=40 margin=0.0,7242,0.806
+kv-A-s5,0.2,106,guard W=n/50 K=80 margin=0.0,7324,0.924
+kv-T17-s1,0.1,52,clock,3896,0.0
+kv-T17-s1,0.1,52,learned,3028,0.0
+kv-T17-s1,0.1,52,guard W=n/200 K=10 margin=0.0,3532,0.518
+kv-T17-s1,0.1,52,guard W=n/200 K=20 margin=0.0,3675,0.669
+kv-T17-s1,0.1,52,guard W=n/200 K=40 margin=0.0,3635,0.687
+kv-T17-s1,0.1,52,guard W=n/200 K=80 margin=0.0,3888,0.88
+kv-T17-s1,0.1,52,guard W=n/100 K=10 margin=0.0,3467,0.483
+kv-T17-s1,0.1,52,guard W=n/100 K=20 margin=0.0,3475,0.513
+kv-T17-s1,0.1,52,guard W=n/100 K=40 margin=0.0,3408,0.446
+kv-T17-s1,0.1,52,guard W=n/100 K=80 margin=0.0,3886,0.875
+kv-T17-s1,0.1,52,guard W=n/50 K=10 margin=0.0,3321,0.318
+kv-T17-s1,0.1,52,guard W=n/50 K=20 margin=0.0,3468,0.469
+kv-T17-s1,0.1,52,guard W=n/50 K=40 margin=0.0,3821,0.774
+kv-T17-s1,0.1,52,guard W=n/50 K=80 margin=0.0,3932,0.873
+kv-T17-s1,0.2,104,clock,2373,0.0
+kv-T17-s1,0.2,104,learned,1982,0.0
+kv-T17-s1,0.2,104,guard W=n/200 K=10 margin=0.0,2203,0.482
+kv-T17-s1,0.2,104,guard W=n/200 K=20 margin=0.0,2221,0.537
+kv-T17-s1,0.2,104,guard W=n/200 K=40 margin=0.0,2234,0.643
+kv-T17-s1,0.2,104,guard W=n/200 K=80 margin=0.0,2382,0.836
+kv-T17-s1,0.2,104,guard W=n/100 K=10 margin=0.0,2179,0.451
+kv-T17-s1,0.2,104,guard W=n/100 K=20 margin=0.0,2132,0.399
+kv-T17-s1,0.2,104,guard W=n/100 K=40 margin=0.0,2100,0.419
+kv-T17-s1,0.2,104,guard W=n/100 K=80 margin=0.0,2373,0.83
+kv-T17-s1,0.2,104,guard W=n/50 K=10 margin=0.0,2181,0.458
+kv-T17-s1,0.2,104,guard W=n/50 K=20 margin=0.0,2176,0.496
+kv-T17-s1,0.2,104,guard W=n/50 K=40 margin=0.0,2337,0.726
+kv-T17-s1,0.2,104,guard W=n/50 K=80 margin=0.0,2386,0.823
+btree-mixed-s5,0.05,88,clock,76498,0.0
+btree-mixed-s5,0.05,88,learned,62845,0.0
+btree-mixed-s5,0.05,88,guard W=n/200 K=10 margin=0.0,65324,0.108
+btree-mixed-s5,0.05,88,guard W=n/200 K=20 margin=0.0,64538,0.099
+btree-mixed-s5,0.05,88,guard W=n/200 K=40 margin=0.0,64318,0.153
+btree-mixed-s5,0.05,88,guard W=n/200 K=80 margin=0.0,65964,0.353
+btree-mixed-s5,0.05,88,guard W=n/100 K=10 margin=0.0,64950,0.138
+btree-mixed-s5,0.05,88,guard W=n/100 K=20 margin=0.0,64607,0.179
+btree-mixed-s5,0.05,88,guard W=n/100 K=40 margin=0.0,66400,0.367
+btree-mixed-s5,0.05,88,guard W=n/100 K=80 margin=0.0,73537,0.794
+btree-mixed-s5,0.05,88,guard W=n/50 K=10 margin=0.0,65104,0.249
+btree-mixed-s5,0.05,88,guard W=n/50 K=20 margin=0.0,67040,0.414
+btree-mixed-s5,0.05,88,guard W=n/50 K=40 margin=0.0,73980,0.826
+btree-mixed-s5,0.05,88,guard W=n/50 K=80 margin=0.0,76335,0.978
+btree-mixed-s5,0.1,176,clock,58015,0.0
+btree-mixed-s5,0.1,176,learned,48779,0.0
+btree-mixed-s5,0.1,176,guard W=n/200 K=10 margin=0.0,50907,0.15
+btree-mixed-s5,0.1,176,guard W=n/200 K=20 margin=0.0,50358,0.234
+btree-mixed-s5,0.1,176,guard W=n/200 K=40 margin=0.0,49588,0.106
+btree-mixed-s5,0.1,176,guard W=n/200 K=80 margin=0.0,50021,0.296
+btree-mixed-s5,0.1,176,guard W=n/100 K=10 margin=0.0,50275,0.107
+btree-mixed-s5,0.1,176,guard W=n/100 K=20 margin=0.0,49840,0.128
+btree-mixed-s5,0.1,176,guard W=n/100 K=40 margin=0.0,50225,0.308
+btree-mixed-s5,0.1,176,guard W=n/100 K=80 margin=0.0,55113,0.776
+btree-mixed-s5,0.1,176,guard W=n/50 K=10 margin=0.0,50352,0.199
+btree-mixed-s5,0.1,176,guard W=n/50 K=20 margin=0.0,50842,0.36
+btree-mixed-s5,0.1,176,guard W=n/50 K=40 margin=0.0,55711,0.81
+btree-mixed-s5,0.1,176,guard W=n/50 K=80 margin=0.0,57951,0.972
+sort-n40000-s3,0.05,4,clock,1378,0.0
+sort-n40000-s3,0.05,4,learned,1397,0.0
+sort-n40000-s3,0.05,4,guard W=n/200 K=10 margin=0.0,1337,0.406
+sort-n40000-s3,0.05,4,guard W=n/200 K=20 margin=0.0,1367,0.429
+sort-n40000-s3,0.05,4,guard W=n/200 K=40 margin=0.0,1344,0.543
+sort-n40000-s3,0.05,4,guard W=n/200 K=80 margin=0.0,1396,0.366
+sort-n40000-s3,0.05,4,guard W=n/100 K=10 margin=0.0,1380,0.389
+sort-n40000-s3,0.05,4,guard W=n/100 K=20 margin=0.0,1390,0.231
+sort-n40000-s3,0.05,4,guard W=n/100 K=40 margin=0.0,1407,0.756
+sort-n40000-s3,0.05,4,guard W=n/100 K=80 margin=0.0,1402,0.747
+sort-n40000-s3,0.05,4,guard W=n/50 K=10 margin=0.0,1375,0.475
+sort-n40000-s3,0.05,4,guard W=n/50 K=20 margin=0.0,1346,0.496
+sort-n40000-s3,0.05,4,guard W=n/50 K=40 margin=0.0,1405,0.77
+sort-n40000-s3,0.05,4,guard W=n/50 K=80 margin=0.0,1379,0.927
+sort-n40000-s3,0.1,8,clock,1269,0.0
+sort-n40000-s3,0.1,8,learned,1251,0.0
+sort-n40000-s3,0.1,8,guard W=n/200 K=10 margin=0.0,1270,0.371
+sort-n40000-s3,0.1,8,guard W=n/200 K=20 margin=0.0,1268,0.437
+sort-n40000-s3,0.1,8,guard W=n/200 K=40 margin=0.0,1268,0.556
+sort-n40000-s3,0.1,8,guard W=n/200 K=80 margin=0.0,1268,0.566
+sort-n40000-s3,0.1,8,guard W=n/100 K=10 margin=0.0,1269,0.38
+sort-n40000-s3,0.1,8,guard W=n/100 K=20 margin=0.0,1268,0.248
+sort-n40000-s3,0.1,8,guard W=n/100 K=40 margin=0.0,1270,0.915
+sort-n40000-s3,0.1,8,guard W=n/100 K=80 margin=0.0,1270,0.925
+sort-n40000-s3,0.1,8,guard W=n/50 K=10 margin=0.0,1269,0.479
+sort-n40000-s3,0.1,8,guard W=n/50 K=20 margin=0.0,1268,0.44
+sort-n40000-s3,0.1,8,guard W=n/50 K=40 margin=0.0,1269,0.791
+sort-n40000-s3,0.1,8,guard W=n/50 K=80 margin=0.0,1269,0.925
+sort-n40000-s3,0.2,16,clock,1268,0.0
+sort-n40000-s3,0.2,16,learned,1151,0.0
+sort-n40000-s3,0.2,16,guard W=n/200 K=10 margin=0.0,1266,0.372
+sort-n40000-s3,0.2,16,guard W=n/200 K=20 margin=0.0,1266,0.439
+sort-n40000-s3,0.2,16,guard W=n/200 K=40 margin=0.0,1267,0.559
+sort-n40000-s3,0.2,16,guard W=n/200 K=80 margin=0.0,1267,0.569
+sort-n40000-s3,0.2,16,guard W=n/100 K=10 margin=0.0,1268,0.382
+sort-n40000-s3,0.2,16,guard W=n/100 K=20 margin=0.0,1266,0.25
+sort-n40000-s3,0.2,16,guard W=n/100 K=40 margin=0.0,1267,0.92
+sort-n40000-s3,0.2,16,guard W=n/100 K=80 margin=0.0,1267,0.931
+sort-n40000-s3,0.2,16,guard W=n/50 K=10 margin=0.0,1265,0.483
+sort-n40000-s3,0.2,16,guard W=n/50 K=20 margin=0.0,1266,0.443
+sort-n40000-s3,0.2,16,guard W=n/50 K=40 margin=0.0,1267,0.796
+sort-n40000-s3,0.2,16,guard W=n/50 K=80 margin=0.0,1267,0.93
+btree-mixed-s5,0.2,352,clock,37658,0.0
+btree-mixed-s5,0.2,352,learned,34676,0.0
+btree-mixed-s5,0.2,352,guard W=n/200 K=10 margin=0.0,35037,0.164
+btree-mixed-s5,0.2,352,guard W=n/200 K=20 margin=0.0,35037,0.311
+btree-mixed-s5,0.2,352,guard W=n/200 K=40 margin=0.0,34503,0.058
+btree-mixed-s5,0.2,352,guard W=n/200 K=80 margin=0.0,34539,0.197
+btree-mixed-s5,0.2,352,guard W=n/100 K=10 margin=0.0,35204,0.097
+btree-mixed-s5,0.2,352,guard W=n/100 K=20 margin=0.0,34508,0.069
+btree-mixed-s5,0.2,352,guard W=n/100 K=40 margin=0.0,34780,0.203
+btree-mixed-s5,0.2,352,guard W=n/100 K=80 margin=0.0,36228,0.717
+btree-mixed-s5,0.2,352,guard W=n/50 K=10 margin=0.0,34753,0.132
+btree-mixed-s5,0.2,352,guard W=n/50 K=20 margin=0.0,34940,0.253
+btree-mixed-s5,0.2,352,guard W=n/50 K=40 margin=0.0,36543,0.759
+btree-mixed-s5,0.2,352,guard W=n/50 K=80 margin=0.0,37692,0.963
+matmul-blocked128-s1,0.1,5,clock,4152,0.0
+matmul-blocked128-s1,0.1,5,learned,6192,0.0
+matmul-blocked128-s1,0.1,5,guard W=n/200 K=10 margin=0.0,4330,0.868
+matmul-blocked128-s1,0.1,5,guard W=n/200 K=20 margin=0.0,4252,0.917
+matmul-blocked128-s1,0.1,5,guard W=n/200 K=40 margin=0.0,4194,0.954
+matmul-blocked128-s1,0.1,5,guard W=n/200 K=80 margin=0.0,4176,0.968
+matmul-blocked128-s1,0.1,5,guard W=n/100 K=10 margin=0.0,4337,0.862
+matmul-blocked128-s1,0.1,5,guard W=n/100 K=20 margin=0.0,4248,0.918
+matmul-blocked128-s1,0.1,5,guard W=n/100 K=40 margin=0.0,4204,0.947
+matmul-blocked128-s1,0.1,5,guard W=n/100 K=80 margin=0.0,4179,0.961
+matmul-blocked128-s1,0.1,5,guard W=n/50 K=10 margin=0.0,4349,0.85
+matmul-blocked128-s1,0.1,5,guard W=n/50 K=20 margin=0.0,4270,0.905
+matmul-blocked128-s1,0.1,5,guard W=n/50 K=40 margin=0.0,4227,0.933
+matmul-blocked128-s1,0.1,5,guard W=n/50 K=80 margin=0.0,4185,0.961
+matmul-blocked128-s1,0.05,2,clock,1048576,0.0
+matmul-blocked128-s1,0.05,2,learned,620398,0.0
+matmul-blocked128-s1,0.05,2,guard W=n/200 K=10 margin=0.0,660221,0.135
+matmul-blocked128-s1,0.05,2,guard W=n/200 K=20 margin=0.0,641321,0.082
+matmul-blocked128-s1,0.05,2,guard W=n/200 K=40 margin=0.0,630775,0.042
+matmul-blocked128-s1,0.05,2,guard W=n/200 K=80 margin=0.0,626288,0.025
+matmul-blocked128-s1,0.05,2,guard W=n/100 K=10 margin=0.0,657149,0.144
+matmul-blocked128-s1,0.05,2,guard W=n/100 K=20 margin=0.0,644963,0.082
+matmul-blocked128-s1,0.05,2,guard W=n/100 K=40 margin=0.0,632359,0.05
+matmul-blocked128-s1,0.05,2,guard W=n/100 K=80 margin=0.0,631336,0.033
+matmul-blocked128-s1,0.05,2,guard W=n/50 K=10 margin=0.0,661143,0.159
+matmul-blocked128-s1,0.05,2,guard W=n/50 K=20 margin=0.0,645141,0.098
+matmul-blocked128-s1,0.05,2,guard W=n/50 K=40 margin=0.0,635193,0.066
+matmul-blocked128-s1,0.05,2,guard W=n/50 K=80 margin=0.0,627193,0.034
+matmul-blocked128-s1,0.2,10,clock,3710,0.0
+matmul-blocked128-s1,0.2,10,learned,3838,0.0
+matmul-blocked128-s1,0.2,10,guard W=n/200 K=10 margin=0.0,3820,0.75
+matmul-blocked128-s1,0.2,10,guard W=n/200 K=20 margin=0.0,3822,0.642
+matmul-blocked128-s1,0.2,10,guard W=n/200 K=40 margin=0.0,3739,0.959
+matmul-blocked128-s1,0.2,10,guard W=n/200 K=80 margin=0.0,3758,0.972
+matmul-blocked128-s1,0.2,10,guard W=n/100 K=10 margin=0.0,3711,0.289
+matmul-blocked128-s1,0.2,10,guard W=n/100 K=20 margin=0.0,3691,0.748
+matmul-blocked128-s1,0.2,10,guard W=n/100 K=40 margin=0.0,3742,0.422
+matmul-blocked128-s1,0.2,10,guard W=n/100 K=80 margin=0.0,3722,0.966
+matmul-blocked128-s1,0.2,10,guard W=n/50 K=10 margin=0.0,3742,0.493
+matmul-blocked128-s1,0.2,10,guard W=n/50 K=20 margin=0.0,3728,0.925
+matmul-blocked128-s1,0.2,10,guard W=n/50 K=40 margin=0.0,3727,0.946
+matmul-blocked128-s1,0.2,10,guard W=n/50 K=80 margin=0.0,3715,0.968
+heap-small-s1,0.05,20,clock,640348,0.0
+heap-small-s1,0.05,20,learned,599435,0.0
+heap-small-s1,0.05,20,guard W=n/200 K=10 margin=0.0,614981,0.303
+heap-small-s1,0.05,20,guard W=n/200 K=20 margin=0.0,608728,0.158
+heap-small-s1,0.05,20,guard W=n/200 K=40 margin=0.0,610830,0.398
+heap-small-s1,0.05,20,guard W=n/200 K=80 margin=0.0,613236,0.437
+heap-small-s1,0.05,20,guard W=n/100 K=10 margin=0.0,615284,0.327
+heap-small-s1,0.05,20,guard W=n/100 K=20 margin=0.0,605296,0.05
+heap-small-s1,0.05,20,guard W=n/100 K=40 margin=0.0,603092,0.03
+heap-small-s1,0.05,20,guard W=n/100 K=80 margin=0.0,605183,0.192
+heap-small-s1,0.05,20,guard W=n/50 K=10 margin=0.0,607144,0.107
+heap-small-s1,0.05,20,guard W=n/50 K=20 margin=0.0,605154,0.061
+heap-small-s1,0.05,20,guard W=n/50 K=40 margin=0.0,603519,0.043
+heap-small-s1,0.05,20,guard W=n/50 K=80 margin=0.0,602483,0.02
+heap-small-s1,0.1,41,clock,625938,0.0
+heap-small-s1,0.1,41,learned,528166,0.0
+heap-small-s1,0.1,41,guard W=n/200 K=10 margin=0.0,581407,0.351
+heap-small-s1,0.1,41,guard W=n/200 K=20 margin=0.0,569215,0.136
+heap-small-s1,0.1,41,guard W=n/200 K=40 margin=0.0,571368,0.214
+heap-small-s1,0.1,41,guard W=n/200 K=80 margin=0.0,619163,0.82
+heap-small-s1,0.1,41,guard W=n/100 K=10 margin=0.0,553330,0.117
+heap-small-s1,0.1,41,guard W=n/100 K=20 margin=0.0,542757,0.048
+heap-small-s1,0.1,41,guard W=n/100 K=40 margin=0.0,535004,0.026
+heap-small-s1,0.1,41,guard W=n/100 K=80 margin=0.0,539287,0.207
+heap-small-s1,0.1,41,guard W=n/50 K=10 margin=0.0,546390,0.113
+heap-small-s1,0.1,41,guard W=n/50 K=20 margin=0.0,540021,0.062
+heap-small-s1,0.1,41,guard W=n/50 K=40 margin=0.0,536819,0.041
+heap-small-s1,0.1,41,guard W=n/50 K=80 margin=0.0,532144,0.016
+join-zipf-s1,0.05,64,clock,125468,0.0
+join-zipf-s1,0.05,64,learned,114343,0.0
+join-zipf-s1,0.05,64,guard W=n/200 K=10 margin=0.0,117449,0.322
+join-zipf-s1,0.05,64,guard W=n/200 K=20 margin=0.0,116535,0.226
+join-zipf-s1,0.05,64,guard W=n/200 K=40 margin=0.0,117025,0.54
+join-zipf-s1,0.05,64,guard W=n/200 K=80 margin=0.0,116430,0.536
+join-zipf-s1,0.05,64,guard W=n/100 K=10 margin=0.0,117551,0.495
+join-zipf-s1,0.05,64,guard W=n/100 K=20 margin=0.0,117332,0.556
+join-zipf-s1,0.05,64,guard W=n/100 K=40 margin=0.0,116613,0.545
+join-zipf-s1,0.05,64,guard W=n/100 K=80 margin=0.0,122818,0.851
+join-zipf-s1,0.05,64,guard W=n/50 K=10 margin=0.0,118440,0.583
+join-zipf-s1,0.05,64,guard W=n/50 K=20 margin=0.0,117369,0.56
+join-zipf-s1,0.05,64,guard W=n/50 K=40 margin=0.0,123661,0.856
+join-zipf-s1,0.05,64,guard W=n/50 K=80 margin=0.0,125845,0.959
+join-zipf-s1,0.1,128,clock,79528,0.0
+join-zipf-s1,0.1,128,learned,73082,0.0
+join-zipf-s1,0.1,128,guard W=n/200 K=10 margin=0.0,75490,0.407
+join-zipf-s1,0.1,128,guard W=n/200 K=20 margin=0.0,74823,0.234
+join-zipf-s1,0.1,128,guard W=n/200 K=40 margin=0.0,75100,0.553
+join-zipf-s1,0.1,128,guard W=n/200 K=80 margin=0.0,78241,0.849
+join-zipf-s1,0.1,128,guard W=n/100 K=10 margin=0.0,75519,0.366
+join-zipf-s1,0.1,128,guard W=n/100 K=20 margin=0.0,75409,0.564
+join-zipf-s1,0.1,128,guard W=n/100 K=40 margin=0.0,74465,0.559
+join-zipf-s1,0.1,128,guard W=n/100 K=80 margin=0.0,78270,0.848
+join-zipf-s1,0.1,128,guard W=n/50 K=10 margin=0.0,75538,0.592
+join-zipf-s1,0.1,128,guard W=n/50 K=20 margin=0.0,74995,0.571
+join-zipf-s1,0.1,128,guard W=n/50 K=40 margin=0.0,78399,0.851
+join-zipf-s1,0.1,128,guard W=n/50 K=80 margin=0.0,79669,0.951
+join-zipf-s1,0.2,256,clock,5581,0.0
+join-zipf-s1,0.2,256,learned,3340,0.0
+join-zipf-s1,0.2,256,guard W=n/200 K=10 margin=0.0,3590,0.256
+join-zipf-s1,0.2,256,guard W=n/200 K=20 margin=0.0,3605,0.234
+join-zipf-s1,0.2,256,guard W=n/200 K=40 margin=0.0,4288,0.448
+join-zipf-s1,0.2,256,guard W=n/200 K=80 margin=0.0,4332,0.459
+join-zipf-s1,0.2,256,guard W=n/100 K=10 margin=0.0,3879,0.214
+join-zipf-s1,0.2,256,guard W=n/100 K=20 margin=0.0,4015,0.278
+join-zipf-s1,0.2,256,guard W=n/100 K=40 margin=0.0,4541,0.409
+join-zipf-s1,0.2,256,guard W=n/100 K=80 margin=0.0,5750,0.638
+join-zipf-s1,0.2,256,guard W=n/50 K=10 margin=0.0,4222,0.309
+join-zipf-s1,0.2,256,guard W=n/50 K=20 margin=0.0,4682,0.423
+join-zipf-s1,0.2,256,guard W=n/50 K=40 margin=0.0,5842,0.645
+join-zipf-s1,0.2,256,guard W=n/50 K=80 margin=0.0,6285,0.71
+heap-small-s1,0.2,82,clock,573057,0.0
+heap-small-s1,0.2,82,learned,401488,0.0
+heap-small-s1,0.2,82,guard W=n/200 K=10 margin=0.0,465579,0.103
+heap-small-s1,0.2,82,guard W=n/200 K=20 margin=0.0,443208,0.097
+heap-small-s1,0.2,82,guard W=n/200 K=40 margin=0.0,451230,0.175
+heap-small-s1,0.2,82,guard W=n/200 K=80 margin=0.0,558183,0.816
+heap-small-s1,0.2,82,guard W=n/100 K=10 margin=0.0,454178,0.18
+heap-small-s1,0.2,82,guard W=n/100 K=20 margin=0.0,458377,0.213
+heap-small-s1,0.2,82,guard W=n/100 K=40 margin=0.0,494816,0.428
+heap-small-s1,0.2,82,guard W=n/100 K=80 margin=0.0,572857,0.988
+heap-small-s1,0.2,82,guard W=n/50 K=10 margin=0.0,467629,0.291
+heap-small-s1,0.2,82,guard W=n/50 K=20 margin=0.0,502339,0.47
+heap-small-s1,0.2,82,guard W=n/50 K=40 margin=0.0,563489,0.855
+heap-small-s1,0.2,82,guard W=n/50 K=80 margin=0.0,573195,0.999
+spmv-band-s1,0.1,167,clock,4353,0.0
+spmv-band-s1,0.1,167,learned,5438,0.0
+spmv-band-s1,0.1,167,guard W=n/200 K=10 margin=0.0,4452,0.334
+spmv-band-s1,0.1,167,guard W=n/200 K=20 margin=0.0,4479,0.344
+spmv-band-s1,0.1,167,guard W=n/200 K=40 margin=0.0,4407,0.329
+spmv-band-s1,0.1,167,guard W=n/200 K=80 margin=0.0,4424,0.715
+spmv-band-s1,0.1,167,guard W=n/100 K=10 margin=0.0,4518,0.278
+spmv-band-s1,0.1,167,guard W=n/100 K=20 margin=0.0,4412,0.336
+spmv-band-s1,0.1,167,guard W=n/100 K=40 margin=0.0,4408,0.268
+spmv-band-s1,0.1,167,guard W=n/100 K=80 margin=0.0,4428,0.711
+spmv-band-s1,0.1,167,guard W=n/50 K=10 margin=0.0,4418,0.344
+spmv-band-s1,0.1,167,guard W=n/50 K=20 margin=0.0,4443,0.394
+spmv-band-s1,0.1,167,guard W=n/50 K=40 margin=0.0,4439,0.698
+spmv-band-s1,0.1,167,guard W=n/50 K=80 margin=0.0,4440,0.709
+spmv-band-s1,0.05,83,clock,298881,0.0
+spmv-band-s1,0.05,83,learned,339148,0.0
+spmv-band-s1,0.05,83,guard W=n/200 K=10 margin=0.0,302195,0.83
+spmv-band-s1,0.05,83,guard W=n/200 K=20 margin=0.0,301673,0.928
+spmv-band-s1,0.05,83,guard W=n/200 K=40 margin=0.0,298628,0.971
+spmv-band-s1,0.05,83,guard W=n/200 K=80 margin=0.0,298761,0.985
+spmv-band-s1,0.05,83,guard W=n/100 K=10 margin=0.0,306919,0.822
+spmv-band-s1,0.05,83,guard W=n/100 K=20 margin=0.0,310790,0.766
+spmv-band-s1,0.05,83,guard W=n/100 K=40 margin=0.0,327862,0.494
+spmv-band-s1,0.05,83,guard W=n/100 K=80 margin=0.0,298833,0.977
+spmv-band-s1,0.05,83,guard W=n/50 K=10 margin=0.0,300630,0.926
+spmv-band-s1,0.05,83,guard W=n/50 K=20 margin=0.0,335873,0.444
+spmv-band-s1,0.05,83,guard W=n/50 K=40 margin=0.0,299552,0.965
+spmv-band-s1,0.05,83,guard W=n/50 K=80 margin=0.0,298365,0.994
+spmv-band-s1,0.2,333,clock,4264,0.0
+spmv-band-s1,0.2,333,learned,3986,0.0
+spmv-band-s1,0.2,333,guard W=n/200 K=10 margin=0.0,4288,0.385
+spmv-band-s1,0.2,333,guard W=n/200 K=20 margin=0.0,4130,0.239
+spmv-band-s1,0.2,333,guard W=n/200 K=40 margin=0.0,4209,0.474
+spmv-band-s1,0.2,333,guard W=n/200 K=80 margin=0.0,4345,0.732
+spmv-band-s1,0.2,333,guard W=n/100 K=10 margin=0.0,4139,0.223
+spmv-band-s1,0.2,333,guard W=n/100 K=20 margin=0.0,4081,0.18
+spmv-band-s1,0.2,333,guard W=n/100 K=40 margin=0.0,4177,0.287
+spmv-band-s1,0.2,333,guard W=n/100 K=80 margin=0.0,4350,0.728
+spmv-band-s1,0.2,333,guard W=n/50 K=10 margin=0.0,4165,0.357
+spmv-band-s1,0.2,333,guard W=n/50 K=20 margin=0.0,4357,0.688
+spmv-band-s1,0.2,333,guard W=n/50 K=40 margin=0.0,4345,0.716
+spmv-band-s1,0.2,333,guard W=n/50 K=80 margin=0.0,4346,0.728
+spmv-rand-s1,0.05,83,clock,729830,0.0
+spmv-rand-s1,0.05,83,learned,775040,0.0
+spmv-rand-s1,0.05,83,guard W=n/200 K=10 margin=0.0,734052,0.861
+spmv-rand-s1,0.05,83,guard W=n/200 K=20 margin=0.0,733482,0.89
+spmv-rand-s1,0.05,83,guard W=n/200 K=40 margin=0.0,730496,0.969
+spmv-rand-s1,0.05,83,guard W=n/200 K=80 margin=0.0,730360,0.98
+spmv-rand-s1,0.05,83,guard W=n/100 K=10 margin=0.0,738477,0.795
+spmv-rand-s1,0.05,83,guard W=n/100 K=20 margin=0.0,742859,0.756
+spmv-rand-s1,0.05,83,guard W=n/100 K=40 margin=0.0,730847,0.963
+spmv-rand-s1,0.05,83,guard W=n/100 K=80 margin=0.0,730162,0.974
+spmv-rand-s1,0.05,83,guard W=n/50 K=10 margin=0.0,748689,0.684
+spmv-rand-s1,0.05,83,guard W=n/50 K=20 margin=0.0,771476,0.492
+spmv-rand-s1,0.05,83,guard W=n/50 K=40 margin=0.0,731528,0.951
+spmv-rand-s1,0.05,83,guard W=n/50 K=80 margin=0.0,729974,0.975
+spmv-rand-s1,0.2,333,clock,3944,0.0
+spmv-rand-s1,0.2,333,learned,3978,0.0
+spmv-rand-s1,0.2,333,guard W=n/200 K=10 margin=0.0,4296,0.246
+spmv-rand-s1,0.2,333,guard W=n/200 K=20 margin=0.0,4087,0.27
+spmv-rand-s1,0.2,333,guard W=n/200 K=40 margin=0.0,4316,0.407
+spmv-rand-s1,0.2,333,guard W=n/200 K=80 margin=0.0,4436,0.629
+spmv-rand-s1,0.2,333,guard W=n/100 K=10 margin=0.0,4102,0.236
+spmv-rand-s1,0.2,333,guard W=n/100 K=20 margin=0.0,4115,0.151
+spmv-rand-s1,0.2,333,guard W=n/100 K=40 margin=0.0,4087,0.256
+spmv-rand-s1,0.2,333,guard W=n/100 K=80 margin=0.0,4409,0.625
+spmv-rand-s1,0.2,333,guard W=n/50 K=10 margin=0.0,4099,0.302
+spmv-rand-s1,0.2,333,guard W=n/50 K=20 margin=0.0,4254,0.345
+spmv-rand-s1,0.2,333,guard W=n/50 K=40 margin=0.0,4419,0.615
+spmv-rand-s1,0.2,333,guard W=n/50 K=80 margin=0.0,4416,0.626
+spmv-rand-s1,0.1,167,clock,388527,0.0
+spmv-rand-s1,0.1,167,learned,417273,0.0
+spmv-rand-s1,0.1,167,guard W=n/200 K=10 margin=0.0,391737,0.744
+spmv-rand-s1,0.1,167,guard W=n/200 K=20 margin=0.0,395217,0.654
+spmv-rand-s1,0.1,167,guard W=n/200 K=40 margin=0.0,395070,0.728
+spmv-rand-s1,0.1,167,guard W=n/200 K=80 margin=0.0,388757,0.978
+spmv-rand-s1,0.1,167,guard W=n/100 K=10 margin=0.0,389048,0.913
+spmv-rand-s1,0.1,167,guard W=n/100 K=20 margin=0.0,402818,0.481
+spmv-rand-s1,0.1,167,guard W=n/100 K=40 margin=0.0,388591,0.961
+spmv-rand-s1,0.1,167,guard W=n/100 K=80 margin=0.0,388608,0.972
+spmv-rand-s1,0.1,167,guard W=n/50 K=10 margin=0.0,399812,0.68
+spmv-rand-s1,0.1,167,guard W=n/50 K=20 margin=0.0,416647,0.484
+spmv-rand-s1,0.1,167,guard W=n/50 K=40 margin=0.0,389347,0.948
+spmv-rand-s1,0.1,167,guard W=n/50 K=80 margin=0.0,388718,0.973
+graph-pr2000x2-s3,0.1,167,clock,54968,0.0
+graph-pr2000x2-s3,0.1,167,learned,58217,0.0
+graph-pr2000x2-s3,0.1,167,guard W=n/200 K=10 margin=0.0,53915,0.423
+graph-pr2000x2-s3,0.1,167,guard W=n/200 K=20 margin=0.0,54358,0.318
+graph-pr2000x2-s3,0.1,167,guard W=n/200 K=40 margin=0.0,54302,0.64
+graph-pr2000x2-s3,0.1,167,guard W=n/200 K=80 margin=0.0,54995,0.963
+graph-pr2000x2-s3,0.1,167,guard W=n/100 K=10 margin=0.0,54374,0.675
+graph-pr2000x2-s3,0.1,167,guard W=n/100 K=20 margin=0.0,54339,0.438
+graph-pr2000x2-s3,0.1,167,guard W=n/100 K=40 margin=0.0,54737,0.83
+graph-pr2000x2-s3,0.1,167,guard W=n/100 K=80 margin=0.0,54437,0.825
+graph-pr2000x2-s3,0.1,167,guard W=n/50 K=10 margin=0.0,55307,0.887
+graph-pr2000x2-s3,0.1,167,guard W=n/50 K=20 margin=0.0,54814,0.859
+graph-pr2000x2-s3,0.1,167,guard W=n/50 K=40 margin=0.0,54737,0.85
+graph-pr2000x2-s3,0.1,167,guard W=n/50 K=80 margin=0.0,55201,0.971
+graph-pr2000x2-s3,0.2,333,clock,3178,0.0
+graph-pr2000x2-s3,0.2,333,learned,2733,0.0
+graph-pr2000x2-s3,0.2,333,guard W=n/200 K=10 margin=0.0,3154,0.252
+graph-pr2000x2-s3,0.2,333,guard W=n/200 K=20 margin=0.0,3027,0.163
+graph-pr2000x2-s3,0.2,333,guard W=n/200 K=40 margin=0.0,3179,0.445
+graph-pr2000x2-s3,0.2,333,guard W=n/200 K=80 margin=0.0,3130,0.395
+graph-pr2000x2-s3,0.2,333,guard W=n/100 K=10 margin=0.0,3140,0.224
+graph-pr2000x2-s3,0.2,333,guard W=n/100 K=20 margin=0.0,3174,0.465
+graph-pr2000x2-s3,0.2,333,guard W=n/100 K=40 margin=0.0,3154,0.59
+graph-pr2000x2-s3,0.2,333,guard W=n/100 K=80 margin=0.0,3179,0.585
+graph-pr2000x2-s3,0.2,333,guard W=n/50 K=10 margin=0.0,3061,0.365
+graph-pr2000x2-s3,0.2,333,guard W=n/50 K=20 margin=0.0,3028,0.326
+graph-pr2000x2-s3,0.2,333,guard W=n/50 K=40 margin=0.0,3179,0.606
+graph-pr2000x2-s3,0.2,333,guard W=n/50 K=80 margin=0.0,3179,0.704
+kv-C-s5,0.05,26,clock,13747,0.0
+kv-C-s5,0.05,26,learned,11329,0.0
+kv-C-s5,0.05,26,guard W=n/200 K=10 margin=0.0,11725,0.211
+kv-C-s5,0.05,26,guard W=n/200 K=20 margin=0.0,11851,0.274
+kv-C-s5,0.05,26,guard W=n/200 K=40 margin=0.0,12319,0.46
+kv-C-s5,0.05,26,guard W=n/200 K=80 margin=0.0,13240,0.814
+kv-C-s5,0.05,26,guard W=n/100 K=10 margin=0.0,11767,0.212
+kv-C-s5,0.05,26,guard W=n/100 K=20 margin=0.0,11866,0.275
+kv-C-s5,0.05,26,guard W=n/100 K=40 margin=0.0,12334,0.462
+kv-C-s5,0.05,26,guard W=n/100 K=80 margin=0.0,13242,0.818
+kv-C-s5,0.05,26,guard W=n/50 K=10 margin=0.0,11942,0.331
+kv-C-s5,0.05,26,guard W=n/50 K=20 margin=0.0,12361,0.493
+kv-C-s5,0.05,26,guard W=n/50 K=40 margin=0.0,13317,0.834
+kv-C-s5,0.05,26,guard W=n/50 K=80 margin=0.0,13683,0.952
+kv-C-s5,0.1,53,clock,10350,0.0
+kv-C-s5,0.1,53,learned,9198,0.0
+kv-C-s5,0.1,53,guard W=n/200 K=10 margin=0.0,9543,0.391
+kv-C-s5,0.1,53,guard W=n/200 K=20 margin=0.0,9581,0.456
+kv-C-s5,0.1,53,guard W=n/200 K=40 margin=0.0,10103,0.807
+kv-C-s5,0.1,53,guard W=n/200 K=80 margin=0.0,10035,0.799
+kv-C-s5,0.1,53,guard W=n/100 K=10 margin=0.0,9455,0.299
+kv-C-s5,0.1,53,guard W=n/100 K=20 margin=0.0,9624,0.461
+kv-C-s5,0.1,53,guard W=n/100 K=40 margin=0.0,10063,0.81
+kv-C-s5,0.1,53,guard W=n/100 K=80 margin=0.0,10037,0.801
+kv-C-s5,0.1,53,guard W=n/50 K=10 margin=0.0,9394,0.314
+kv-C-s5,0.1,53,guard W=n/50 K=20 margin=0.0,9615,0.472
+kv-C-s5,0.1,53,guard W=n/50 K=40 margin=0.0,10124,0.818
+kv-C-s5,0.1,53,guard W=n/50 K=80 margin=0.0,10359,0.941
+kv-C-s5,0.2,105,clock,7382,0.0
+kv-C-s5,0.2,105,learned,6963,0.0
+kv-C-s5,0.2,105,guard W=n/200 K=10 margin=0.0,7092,0.38
+kv-C-s5,0.2,105,guard W=n/200 K=20 margin=0.0,7322,0.806
+kv-C-s5,0.2,105,guard W=n/200 K=40 margin=0.0,7107,0.423
+kv-C-s5,0.2,105,guard W=n/200 K=80 margin=0.0,7253,0.786
+kv-C-s5,0.2,105,guard W=n/100 K=10 margin=0.0,7085,0.383
+kv-C-s5,0.2,105,guard W=n/100 K=20 margin=0.0,7205,0.633
+kv-C-s5,0.2,105,guard W=n/100 K=40 margin=0.0,7112,0.427
+kv-C-s5,0.2,105,guard W=n/100 K=80 margin=0.0,7400,0.931
+kv-C-s5,0.2,105,guard W=n/50 K=10 margin=0.0,7163,0.493
+kv-C-s5,0.2,105,guard W=n/50 K=20 margin=0.0,7104,0.457
+kv-C-s5,0.2,105,guard W=n/50 K=40 margin=0.0,7293,0.8
+kv-C-s5,0.2,105,guard W=n/50 K=80 margin=0.0,7439,0.927
+graph-pr2000x2-s3,0.05,83,clock,1409567,0.0
+graph-pr2000x2-s3,0.05,83,learned,1453325,0.0
+graph-pr2000x2-s3,0.05,83,guard W=n/200 K=10 margin=0.0,1412038,0.807
+graph-pr2000x2-s3,0.05,83,guard W=n/200 K=20 margin=0.0,1412868,0.843
+graph-pr2000x2-s3,0.05,83,guard W=n/200 K=40 margin=0.0,1417245,0.761
+graph-pr2000x2-s3,0.05,83,guard W=n/200 K=80 margin=0.0,1410936,0.988
+graph-pr2000x2-s3,0.05,83,guard W=n/100 K=10 margin=0.0,1413663,0.806
+graph-pr2000x2-s3,0.05,83,guard W=n/100 K=20 margin=0.0,1410746,0.956
+graph-pr2000x2-s3,0.05,83,guard W=n/100 K=40 margin=0.0,1410167,0.977
+graph-pr2000x2-s3,0.05,83,guard W=n/100 K=80 margin=0.0,1409857,0.988
+graph-pr2000x2-s3,0.05,83,guard W=n/50 K=10 margin=0.0,1429138,0.484
+graph-pr2000x2-s3,0.05,83,guard W=n/50 K=20 margin=0.0,1436800,0.523
+graph-pr2000x2-s3,0.05,83,guard W=n/50 K=40 margin=0.0,1454263,0.156
+graph-pr2000x2-s3,0.05,83,guard W=n/50 K=80 margin=0.0,1455179,0.012
