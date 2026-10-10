@@ -84,6 +84,8 @@ def main():
                 continue
             key = (p, "global" if m == "global" else m)
             ck = (p, "global" if m == "own" else m)    # the own-workload linear models cost about what the global one does
+            if ck not in cm and "@" in m and m.split("@")[0] in ("lzw", "kv", "btree", "graph", "sort", "matmul", "global"):
+                ck = (p, "global@" + m.split("@")[1])   # sampled own-workload linear model: same cost as the sampled global one
             if ck not in cm:
                 continue
             ev = max(int(r["evictions"]), 1)

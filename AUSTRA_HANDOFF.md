@@ -52,7 +52,7 @@ simulator that starts empty misjudges some models; one model (set-attention) cha
 | Cost of choosing a victim against number of candidates (linear 360 instructions per candidate, trees 7,300, set-attention 27,000, CNN 30,000, MLP 51,000; Clock under 1,100 up to 512 candidates) | FINAL | `cost_grid.csv`; report section "What choosing a victim costs" |
 | Break-even: linear model of its own workload pays on a hard disk (8 ms per fault) everywhere it has one (time 0.58 to 0.94 of Clock); about breaks even on fast flash (100 us); CNN and MLP never pay | FINAL given two assumptions: 1 instruction = 1 ns, and the two fault costs (**the fault cost was never measured**) | `cost_benefit.csv` |
 | Sampling 32 candidates: linear cost stops growing with memory (11,800 instructions at 256 and at 512 candidates against 91,700 and 183,300) | FINAL | `cost_grid.csv` |
-| Sampling 32 / 16 candidates, faults vs full scan in the kernel (about 0 to 1% / 1 to 2.5% more) | **PLACEHOLDER**: lzw rows were rerun on the current build, 6 of 21 done | `kernel_eval_w16g.csv`; report table "kernelruns" |
+| Sampling in the kernel, faults vs full scan (current build, all seven lzw streams): 32 candidates 0 to 1 point more (lzw 0.837 to 0.842, patbench 0.853 to 0.861), 16 candidates 1 to 2 points (lzw 0.858, Twitter replays 0.884, patbench 0.873); cost 11,700 instructions at 32 and 5,850 at 16, whatever the memory size. With 16 sampled the linear model beats Clock in total time even on flash on lzw (0.91) and the Twitter replays (0.93) | FINAL | `kernel_eval_all.csv`, `cost_benefit.csv`, report tables "kernelruns" and "breakeven" |
 | Kernel against simulator agree within about 4% except two gaps, both explained (filled memory at start; set-attention instability) | FINAL | report section "Why the kernel and the simulator disagree" |
 | Kaggle results equal this machine's results exactly (261 of 261 runs done on both) | FINAL | report |
 | Literature baselines in the simulator (ARC, S3-FIFO, an MGLRU analogue, LHD, MRU); LHD best untrained at 0.90 to 0.95 | FINAL (simulator only; none are in the kernel) | `baselines_ext.csv`, `transfer*.csv` |
@@ -89,7 +89,8 @@ The week-15 report (`report/week_15_update/week_15_update_report.pdf`, 14 pages,
 ### 6. Resuming the unfinished runs (everything is resumable; finished runs are skipped)
 ```
 cd tools/ml2     # python is ~/.venvs/xv6ml/bin/python on GawwyG's machine
-# lzw sampled-scoring reruns on the current build (6 of 21 done) -> kernel_eval_w16g.csv
+# (the lzw sampled-scoring reruns are finished: 21 of 21)
+# kept for reference: how they were run -> kernel_eval_w16g.csv
 KERNEL_EVAL_OUT=kernel_eval_w16g.csv KERNEL_EVAL_LANES=/tmp/xv6G python -u kernel_eval.py --lanes 6 --fracs 0.1 \
   --only lzw-r20-s5,lzw-r30-s0,lzw-r30-s1,lzw-r30-s2,lzw-r30-s3,lzw-r30-s4,lzw-r30-s5 --splits test,heldout --models lzw@16,lzw@32,lzw@64
 # (the trained-on-all simulation is finished: 24 of 24 cells)

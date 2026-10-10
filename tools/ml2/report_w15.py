@@ -357,8 +357,10 @@ def cost_tables():
         rows = list(csv.DictReader(open(cb)))
         pick = {"ml:own": "linear, own workload", "ml:cnn-kv": "CNN", "ml:mlp-kv": "MLP", "ml:trees-kv": "boosted trees"}
         body = []
+        extra = {"lzw": {"ml:lzw@32": "linear, own, 32 sampled", "ml:lzw@16": "linear, own, 16 sampled"},
+                 "kv-T": {"ml:kv@32": "linear, own, 32 sampled", "ml:kv@16": "linear, own, 16 sampled"}}
         for wl in ("btree", "graph", "kv", "kv-T", "lzw", "heap", "join", "sort"):
-            for k, nm in pick.items():
+            for k, nm in {**pick, **extra.get(wl, {})}.items():
                 r = next((x for x in rows if x["workload"] == wl and x["policy"] == k), None)
                 if r:
                     be = r["break_even_us"]

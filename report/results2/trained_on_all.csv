@@ -179,3 +179,111 @@ btree-mixed-s5,0.05,88,set-attention | one workload,90222,5.9
 btree-mixed-s5,0.05,88,set-attention | all workloads,64112,4.2
 btree-mixed-s5,0.05,88,ranking trees | one workload,74929,3.6
 btree-mixed-s5,0.05,88,ranking trees | all workloads,82851,3.5
+btree-mixed-s5,0.1,176,clock,58015,0.0
+btree-mixed-s5,0.1,176,"linear, global",48779,0.2
+btree-mixed-s5,0.1,176,CNN on aging bits | one workload,52994,8.0
+btree-mixed-s5,0.1,176,CNN on aging bits | all workloads,48112,7.8
+btree-mixed-s5,0.1,176,deeper MLP | one workload,54629,13.6
+btree-mixed-s5,0.1,176,deeper MLP | all workloads,47436,11.7
+btree-mixed-s5,0.1,176,boosted trees | one workload,52705,6.4
+btree-mixed-s5,0.1,176,boosted trees | all workloads,56034,5.2
+btree-mixed-s5,0.1,176,set-attention | one workload,63211,8.1
+btree-mixed-s5,0.1,176,set-attention | all workloads,51470,6.5
+btree-mixed-s5,0.1,176,ranking trees | one workload,65088,6.4
+btree-mixed-s5,0.1,176,ranking trees | all workloads,70125,5.8
+kv-A-s5,0.05,26,clock,14110,0.0
+kv-A-s5,0.05,26,"linear, global",11470,0.0
+kv-A-s5,0.05,26,CNN on aging bits | one workload,11124,0.3
+kv-A-s5,0.05,26,CNN on aging bits | all workloads,11797,0.3
+kv-A-s5,0.05,26,deeper MLP | one workload,11200,0.4
+kv-A-s5,0.05,26,deeper MLP | all workloads,11554,0.4
+kv-A-s5,0.05,26,boosted trees | one workload,11223,0.2
+kv-A-s5,0.05,26,boosted trees | all workloads,11596,0.2
+kv-A-s5,0.05,26,set-attention | one workload,21276,0.4
+kv-A-s5,0.05,26,set-attention | all workloads,11282,0.2
+kv-A-s5,0.05,26,ranking trees | one workload,11554,0.2
+kv-A-s5,0.05,26,ranking trees | all workloads,13067,0.2
+kv-A-s5,0.1,53,clock,10342,0.0
+kv-A-s5,0.1,53,"linear, global",9179,0.0
+kv-A-s5,0.1,53,CNN on aging bits | one workload,8833,0.4
+kv-A-s5,0.1,53,CNN on aging bits | all workloads,9879,0.4
+kv-A-s5,0.1,53,deeper MLP | one workload,8892,0.6
+kv-A-s5,0.1,53,deeper MLP | all workloads,9742,0.7
+kv-A-s5,0.1,53,boosted trees | one workload,9340,0.3
+kv-A-s5,0.1,53,boosted trees | all workloads,9875,0.3
+kv-A-s5,0.1,53,set-attention | one workload,20777,0.8
+kv-A-s5,0.1,53,set-attention | all workloads,9491,0.4
+kv-A-s5,0.1,53,ranking trees | one workload,9121,0.3
+kv-A-s5,0.1,53,ranking trees | all workloads,10989,0.3
+kv-A-s5,0.2,106,clock,7286,0.0
+kv-A-s5,0.2,106,"linear, global",6921,0.0
+kv-A-s5,0.2,106,CNN on aging bits | one workload,6486,0.5
+kv-A-s5,0.2,106,CNN on aging bits | all workloads,7621,0.7
+kv-A-s5,0.2,106,deeper MLP | one workload,6509,1.0
+kv-A-s5,0.2,106,deeper MLP | all workloads,7438,1.2
+kv-A-s5,0.2,106,boosted trees | one workload,7302,0.7
+kv-A-s5,0.2,106,boosted trees | all workloads,7775,0.5
+kv-A-s5,0.2,106,set-attention | one workload,15148,1.3
+kv-A-s5,0.2,106,set-attention | all workloads,7490,0.7
+kv-A-s5,0.2,106,ranking trees | one workload,7181,0.6
+kv-A-s5,0.2,106,ranking trees | all workloads,8472,0.7
+kv-T17-s1,0.05,26,clock,6028,0.0
+kv-T17-s1,0.05,26,"linear, global",4718,0.0
+kv-T17-s1,0.05,26,CNN on aging bits | one workload,4611,0.2
+kv-T17-s1,0.05,26,CNN on aging bits | all workloads,4530,0.2
+kv-T17-s1,0.05,26,deeper MLP | one workload,4615,0.2
+kv-T17-s1,0.05,26,deeper MLP | all workloads,4539,0.2
+kv-T17-s1,0.05,26,boosted trees | one workload,4635,0.1
+kv-T17-s1,0.05,26,boosted trees | all workloads,4567,0.1
+kv-T17-s1,0.05,26,set-attention | one workload,10068,0.2
+kv-T17-s1,0.05,26,set-attention | all workloads,4573,0.1
+kv-T17-s1,0.05,26,ranking trees | one workload,6180,0.1
+kv-T17-s1,0.05,26,ranking trees | all workloads,4535,0.1
+kv-T17-s1,0.1,52,clock,3896,0.0
+kv-T17-s1,0.1,52,"linear, global",3028,0.0
+kv-T17-s1,0.1,52,CNN on aging bits | one workload,3035,0.2
+kv-T17-s1,0.1,52,CNN on aging bits | all workloads,3029,0.2
+kv-T17-s1,0.1,52,deeper MLP | one workload,3060,0.3
+kv-T17-s1,0.1,52,deeper MLP | all workloads,3102,0.3
+kv-T17-s1,0.1,52,boosted trees | one workload,3056,0.2
+kv-T17-s1,0.1,52,boosted trees | all workloads,3137,0.1
+kv-T17-s1,0.1,52,set-attention | one workload,6973,0.4
+kv-T17-s1,0.1,52,set-attention | all workloads,3112,0.3
+kv-T17-s1,0.1,52,ranking trees | one workload,4657,0.2
+kv-T17-s1,0.1,52,ranking trees | all workloads,3158,0.1
+kv-T17-s1,0.2,104,clock,2373,0.0
+kv-T17-s1,0.2,104,"linear, global",1982,0.0
+kv-T17-s1,0.2,104,CNN on aging bits | one workload,1916,0.3
+kv-T17-s1,0.2,104,CNN on aging bits | all workloads,1961,0.2
+kv-T17-s1,0.2,104,deeper MLP | one workload,1935,0.4
+kv-T17-s1,0.2,104,deeper MLP | all workloads,2047,0.5
+kv-T17-s1,0.2,104,boosted trees | one workload,1958,0.2
+kv-T17-s1,0.2,104,boosted trees | all workloads,1953,0.2
+kv-T17-s1,0.2,104,set-attention | one workload,6120,0.6
+kv-T17-s1,0.2,104,set-attention | all workloads,2243,0.2
+kv-T17-s1,0.2,104,ranking trees | one workload,3325,0.3
+kv-T17-s1,0.2,104,ranking trees | all workloads,2069,0.2
+btree-mixed-s5,0.2,352,clock,37658,0.0
+btree-mixed-s5,0.2,352,"linear, global",34676,0.3
+btree-mixed-s5,0.2,352,CNN on aging bits | one workload,35571,10.9
+btree-mixed-s5,0.2,352,CNN on aging bits | all workloads,34480,11.0
+btree-mixed-s5,0.2,352,deeper MLP | one workload,37895,18.6
+btree-mixed-s5,0.2,352,deeper MLP | all workloads,34108,16.3
+btree-mixed-s5,0.2,352,boosted trees | one workload,36322,9.5
+btree-mixed-s5,0.2,352,boosted trees | all workloads,39336,7.8
+btree-mixed-s5,0.2,352,set-attention | one workload,57485,14.2
+btree-mixed-s5,0.2,352,set-attention | all workloads,37506,11.2
+btree-mixed-s5,0.2,352,ranking trees | one workload,50685,10.8
+btree-mixed-s5,0.2,352,ranking trees | all workloads,48157,8.5
+heap-small-s1,0.2,82,clock,573057,0.1
+heap-small-s1,0.2,82,"linear, global",401488,0.9
+heap-small-s1,0.2,82,CNN on aging bits | one workload,573591,39.5
+heap-small-s1,0.2,82,CNN on aging bits | all workloads,544152,35.9
+heap-small-s1,0.2,82,deeper MLP | one workload,575935,69.4
+heap-small-s1,0.2,82,deeper MLP | all workloads,542894,66.0
+heap-small-s1,0.2,82,boosted trees | one workload,537175,26.2
+heap-small-s1,0.2,82,boosted trees | all workloads,558185,28.3
+heap-small-s1,0.2,82,set-attention | one workload,392118,33.3
+heap-small-s1,0.2,82,set-attention | all workloads,392986,31.0
+heap-small-s1,0.2,82,ranking trees | one workload,558856,31.6
+heap-small-s1,0.2,82,ranking trees | all workloads,407990,16.9

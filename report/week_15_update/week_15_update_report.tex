@@ -58,7 +58,7 @@ sizes of 5, 10 and 20\% of each program's pages.
 \item \textbf{In the xv6 kernel} (157 runs on the new workloads, plus 61 with sampled scoring): the learned
   policy cuts faults by 16\% on lzw (0.84), 15\% on the Twitter replays (0.85) and 15\% on patbench (0.85)
   against Clock, and does nothing on the application programs (1.00). The simulator predicts kernel faults to
-  within about 4\%, and the two larger gaps are explained (Section~\ref{sec:gap}). Sampled scoring, now in the kernel, roughly halves the selection cost for 1--2.5\% more faults.
+  within about 4\%, and the two larger gaps are explained (Section~\ref{sec:gap}). Scoring only 32 random candidates (now in the kernel) costs 0 to 1 point of faults (lzw 0.837 to 0.842, patbench 0.853 to 0.861) and cuts the cost of choosing by a quarter to two thirds; with 16 candidates the linear model beats Clock in total time even on fast flash on lzw (0.91) and the Twitter replays (0.93).
 \item \textbf{Five extra models were ported to the kernel and their time delay measured} (Section~\ref{sec:five}). On kv a CNN over the
   aging bits and a deeper MLP are about 2.5\% better than the linear model, but cost 85 and 148 times its instructions per eviction
   (1.7 and 2.9 million instructions against 19\,000); boosted trees equal it at 21 times; on graph the linear model is clearly
@@ -237,10 +237,10 @@ per eviction (Clock: 24). ``@k'' scans and scores only k random candidates per e
   starting the simulator from filled memory brings the ratio to 1.00 (Section~\ref{sec:gap}).
 \item The learned policy saves 16\% of faults on lzw (per-workload model; 6\% for the global model), 15\% on the
   Twitter replays and 15\% on patbench, and does not help on the application programs.
-\item \textbf{Cost, and sampled scoring.} The full scorer costs 170--430 ticks per eviction against 24 for
-  Clock (7--17$\times$). Scanning and scoring a random sample of 32 candidates takes 40--80\% of that (136
-  ticks on lzw, 157 on the Twitter replays, 182 on patbench) for 0--1\% more faults; 16 candidates takes 30--55\% for 1--2.5\%. The
-  sampler is a partial Fisher--Yates over the candidate array and needs no extra memory.
+\item \textbf{Cost, and sampled scoring.} The full scorer costs 15\,600 to 36\,600 instructions per eviction at these memory sizes (43 to 102 candidates), against about 400 for
+  Clock. Scanning and scoring a random sample of 32 candidates costs 11\,700 instructions whatever the memory size (75\% of the full scan on lzw, 63\% on the Twitter replays, 32\% on
+  patbench) and 0 to 1 point of faults (lzw 0.837 to 0.842, Twitter replays 0.876 to 0.875, patbench 0.853 to 0.861); 16 candidates cost 5\,850 instructions (38\%, 32\% and 16\%) and 1 to 2 points
+  (lzw 0.858, Twitter replays 0.884, patbench 0.873). The sampler is a partial Fisher--Yates over the candidate array and needs no extra memory.
 \end{itemize}
 
 \section{The five extra models in the kernel}
@@ -290,8 +290,8 @@ timer reads and the surrounding eviction code. At one nanosecond per instruction
   to 1\% on the replays, so the conversion and the kernel code are right. On graph the kernel and simulator disagree more
   (ranking trees 1.06, set-attention 1.59 times the simulator's faults), but graph is noisy for every policy (Clock itself is 0.85
   times its simulated faults) because of capacity cliffs. The poor set-attention result in the kernel is explained in Section~\ref{sec:gap}: the model is unstable.
-\item \textbf{Cheaper linear scoring is the better trade.} Scoring 16 sampled candidates costs 0.3 times the full linear model's
-  instructions for 1--2.5\% more faults.
+\item \textbf{Cheaper linear scoring is the better trade.} Scoring 16 sampled candidates costs about a third of the full linear model's
+  instructions at 43 to 51 candidates (a sixth at 102) for 0.8 to 2.1 points more faults.
 \end{itemize}
 
 \section{Programs from AU5TRA}
@@ -450,7 +450,8 @@ disk) and 8\,ms (a hard disk).
 \item The CNN and the MLP never pay: their break-even is 10 to 670 ms per fault, and they are 1.0 to 2.4 times slower than Clock on a hard disk
   and 5 to 111 times slower on flash. Set-attention costs about as much as the CNN and does worse in faults, so it cannot pay either.
 \item Boosted trees pay only on a hard disk, on kv (0.93 of Clock's time) and kv-T (0.90), and nowhere else.
-\item Sampling keeps the linear model's choosing cost from growing with the memory size.
+\item Sampling keeps the linear model's choosing cost from growing with the memory size, and it moves the break-even: with 16 sampled candidates the linear model
+  beats Clock in total time even on fast flash on lzw (0.91) and the Twitter replays (0.93); with 32 sampled, 0.94 and 0.97 (without sampling: 0.96 and 1.03).
 \end{itemize}
 
 \textbf{How sure are the kernel numbers?} A kernel run repeats exactly, so there is no run-to-run noise. What varies is the stream, so for each workload I resampled
