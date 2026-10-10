@@ -153,12 +153,21 @@ VARIANTS = [
 # other graph variants share.
 GRAPH_REPEAT = {"graph-both1000x3"}
 
+# AU5TRA's programs (merged from her branch): only seed 1 of each was handed over (traces3/), and her patbench has no zipf080
+# mode there. Their other seeds and repeats stay in the manifest, in phase "external": tools/check_streams.py reports them as
+# not collected here but does not fail on them, and tools/run_stream_lanes.sh does not run them unless asked for that phase.
+EXTERNAL_PREFIXES = ("chase-", "join-", "bloom-", "spmv-", "heap-", "patb-")
+NOT_HANDED_OVER = {"patb-zipf080"}
+
 print("# stem\test_s\tphase\tcommand")
 for prefix, est, seeds, cmd in VARIANTS:
+    ext = prefix.startswith(EXTERNAL_PREFIXES)
     for s in seeds:
         phase = "pilot" if s == seeds[0] else "dataset"
+        if ext and (s != 1 or prefix in NOT_HANDED_OVER):
+            phase = "external"
         print("%s-s%d\t%d\t%s\t%s" % (prefix, s, est, phase,
                                       cmd.format(m=MARGIN, s=s)))
     if not prefix.startswith("graph-") or prefix in GRAPH_REPEAT:
-        print("%s-s%d-rep\t%d\tpilot\t%s" % (prefix, seeds[0], est,
-                                             cmd.format(m=MARGIN, s=seeds[0])))
+        print("%s-s%d-rep\t%d\t%s\t%s" % (prefix, seeds[0], est, "external" if ext else "pilot",
+                                           cmd.format(m=MARGIN, s=seeds[0])))

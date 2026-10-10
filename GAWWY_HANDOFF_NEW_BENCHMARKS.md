@@ -4,16 +4,16 @@
 AU5TRA, 2026-10-07). It assumes you can build xv6 and run the collection
 scripts, but not that you followed this week's changes on the workload side.
 
-**Status (updated 2026-10-09)**: ten of the eleven are implemented and validated on branch `GawwyDev`; only the
-malloc/free churn program remains.
+**Status (updated 2026-10-09)**: all eleven are implemented and validated on branch `GawwyDev` (six synthetic patterns by me, the application programs by AU5TRA and me).
 * The six synthetic patterns (loop, scan + hot set, Zipf with a skew knob, uniform, phase change, frequency/recency
   switch) are `user/patbench.c` (11 modes: the Zipf and phase rows have several variants). Host model
   `tools/patbench_model.py`; 66 streams in `traces2/pat/`; known answers checked in the simulator.
 * Pointer chase, SpMV (CSR), hash join and Bloom filter are `user/appbench.c` (`chase`, `spmv`, `hashjoin`, `bloom`),
   host model `tools/appbench_model.py`; 16 streams in `traces2/app/`; the kernel's trace equals the model reference by
   reference for all four modes.
-* Not done: **malloc/free churn** (heap growth and fragmentation through `sbrk`). Its page string depends on
-  `umalloc`'s behaviour, so it needs either a kernel-collected trace per run or a model of `umalloc`.
+* AU5TRA's branch (merged 2026-10-10) added her own versions of the application programs (`chasebench`, `joinbench`, `bloombench`, `spmvbench`) and
+  the malloc/free churn program `heapbench`, each with a host model in `tools/hostmodel/`; in our kernel their traces equal her models and their streams are in the
+  dataset. Her patbench became `user/patbench2.c` (stems `patb-*`) because it has different strings from mine.
 * Details of what was built, the checks and the results: `AUSTRA_HANDOFF.md` (week-15 addendum) and
   `report/week_15_update/week_15_update_report.pdf`. The sections below are the original plan and were followed in
   spirit (the rules in section 3 each caught a real bug), but the mode names and sizes in section 5 differ from what was built.

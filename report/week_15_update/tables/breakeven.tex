@@ -1,0 +1,36 @@
+\begin{tabular}{llrrrrr}
+\toprule
+workload & policy & faults / Clock & instructions to choose & break-even (\textmu s per fault) & time / Clock, SSD & time / Clock, disk \\
+\midrule
+btree & linear, own workload & 0.84 & 82,398 & 527 & 1.509 & 0.848 \\
+btree & CNN & 0.948 & 6,825,367 & 208,093 & 63.184 & 1.742 \\
+btree & MLP & 0.974 & 11,776,868 & 670,968 & 111.236 & 2.375 \\
+btree & boosted trees & 0.901 & 1,686,784 & 18,662 & 15.534 & 1.09 \\
+graph & linear, own workload & 0.576 & 57,649 & 128 & 0.901 & 0.58 \\
+graph & CNN & 0.873 & 4,807,623 & 18,310 & 41.808 & 1.394 \\
+graph & MLP & 0.629 & 8,295,461 & 23,871 & 51.549 & 1.276 \\
+graph & boosted trees & 0.959 & 1,189,284 & 11,688 & 12.097 & 1.101 \\
+kv & linear, own workload & 0.873 & 20,236 & 149 & 1.045 & 0.875 \\
+kv & CNN & 0.843 & 1,757,359 & 10,696 & 15.506 & 1.028 \\
+kv & MLP & 0.844 & 3,032,548 & 18,385 & 26.191 & 1.164 \\
+kv & boosted trees & 0.878 & 437,203 & 3,780 & 4.68 & 0.926 \\
+kv-T & linear, own workload & 0.876 & 18,469 & 130 & 1.034 & 0.878 \\
+kv-T & CNN & 0.853 & 1,613,266 & 10,424 & 14.541 & 1.024 \\
+kv-T & MLP & 0.86 & 2,783,931 & 17,533 & 24.686 & 1.159 \\
+kv-T & boosted trees & 0.853 & 401,675 & 2,689 & 4.261 & 0.896 \\
+lzw & linear, own workload & 0.837 & 15,589 & 95 & 0.963 & 0.838 \\
+lzw & CNN & 0.983 & 1,378,500 & 83,605 & 14.42 & 1.152 \\
+lzw & MLP & 1.087 & 2,378,865 & never & 26.715 & 1.409 \\
+lzw & boosted trees & 0.964 & 343,790 & 9,656 & 4.25 & 1.005 \\
+heap & CNN & 0.984 & 2,371,744 & 113,534 & 20.777 & 1.264 \\
+heap & MLP & 1.001 & 4,092,605 & >1,000,000 & 35.644 & 1.484 \\
+heap & boosted trees & 0.931 & 588,687 & 16,327 & 5.665 & 0.999 \\
+join & CNN & 0.969 & 4,598,555 & 145,032 & 44.23 & 1.521 \\
+join & MLP & 0.98 & 7,934,737 & 738,963 & 76.441 & 1.939 \\
+join & boosted trees & 0.995 & 1,137,735 & 260,608 & 12.002 & 1.136 \\
+sort & linear, own workload & 0.944 & 3,536 & 59 & 0.974 & 0.944 \\
+sort & CNN & 1.0 & 395,813 & 21,055 & 4.839 & 1.049 \\
+sort & MLP & 1.018 & 683,342 & never & 7.754 & 1.105 \\
+sort & boosted trees & 1.056 & 101,496 & never & 2.106 & 1.07 \\
+\bottomrule
+\end{tabular}

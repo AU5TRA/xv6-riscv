@@ -2,39 +2,39 @@
 \toprule
 workload & policy & runs & faults / Clock & select ticks / eviction \\
 \midrule
-lzw & fifo & 7 & 1.132 & 8 \\
-lzw & clock & 7 & 1.000 & 25 \\
-lzw & aging & 7 & 1.050 & 90 \\
-lzw & lfu & 7 & 1.060 & 90 \\
-lzw & ml global & 7 & 0.941 & 202 \\
-lzw & ml lzw & 7 & 0.837 & 174 \\
-lzw & ml lzw@64 & 7 & 0.837 & 173 \\
-lzw & ml lzw@32 & 7 & 0.842 & 136 \\
-lzw & ml lzw@16 & 7 & 0.858 & 93 \\
-kv-T & fifo & 6 & 1.315 & 8 \\
-kv-T & clock & 6 & 1.000 & 24 \\
-kv-T & aging & 6 & 1.123 & 104 \\
-kv-T & lfu & 6 & 1.180 & 102 \\
-kv-T & ml global & 6 & 0.846 & 223 \\
-kv-T & ml global@32 & 6 & 0.849 & 157 \\
-kv-T & ml kv & 6 & 0.876 & 263 \\
-kv-T & ml kv@32 & 6 & 0.875 & 153 \\
-kv-T & ml kv@16 & 6 & 0.884 & 104 \\
-pat & fifo & 7 & 1.195 & 10 \\
-pat & clock & 7 & 1.000 & 22 \\
-pat & aging & 7 & 1.143 & 158 \\
-pat & lfu & 7 & 1.148 & 159 \\
-pat & ml global & 7 & 0.853 & 428 \\
-pat & ml global@32 & 7 & 0.861 & 182 \\
-pat & ml global@16 & 7 & 0.873 & 117 \\
-pat & ml global-k & 7 & 0.950 & 370 \\
-app & fifo & 4 & 1.221 & 10 \\
+lzw & fifo & 2 & 1.132 & 9 \\
+lzw & clock & 2 & 1.000 & 25 \\
+lzw & aging & 2 & 1.054 & 87 \\
+lzw & lfu & 2 & 1.064 & 84 \\
+lzw & ml global & 2 & 0.942 & 232 \\
+lzw & ml lzw & 2 & 0.830 & 257 \\
+lzw & ml lzw@64 & 2 & 0.830 & 306 \\
+lzw & ml lzw@32 & 2 & 0.837 & 227 \\
+lzw & ml lzw@16 & 2 & 0.854 & 145 \\
+kv-T & fifo & 6 & 1.315 & 9 \\
+kv-T & clock & 6 & 1.000 & 25 \\
+kv-T & aging & 6 & 1.123 & 100 \\
+kv-T & lfu & 6 & 1.180 & 97 \\
+kv-T & ml global & 6 & 0.846 & 261 \\
+kv-T & ml global@32 & 6 & 0.849 & 192 \\
+kv-T & ml kv & 6 & 0.876 & 314 \\
+kv-T & ml kv@32 & 6 & 0.875 & 223 \\
+kv-T & ml kv@16 & 6 & 0.884 & 141 \\
+pat & fifo & 7 & 1.195 & 11 \\
+pat & clock & 7 & 1.000 & 23 \\
+pat & aging & 7 & 1.143 & 159 \\
+pat & lfu & 7 & 1.148 & 156 \\
+pat & ml global & 7 & 0.853 & 440 \\
+pat & ml global@32 & 7 & 0.861 & 213 \\
+pat & ml global@16 & 7 & 0.873 & 159 \\
+pat & ml global-k & 7 & 0.950 & 377 \\
+app & fifo & 4 & 1.219 & 11 \\
 app & clock & 4 & 1.000 & 24 \\
-app & aging & 4 & 0.983 & 133 \\
-app & lfu & 4 & 1.092 & 134 \\
-app & ml global & 4 & 1.004 & 308 \\
-app & ml global@32 & 4 & 0.996 & 148 \\
-app & ml global@16 & 4 & 0.992 & 103 \\
-app & ml global-k & 4 & 0.997 & 273 \\
+app & aging & 4 & 0.982 & 124 \\
+app & lfu & 4 & 1.091 & 122 \\
+app & ml global & 4 & 1.004 & 348 \\
+app & ml global@32 & 4 & 0.996 & 186 \\
+app & ml global@16 & 4 & 0.993 & 128 \\
+app & ml global-k & 4 & 0.997 & 311 \\
 \bottomrule
 \end{tabular}

@@ -1,0 +1,169 @@
+stem,fraction,frames,policy,faults,seconds
+matmul-blocked128-s1,0.2,10,clock,3710,0.1
+matmul-blocked128-s1,0.2,10,"linear, global",3838,0.3
+matmul-blocked128-s1,0.2,10,CNN on aging bits | one workload,3759,0.4
+matmul-blocked128-s1,0.2,10,CNN on aging bits | all workloads,2930,0.3
+matmul-blocked128-s1,0.2,10,deeper MLP | one workload,3785,0.5
+matmul-blocked128-s1,0.2,10,deeper MLP | all workloads,2960,0.4
+matmul-blocked128-s1,0.2,10,boosted trees | one workload,3876,0.3
+matmul-blocked128-s1,0.2,10,boosted trees | all workloads,3320,0.2
+matmul-blocked128-s1,0.2,10,set-attention | one workload,4062,0.3
+matmul-blocked128-s1,0.2,10,set-attention | all workloads,2930,0.4
+matmul-blocked128-s1,0.2,10,ranking trees | one workload,4752,0.2
+matmul-blocked128-s1,0.2,10,ranking trees | all workloads,3461,0.2
+matmul-blocked128-s1,0.1,5,clock,4152,0.1
+matmul-blocked128-s1,0.1,5,"linear, global",6192,0.3
+matmul-blocked128-s1,0.1,5,CNN on aging bits | one workload,4520,0.3
+matmul-blocked128-s1,0.1,5,CNN on aging bits | all workloads,4171,0.3
+matmul-blocked128-s1,0.1,5,deeper MLP | one workload,4274,0.4
+matmul-blocked128-s1,0.1,5,deeper MLP | all workloads,4587,0.4
+matmul-blocked128-s1,0.1,5,boosted trees | one workload,4572,0.3
+matmul-blocked128-s1,0.1,5,boosted trees | all workloads,4940,0.3
+matmul-blocked128-s1,0.1,5,set-attention | one workload,4144,0.3
+matmul-blocked128-s1,0.1,5,set-attention | all workloads,4164,0.3
+matmul-blocked128-s1,0.1,5,ranking trees | one workload,4834,0.3
+matmul-blocked128-s1,0.1,5,ranking trees | all workloads,4189,0.3
+matmul-blocked128-s1,0.05,2,clock,1048576,0.1
+matmul-blocked128-s1,0.05,2,"linear, global",620398,0.4
+matmul-blocked128-s1,0.05,2,CNN on aging bits | one workload,1044790,3.6
+matmul-blocked128-s1,0.05,2,CNN on aging bits | all workloads,596291,2.2
+matmul-blocked128-s1,0.05,2,deeper MLP | one workload,811492,4.6
+matmul-blocked128-s1,0.05,2,deeper MLP | all workloads,652840,4.3
+matmul-blocked128-s1,0.05,2,boosted trees | one workload,782291,2.1
+matmul-blocked128-s1,0.05,2,boosted trees | all workloads,686052,2.1
+matmul-blocked128-s1,0.05,2,set-attention | one workload,786986,3.1
+matmul-blocked128-s1,0.05,2,set-attention | all workloads,731497,4.5
+matmul-blocked128-s1,0.05,2,ranking trees | one workload,544212,1.5
+matmul-blocked128-s1,0.05,2,ranking trees | all workloads,770425,2.6
+spmv-band-s1,0.2,333,clock,4264,0.1
+spmv-band-s1,0.2,333,"linear, global",3986,0.4
+spmv-band-s1,0.2,333,CNN on aging bits | one workload,4358,2.9
+spmv-band-s1,0.2,333,CNN on aging bits | all workloads,4044,3.3
+spmv-band-s1,0.2,333,deeper MLP | one workload,4358,5.5
+spmv-band-s1,0.2,333,deeper MLP | all workloads,4137,4.3
+spmv-band-s1,0.2,333,boosted trees | one workload,5146,2.2
+spmv-band-s1,0.2,333,boosted trees | all workloads,4640,3.5
+spmv-band-s1,0.2,333,set-attention | one workload,35709,19.0
+spmv-band-s1,0.2,333,set-attention | all workloads,5399,3.8
+spmv-band-s1,0.2,333,ranking trees | one workload,12069,4.6
+spmv-band-s1,0.2,333,ranking trees | all workloads,5209,4.4
+spmv-band-s1,0.1,167,clock,4353,0.1
+spmv-band-s1,0.1,167,"linear, global",5438,0.3
+spmv-band-s1,0.1,167,CNN on aging bits | one workload,4875,2.2
+spmv-band-s1,0.1,167,CNN on aging bits | all workloads,4428,1.8
+spmv-band-s1,0.1,167,deeper MLP | one workload,5002,2.9
+spmv-band-s1,0.1,167,deeper MLP | all workloads,4549,2.9
+spmv-band-s1,0.1,167,boosted trees | one workload,5655,1.7
+spmv-band-s1,0.1,167,boosted trees | all workloads,7255,1.7
+spmv-band-s1,0.1,167,set-attention | one workload,11863,3.7
+spmv-band-s1,0.1,167,set-attention | all workloads,6655,1.6
+spmv-band-s1,0.1,167,ranking trees | one workload,13024,4.3
+spmv-band-s1,0.1,167,ranking trees | all workloads,191787,32.8
+heap-small-s1,0.05,20,clock,640348,0.1
+heap-small-s1,0.05,20,"linear, global",599435,0.9
+heap-small-s1,0.05,20,CNN on aging bits | one workload,640194,22.9
+heap-small-s1,0.05,20,CNN on aging bits | all workloads,638655,24.5
+heap-small-s1,0.05,20,deeper MLP | one workload,640846,35.1
+heap-small-s1,0.05,20,deeper MLP | all workloads,639860,34.5
+heap-small-s1,0.05,20,boosted trees | one workload,639122,15.1
+heap-small-s1,0.05,20,boosted trees | all workloads,643514,12.1
+heap-small-s1,0.05,20,set-attention | one workload,601699,19.1
+heap-small-s1,0.05,20,set-attention | all workloads,591629,18.8
+heap-small-s1,0.05,20,ranking trees | one workload,648347,15.8
+heap-small-s1,0.05,20,ranking trees | all workloads,602716,11.7
+sort-n40000-s3,0.05,4,clock,1378,0.0
+sort-n40000-s3,0.05,4,"linear, global",1397,0.0
+sort-n40000-s3,0.05,4,CNN on aging bits | one workload,1538,0.1
+sort-n40000-s3,0.05,4,CNN on aging bits | all workloads,1477,0.1
+sort-n40000-s3,0.05,4,deeper MLP | one workload,1483,0.1
+sort-n40000-s3,0.05,4,deeper MLP | all workloads,1374,0.1
+sort-n40000-s3,0.05,4,boosted trees | one workload,1581,0.1
+sort-n40000-s3,0.05,4,boosted trees | all workloads,1370,0.1
+sort-n40000-s3,0.05,4,set-attention | one workload,1653,0.1
+sort-n40000-s3,0.05,4,set-attention | all workloads,1340,0.1
+sort-n40000-s3,0.05,4,ranking trees | one workload,1693,0.1
+sort-n40000-s3,0.05,4,ranking trees | all workloads,1297,0.1
+sort-n40000-s3,0.1,8,clock,1269,0.0
+sort-n40000-s3,0.1,8,"linear, global",1251,0.1
+sort-n40000-s3,0.1,8,CNN on aging bits | one workload,1282,0.1
+sort-n40000-s3,0.1,8,CNN on aging bits | all workloads,1296,0.1
+sort-n40000-s3,0.1,8,deeper MLP | one workload,1286,0.1
+sort-n40000-s3,0.1,8,deeper MLP | all workloads,1241,0.1
+sort-n40000-s3,0.1,8,boosted trees | one workload,1429,0.1
+sort-n40000-s3,0.1,8,boosted trees | all workloads,1287,0.1
+sort-n40000-s3,0.1,8,set-attention | one workload,1408,0.1
+sort-n40000-s3,0.1,8,set-attention | all workloads,1260,0.1
+sort-n40000-s3,0.1,8,ranking trees | one workload,1554,0.1
+sort-n40000-s3,0.1,8,ranking trees | all workloads,1218,0.1
+sort-n40000-s3,0.2,16,clock,1268,0.0
+sort-n40000-s3,0.2,16,"linear, global",1151,0.1
+sort-n40000-s3,0.2,16,CNN on aging bits | one workload,1266,0.1
+sort-n40000-s3,0.2,16,CNN on aging bits | all workloads,1120,0.1
+sort-n40000-s3,0.2,16,deeper MLP | one workload,1268,0.1
+sort-n40000-s3,0.2,16,deeper MLP | all workloads,1122,0.1
+sort-n40000-s3,0.2,16,boosted trees | one workload,1300,0.1
+sort-n40000-s3,0.2,16,boosted trees | all workloads,1150,0.1
+sort-n40000-s3,0.2,16,set-attention | one workload,1138,0.1
+sort-n40000-s3,0.2,16,set-attention | all workloads,1133,0.1
+sort-n40000-s3,0.2,16,ranking trees | one workload,1468,0.1
+sort-n40000-s3,0.2,16,ranking trees | all workloads,1097,0.1
+join-zipf-s1,0.05,64,clock,125468,0.0
+join-zipf-s1,0.05,64,"linear, global",114343,0.4
+join-zipf-s1,0.05,64,CNN on aging bits | one workload,122449,13.5
+join-zipf-s1,0.05,64,CNN on aging bits | all workloads,118277,12.8
+join-zipf-s1,0.05,64,deeper MLP | one workload,121604,22.6
+join-zipf-s1,0.05,64,deeper MLP | all workloads,118285,20.7
+join-zipf-s1,0.05,64,boosted trees | one workload,122528,7.6
+join-zipf-s1,0.05,64,boosted trees | all workloads,123670,8.2
+join-zipf-s1,0.05,64,set-attention | one workload,121037,10.3
+join-zipf-s1,0.05,64,set-attention | all workloads,121222,12.5
+join-zipf-s1,0.05,64,ranking trees | one workload,119535,8.6
+join-zipf-s1,0.05,64,ranking trees | all workloads,121908,6.4
+heap-small-s1,0.1,41,clock,625938,0.1
+heap-small-s1,0.1,41,"linear, global",528166,1.2
+heap-small-s1,0.1,41,CNN on aging bits | one workload,622729,45.9
+heap-small-s1,0.1,41,CNN on aging bits | all workloads,613647,42.2
+heap-small-s1,0.1,41,deeper MLP | one workload,625398,72.7
+heap-small-s1,0.1,41,deeper MLP | all workloads,614304,65.4
+heap-small-s1,0.1,41,boosted trees | one workload,617020,27.7
+heap-small-s1,0.1,41,boosted trees | all workloads,625321,21.4
+heap-small-s1,0.1,41,set-attention | one workload,524924,32.7
+heap-small-s1,0.1,41,set-attention | all workloads,519426,32.0
+heap-small-s1,0.1,41,ranking trees | one workload,628307,31.1
+heap-small-s1,0.1,41,ranking trees | all workloads,534324,22.0
+join-zipf-s1,0.2,256,clock,5581,0.0
+join-zipf-s1,0.2,256,"linear, global",3340,0.1
+join-zipf-s1,0.2,256,CNN on aging bits | one workload,4282,2.1
+join-zipf-s1,0.2,256,CNN on aging bits | all workloads,2633,1.8
+join-zipf-s1,0.2,256,deeper MLP | one workload,3565,3.0
+join-zipf-s1,0.2,256,deeper MLP | all workloads,2725,2.8
+join-zipf-s1,0.2,256,boosted trees | one workload,7931,2.6
+join-zipf-s1,0.2,256,boosted trees | all workloads,5138,1.6
+join-zipf-s1,0.2,256,set-attention | one workload,34144,14.1
+join-zipf-s1,0.2,256,set-attention | all workloads,2453,1.2
+join-zipf-s1,0.2,256,ranking trees | one workload,2542,1.0
+join-zipf-s1,0.2,256,ranking trees | all workloads,6523,1.8
+spmv-band-s1,0.05,83,clock,298881,0.1
+spmv-band-s1,0.05,83,"linear, global",339148,1.6
+spmv-band-s1,0.05,83,CNN on aging bits | one workload,297734,45.6
+spmv-band-s1,0.05,83,CNN on aging bits | all workloads,325397,47.2
+spmv-band-s1,0.05,83,deeper MLP | one workload,300690,70.1
+spmv-band-s1,0.05,83,deeper MLP | all workloads,352326,80.6
+spmv-band-s1,0.05,83,boosted trees | one workload,300218,29.1
+spmv-band-s1,0.05,83,boosted trees | all workloads,311802,28.5
+spmv-band-s1,0.05,83,set-attention | one workload,486553,56.5
+spmv-band-s1,0.05,83,set-attention | all workloads,300044,38.8
+spmv-band-s1,0.05,83,ranking trees | one workload,412135,44.6
+spmv-band-s1,0.05,83,ranking trees | all workloads,942273,72.0
+join-zipf-s1,0.1,128,clock,79528,0.0
+join-zipf-s1,0.1,128,"linear, global",73082,0.3
+join-zipf-s1,0.1,128,CNN on aging bits | one workload,76566,16.5
+join-zipf-s1,0.1,128,CNN on aging bits | all workloads,74530,16.0
+join-zipf-s1,0.1,128,deeper MLP | one workload,76902,30.5
+join-zipf-s1,0.1,128,deeper MLP | all workloads,73580,25.7
+join-zipf-s1,0.1,128,boosted trees | one workload,79498,12.6
+join-zipf-s1,0.1,128,boosted trees | all workloads,80797,12.8
+join-zipf-s1,0.1,128,set-attention | one workload,84910,14.8
+join-zipf-s1,0.1,128,set-attention | all workloads,83529,16.3
+join-zipf-s1,0.1,128,ranking trees | one workload,77353,10.7
+join-zipf-s1,0.1,128,ranking trees | all workloads,79388,8.9

@@ -1,4 +1,4 @@
-# Handoff to AU5TRA: everything done on the ML side (as of 2026-10-09; week-15 addendum below)
+# Handoff to AU5TRA: everything done on the ML side (as of 2026-10-11; START HERE section first, week-15 addendum below)
 
 **Written for**: AU5TRA, picking up after GawwyG's work of 2026-09-28 to
 2026-10-01. This file covers what was built, where every result lives, what
@@ -20,6 +20,93 @@ headline results came from broken traces and must not be cited.
   then §4.5 (in-kernel results).
 * `report/slides/ml_results.pdf` — the 20-page deck. The kernel section is
   slides 14–18.
+
+---
+
+## START HERE: handoff for writing the paper (2026-10-11)
+
+**For**: your agent (or you), to start writing the paper from the current state. Every result below is tagged:
+* **FINAL**: measured and checked; will not change unless a bug is found. Safe to write.
+* **PLACEHOLDER**: a number exists, but a run is unfinished or a check is pending. Write it into the text, mark it (for example "[PLACEHOLDER]"), and
+  update it when the files named below change.
+* **WIP**: not done. Write the section skeleton only.
+
+Language rule from GawwyG: plain words, no jargon, no invented terms. Say what a thing is, not what it is called.
+
+### 1. What the paper can claim (proposal; GawwyG decides the final claim and venue)
+A small linear score over signals an operating-system kernel can already see (accessed bit, dirty bit, how long a page was idle, how often it was
+evicted and came back), computed with whole numbers, makes fewer page faults than Clock in xv6 and is cheap enough to run. Bigger models (deeper networks,
+convolutional and attention models, boosted trees) cost 20 to 145 times more per eviction and gain at most about 3% in the kernel on the workloads they were
+trained for; whether they gain more when trained on everything is **WIP** (see section 3). Sampling a few candidates per eviction removes the growth of the cost
+with memory size. Method lessons (worth a paragraph): every benchmark has an exact model of its reference string; the kernel starts from filled memory, so a
+simulator that starts empty misjudges some models; one model (set-attention) changes by up to 14 times with the starting memory state.
+
+### 2. Results table (numbers are faults relative to Clock; below 1 is better; xv6 on QEMU unless it says simulator)
+| Result | Status | Where |
+|---|---|---|
+| Linear score, nine workloads, kernel: 0.94 / 0.92 / 0.79 at 5 / 10 / 20% memory; FIFO 1.28/1.27/1.34, Aging 1.10/1.05/1.19, LFU 1.13/1.11/1.24 | FINAL | report section "All three memory sizes"; `report/results2/kernel_eval_all.csv` |
+| Linear score per workload at 10% with 95% intervals (btree 0.84, graph 0.58 own-model, kv 0.87, lzw 0.84, heap 0.74 global, sort 0.94) | FINAL | `kernel_ci.csv`, table in the report |
+| Linear score fails on: matmul at 5% (1.48), SpMV (1.12 to 1.14), global model on graph at 20% (1.60) | FINAL | report, three-size tables |
+| CNN and MLP vs linear model on kv: 2.9% and 2.7% fewer faults, clear over 11 streams; worse than linear on btree, lzw, sort, graph | FINAL for models trained on one workload | `kernel_ci_paired.csv` |
+| Same comparison with each model trained on all workloads | **PLACEHOLDER / WIP**: first partial result (14 of 24 cells, 5 streams, simulator): CNN 0.89, MLP 0.90, trees 1.01, set-attention 0.92, ranking trees 1.37 against 0.94 for the global linear model. This may overturn "richer models do not beat linear"; do not write that sentence as final | `trained_on_all.csv` (partial) |
+| Cost of choosing a victim against number of candidates (linear 360 instructions per candidate, trees 7,300, set-attention 27,000, CNN 30,000, MLP 51,000; Clock under 1,100 up to 512 candidates) | FINAL | `cost_grid.csv`; report section "What choosing a victim costs" |
+| Break-even: linear model of its own workload pays on a hard disk (8 ms per fault) everywhere it has one (time 0.58 to 0.94 of Clock); about breaks even on fast flash (100 us); CNN and MLP never pay | FINAL given two assumptions: 1 instruction = 1 ns, and the two fault costs (**the fault cost was never measured**) | `cost_benefit.csv` |
+| Sampling 32 candidates: linear cost stops growing with memory (11,800 instructions at 256 and at 512 candidates against 91,700 and 183,300) | FINAL | `cost_grid.csv` |
+| Sampling 32 / 16 candidates, faults vs full scan in the kernel (about 0 to 1% / 1 to 2.5% more) | **PLACEHOLDER**: lzw rows were rerun on the current build, 6 of 21 done | `kernel_eval_w16g.csv`; report table "kernelruns" |
+| Kernel against simulator agree within about 4% except two gaps, both explained (filled memory at start; set-attention instability) | FINAL | report section "Why the kernel and the simulator disagree" |
+| Kaggle results equal this machine's results exactly (261 of 261 runs done on both) | FINAL | report |
+| Literature baselines in the simulator (ARC, S3-FIFO, an MGLRU analogue, LHD, MRU); LHD best untrained at 0.90 to 0.95 | FINAL (simulator only; none are in the kernel) | `baselines_ext.csv`, `transfer*.csv` |
+| Your programs (chase, join, Bloom, SpMV, heap) reproduce your host models byte for byte in our kernel; simulator and kernel results on them | FINAL | report section "Programs from AU5TRA" |
+| Noise from the choice of training rows: at most 0.0005 (kernel signals) | FINAL | `noise_floor.csv` |
+| Bloom filter at 20%: CNN, MLP, set-attention (3 runs timed out after 3 h on Kaggle) | **PLACEHOLDER** (missing; all policies score 1.00 on Bloom elsewhere) | |
+
+### 3. What is not done (WIP; write skeletons, no claims)
+* Train each of the five model kinds on all workloads and test them in the kernel (about 5 hours of kernel time; see "Resuming" below). The simulator part is half done.
+* A safety guard that falls back to Clock when the learned policy does worse (the linear model loses on matmul at 5%, SpMV, graph at 20%). Not started.
+* A port of LHD (the best untrained baseline) into the kernel. Not started.
+* The cost of a real page fault (reading a page from disk and writing one back). Needs real hardware; xv6 on QEMU cannot give it.
+* More than one stream per variant at 5% and 20% memory; more seeds for error bars.
+* Related work (a proper literature search; nothing is written beyond notes in `cache_ext_notes.md`), paper-quality figures, the choice of venue and format,
+  licence check of the Twitter data before releasing derived streams, author list. These are in `backlog.md` (not in git) and are summarised here.
+
+### 4. Suggested outline and where each part's material is
+1. Introduction and claim (section 1 above). 2. Background: xv6 demand paging, the policies (FIFO, Clock, Aging, LFU), what a kernel can observe: report sections "Models and features" of week 14 (`report/week_14_update_report.pdf`).
+3. The workloads: 6 original programs, lzw (yours), patbench (11 patterns with known answers; a control called uniform where nothing can be learned), Twitter replays, real Redis and SQLite traces, appbench, and your five programs:
+   report "New workloads" and "Programs from AU5TRA". 4. Models and how they run in the kernel (whole-number arithmetic, `kernel/mlfeat.h`, `kernel/mlnet.h`, sampling).
+5. Method: validation-only selection, streams held out, error bars, the filled-memory pitfall. 6. Results: sections 2 above. 7. Cost and break-even. 8. Limits. 9. Related work. 10. Conclusion.
+The week-15 report (`report/week_15_update/week_15_update_report.pdf`, 14 pages, source `.tex` and generated `tables/`) already has text for most of 3 to 8.
+
+### 5. How to read the numbers (traps)
+* **One file for kernel results**: `report/results2/kernel_eval_all.csv`, built by `tools/ml2/merge_kernel_results.py` from all the `kernel_eval*.csv` and `kaggle_*.csv`. Never read the others directly.
+* **Two builds**: runs from the week-14 build and from the current build differ by about 1% for every policy. The merge keeps only current-build rows where both exist. Never compare across builds.
+* **Memory sizes**: 5%, 10%, 20% of a program's pages. 10% covers every stream; 5% and 20% cover one stream per variant (42 streams). The five extra models at 5% and 20% cover one stream per workload.
+* **Streams**: patbench and appbench kernel runs use 50,000 accesses, not the full strings. Her programs: only seed 1 was handed over (`traces3/`); other seeds and repeats are "external" in the manifest.
+* **The extra models were trained on one workload each** (kv for CNN, MLP, boosted trees; graph for set-attention and ranking trees); outside that workload they show transfer, not their best.
+* **Time** is counted in instructions with QEMU in instruction-count mode (`QEMU_ICOUNT=1`), so it repeats; it is not wall-clock time.
+* **Simulator** starts from empty memory unless `--warm` / `warm_start.py` is used; the kernel starts from filled memory.
+* Data not in git: `traces2/` (4 GB), `traces/streams`. The result files in `report/results2/` are in git, so tables and figures regenerate from them with `python3 tools/ml2/report_w15.py` (a few tables also read the dataset index and need the traces).
+
+### 6. Resuming the unfinished runs (everything is resumable; finished runs are skipped)
+```
+cd tools/ml2     # python is ~/.venvs/xv6ml/bin/python on GawwyG's machine
+# lzw sampled-scoring reruns on the current build (6 of 21 done) -> kernel_eval_w16g.csv
+KERNEL_EVAL_OUT=kernel_eval_w16g.csv KERNEL_EVAL_LANES=/tmp/xv6G python -u kernel_eval.py --lanes 6 --fracs 0.1 \
+  --only lzw-r20-s5,lzw-r30-s0,lzw-r30-s1,lzw-r30-s2,lzw-r30-s3,lzw-r30-s4,lzw-r30-s5 --splits test,heldout --models lzw@16,lzw@32,lzw@64
+# trained-on-all comparison in the simulator (14 of 24 cells done) -> trained_on_all.csv (about 8 CPU-hours in total)
+python -u exp_trained_on_all.py --jobs 4 --only btree-mixed-s5,kv-A-s5,kv-T17-s1,sort-n40000-s3,matmul-blocked128-s1,heap-small-s1,join-zipf-s1,spmv-band-s1
+# the three missing Bloom runs (give them 12 hours)
+KERNEL_EVAL_OUT=kernel_eval_w16j.csv python -u kernel_eval.py --lanes 3 --fracs 0.2 --only bloom-k7-s1 --models cnn-kv,mlp-kv,attention-graph --timeout 43200
+# then, in this order:
+python merge_kernel_results.py && python kernel_ci.py && python report_w15.py     # add the new file name to SOURCES in merge_kernel_results.py first
+```
+Kaggle: `kaggle_package/` (built by `tools/kaggle/make_package.py`) runs kernel tests on CPU-only notebooks (about 1.7 hours each for 4 notebooks, no GPU needed); GawwyG
+can run two GPU notebooks (two T4 each) at a time, which only helps for training models. Results that came back are in `kaggle_results/` and `report/results2/kaggle_*.csv`.
+
+### 7. Files added since the last handoff (all in git)
+`tools/ml2/`: `merge_kernel_results.py`, `kernel_ci.py`, `cost_grid.py`, `cost_benefit.py`, `state_sensitivity.py`, `warm_start.py`, `victims_cmp.py`, `exp_trained_on_all.py`,
+`netint.py`, `export_nets.py`, `extra_*.py` (tree and neural models), `report_w15.py`, `timing_runs.py`. `tools/kaggle/`. `report/week_15_update/`. `report/results2/` new CSVs
+(`kernel_eval_all.csv`, `kernel_ci*.csv`, `cost_grid.csv`, `cost_benefit.csv`, `state_sensitivity.csv`, `trained_on_all.csv`, `transfer_*.csv`, `extra_*.csv`, `noise_floor.csv`).
+Kernel: `kernel/mlnet.h`, `mlnets.h` (five extra models in whole-number form), sampled scoring (`vmrun ml <model>@<k>`), new timing counters, `vmrun -v` victim log.
 
 ---
 
@@ -58,8 +145,10 @@ bar overall; oracle-input models gain up to 6% in distribution and fail on the r
 **Kernel**: `VM_POLICY_ML` has sampled scoring: `struct vm_ml_weights.sample_k`, `vmrun ml <model>@<k>`
 (`ml_sample()` in `kernel/vmpage.c`). In xv6 at 10%: lzw `ml lzw` 0.84 of Clock, kv-T `ml global` 0.85,
 patbench `ml global` 0.85, appbench 1.00; `@32` costs 0-1% more faults at 40-80% of the selection ticks, `@16`
-30-55% of the ticks for 1-2.5%. **Open discrepancy**: for the kv-scope *linear* model on the Twitter replays the kernel is ~10% better than the simulator
-(kv/kv-k/global linear and the CNN/MLP/trees all agree there, so the replay program is not the cause); unexplained.
+30-55% of the ticks for 1-2.5%. **The two earlier discrepancies are explained** (report section "Why the kernel and the simulator disagree"): the kernel's benchmarks populate
+memory before the traced part, the simulator started empty (`tools/ml2/warm_start.py`, `kernel_vs_sim.py --warm`: kv-scope linear model on the Twitter
+replays goes from kernel/sim 0.90 to 1.00); and set-attention is unstable (`state_sensitivity.py`: median spread 2x over five starting states, up to 14x;
+Clock, linear, CNN, MLP, trees change by 1-5%). `vmrun -v` logs every victim (`victims_cmp.py` compares kernel and simulator victim by victim).
 
 **Five extra models in the kernel** (week 15, later): `kernel/mlnet.h` (integer evaluation, shared with `pagesim.c`),
 `kernel/mlnets.h` + `user/mlnet_names.h` (generated by `tools/ml2/export_nets.py` from `report/models2/extra/*.pkl`),
@@ -74,6 +163,23 @@ Time delay: kernel counters `collect_ticks`, `select_ticks`, `path_ticks` (whole
 
 **Reproduce**: see the last section of the week-15 report. Long runs (use a monitor, not a sleep loop):
 `extra_trees.py select/test` (~1-2 h each), `kernel_eval.py` (lzw runs take ~16 min each per lane).
+
+**Later in week 15 (2026-10-10)**
+* **AU5TRA's branch is merged** (commit `dc792cc`): chasebench, joinbench, bloombench, spmvbench, heapbench, her host models (`tools/hostmodel/`),
+  her manifest rows. Her patbench has the same name and arguments as mine but different strings: hers is `user/patbench2.c` (stems `patb-*`),
+  mine stays `patbench` (stems `pat-*`). All five new programs reproduce her host models byte for byte in our kernel (short runs).
+  `tools/import_traces3.py` imports the new strings from `traces3/` (heap, join, spmv); chase and bloom streams are generated with her models.
+  traces3 had 116 traces but 26 distinct strings; everything for btree, graph, kv, lzw, matmul, sort duplicates ours (`tools/traces3_inventory.py`).
+* **All memory sizes, Kaggle**: 5% and 20% memory runs (42 streams) were split over this machine and four Kaggle notebooks
+  (`tools/kaggle/make_package.py` builds `kaggle_package/`; `kaggle_results/` holds what came back). All 261 runs done on both machines are
+  identical. `tools/ml2/merge_kernel_results.py` -> `report/results2/kernel_eval_all.csv` (the single file the report reads).
+  **Build caveat**: runs from the week-14 build (`kernel_eval.csv`) and from the current build differ by ~1% for every policy; the merge drops
+  old-build rows from groups that have current-build rows. Never compare across builds.
+* **Cost**: `tools/ml2/cost_grid.py` (cost of choosing a victim against the number of candidates, all policies, repeatable clock) and
+  `cost_benefit.py` (break-even fault cost; time vs Clock for SSD and disk). Result: linear model of its own workload pays on a disk everywhere it has one,
+  about breaks even on flash; CNN/MLP/set-attention never pay; boosted trees pay only on a disk on kv.
+* **Known gaps**: the five extra models were trained on one workload each (kv or graph) and are only transferred elsewhere; 3 runs missing (Bloom 20%
+  with CNN, MLP, set-attention timed out after 3 h on Kaggle); 5%/20% use one stream per variant.
 
 **New gotchas**
 * `pkill -f <pattern>` kills the shell that runs it if the pattern appears in the command line; use PIDs.

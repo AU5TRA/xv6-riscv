@@ -1,0 +1,18 @@
+\begin{tabular}{llrr}
+\toprule
+streams & policy & kernel / simulator, empty start & kernel / simulator, populated start \\
+\midrule
+kv & Clock & 1.016 & 1.018 \\
+kv-T & Clock & 1.008 & 1.009 \\
+kv & linear, global & 1.005 & 1.013 \\
+kv-T & linear, global & 0.978 & 0.999 \\
+kv & linear, kv & 0.991 & 1.010 \\
+kv-T & linear, kv & 0.903 & 0.999 \\
+kv & CNN & 1.016 & 1.015 \\
+kv-T & CNN & 1.010 & 1.010 \\
+kv & MLP & 1.014 & 1.016 \\
+kv-T & MLP & 1.007 & 1.012 \\
+kv & boosted trees & 1.006 & 1.007 \\
+kv-T & boosted trees & 0.996 & 1.004 \\
+\bottomrule
+\end{tabular}

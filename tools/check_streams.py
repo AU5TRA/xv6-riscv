@@ -35,10 +35,15 @@ def stats(path):
 
 
 stems = []
+external_missing = []
 for line in open(MANIFEST):
     if line.startswith("#") or not line.strip():
         continue
-    stems.append(line.split("\t")[0])
+    f = line.split("\t")
+    if len(f) > 2 and f[2] == "external" and not os.path.exists(os.path.join(OUT, f[0].split("-")[0], f[0] + ".ok")):
+        external_missing.append(f[0])      # AU5TRA's other seeds / repeats: not handed over, listed but not an error
+        continue
+    stems.append(f[0])
 
 problems, info = [], {}
 print("%-26s %10s %11s %6s %6s  %s" % ("STREAM", "REFS", "BYTES", "PAGES", "W%", "STATUS"))
@@ -80,5 +85,8 @@ for variant, seeds in sorted(by_variant.items()):
         print("seeds       %-24s SOME IDENTICAL" % variant)
 
 print()
-print("PROBLEMS:" if problems else "all checks passed", *problems, sep="\n  ")
+if external_missing:
+    print("listed as external, not collected here (AU5TRA's other seeds and repeats): %d streams, e.g. %s"
+          % (len(external_missing), ", ".join(external_missing[:3])))
+print(*(["PROBLEMS:"] if problems else ["all checks passed"]), *problems, sep="\n  ")
 sys.exit(1 if problems else 0)

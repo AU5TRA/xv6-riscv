@@ -1,0 +1,20 @@
+\begin{tabular}{lrrrr}
+\toprule
+policy & 16 candidates & 64 candidates & 256 candidates & 512 candidates \\
+\midrule
+FIFO & 145 & 385 & 1,345 & 2,625 \\
+Clock & 404 & 411 & 646 & 1,069 \\
+Aging & 2,461 & 8,125 & 30,778 & 60,979 \\
+LFU & 2,436 & 8,005 & 30,279 & 59,982 \\
+linear, full scan & 5,995 & 22,803 & 91,720 & 183,311 \\
+linear, 32 sampled & 5,997 & 11,293 & 11,813 & 11,907 \\
+linear, 16 sampled & 5,139 & 5,656 & 5,914 & 5,974 \\
+boosted trees & 146,625 & 494,506 & 1,872,534 & 3,715,591 \\
+ranking trees & 139,724 & 468,968 & 1,766,567 & 3,514,671 \\
+set-attention & 536,987 & 1,811,720 & 6,833,988 & 13,529,003 \\
+CNN on aging bits & 583,317 & 1,982,677 & 7,582,473 & 15,052,603 \\
+deeper MLP & 1,006,459 & 3,421,490 & 13,083,639 & 25,971,866 \\
+CNN, 32 sampled & 583,318 & 933,686 & 933,929 & 934,207 \\
+MLP, 32 sampled & 1,006,460 & 1,610,766 & 1,611,008 & 1,611,358 \\
+\bottomrule
+\end{tabular}

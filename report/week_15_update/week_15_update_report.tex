@@ -58,11 +58,20 @@ sizes of 5, 10 and 20\% of each program's pages.
 \item \textbf{In the xv6 kernel} (157 runs on the new workloads, plus 61 with sampled scoring): the learned
   policy cuts faults by 16\% on lzw (0.84), 15\% on the Twitter replays (0.85) and 15\% on patbench (0.85)
   against Clock, and does nothing on the application programs (1.00). The simulator predicts kernel faults to
-  within about 4\%, with one unexplained exception (Section~\ref{sec:kernel}). Sampled scoring, now in the kernel, roughly halves the selection cost for 1--2.5\% more faults.
+  within about 4\%, and the two larger gaps are explained (Section~\ref{sec:gap}). Sampled scoring, now in the kernel, roughly halves the selection cost for 1--2.5\% more faults.
 \item \textbf{Five extra models were ported to the kernel and their time delay measured} (Section~\ref{sec:five}). On kv a CNN over the
   aging bits and a deeper MLP are about 2.5\% better than the linear model, but cost 85 and 148 times its instructions per eviction
   (1.7 and 2.9 million instructions against 19\,000); boosted trees equal it at 21 times; on graph the linear model is clearly
   better. Timing is repeatable to under 0.3\% because QEMU's clock is driven by instruction count.
+\item \textbf{AU5TRA's programs were merged} (pointer chase, hash join, Bloom filter, sparse matrix--vector, heap churn; Section~\ref{sec:austra}): in our
+  kernel each reproduces her model's trace exactly. The linear model gains most on heap programs (kernel 0.65 on \code{heap-mixed}) and fails on SpMV.
+\item \textbf{All three memory sizes were run in the kernel} (Section~\ref{sec:sizes}; long runs split over this machine and four Kaggle notebooks, whose results matched this machine
+  exactly on all 261 runs done on both). Over nine workloads the linear model scores 0.94, 0.92 and 0.79 of Clock at 5, 10 and 20\% memory;
+  FIFO, Aging and LFU are worse than Clock at every size.
+\item \textbf{The two unexplained gaps are explained} (Section~\ref{sec:gap}): the kernel starts from filled memory while the simulator started empty, and set-attention's result
+  depends strongly on what is in memory at the start (up to 14 times), so its good simulated result was a lucky case.
+\item \textbf{Cost against number of candidates, and the break-even} (Section~\ref{sec:cost}): the linear model pays for itself on a hard disk on every workload with
+  a model of its own and about breaks even on fast flash; the CNN, MLP and set-attention do not pay on either, because they cost about 75 to 145 times as much per eviction as the linear model.
 \item \textbf{A reproducibility bug was found and fixed.} Training samples depended on Python's per-process
   string hashing, so datasets could not be rebuilt identically. All models were refit; Clock, LRU and
   the other classical results are unchanged.
@@ -222,11 +231,9 @@ per eviction (Clock: 24). ``@k'' scans and scores only k random candidates per e
   0.98 on lzw, 0.96--0.98 on patbench and appbench (prefix replay), and 0.98--1.01 for the Twitter replays
   with the global and kernel-only models. The differences come from the kernel's own pages (code, stack) and
   capacity cliffs.
-\item \textbf{One exception, not explained.} For the kv-scope linear model on the Twitter replays the kernel is about 10\% better
-  than the simulator (0.90; kernel 0.88 of Clock against 0.98 in the simulator). My first guess, that the replay program
-  reads its key file through a buffer the simulator's trace does not contain, is contradicted by the later runs: the
-  CNN, MLP and boosted-tree models agree with the simulator to 1\% on the same replays. The cause is specific to that one
-  linear model and is still open.
+\item \textbf{One exception, now explained.} For the kv-scope linear model on the Twitter replays the kernel was about 10\% better
+  than the simulator (0.90). The kernel's benchmarks fill their memory before the traced part starts and the simulator started empty;
+  starting the simulator from filled memory brings the ratio to 1.00 (Section~\ref{sec:gap}).
 \item The learned policy saves 16\% of faults on lzw (per-workload model; 6\% for the global model), 15\% on the
   Twitter replays and 15\% on patbench, and does not help on the application programs.
 \item \textbf{Cost, and sampled scoring.} The full scorer costs 170--430 ticks per eviction against 24 for
@@ -281,10 +288,187 @@ timer reads and the surrounding eviction code. At one nanosecond per instruction
 \item \textbf{Kernel against simulator.} For the CNN, MLP and trees the kernel agrees with the simulator to 0.4--2.4\% on kv and
   to 1\% on the replays, so the conversion and the kernel code are right. On graph the kernel and simulator disagree more
   (ranking trees 1.06, set-attention 1.59 times the simulator's faults), but graph is noisy for every policy (Clock itself is 0.85
-  times its simulated faults) because of capacity cliffs. The poor set-attention result in the kernel is not explained.
+  times its simulated faults) because of capacity cliffs. The poor set-attention result in the kernel is explained in Section~\ref{sec:gap}: the model is unstable.
 \item \textbf{Cheaper linear scoring is the better trade.} Scoring 16 sampled candidates costs 0.3 times the full linear model's
   instructions for 1--2.5\% more faults.
 \end{itemize}
+
+\section{Programs from AU5TRA}
+\label{sec:austra}
+
+AU5TRA's branch was merged into this one. It adds the sources of five programs: pointer chasing (\code{chasebench}: a linked list,
+and a tree with 64- or 256-byte nodes), hash join (\code{joinbench}: uniform keys, Zipf keys, and a four-way partitioned
+join), a Bloom filter (\code{bloombench}), sparse matrix--vector product (\code{spmvbench}: random and banded), and heap
+allocation and release (\code{heapbench}: small, mixed and churn). It also adds an independent implementation of the patterns I had
+called patbench, with different strings; it is kept as \code{patbench2} and its streams are called \code{patb-*}. Her sweep
+folder \code{traces3/} held 116 traces, but only 26 different reference strings, because the string of a program does not depend on
+the memory limit; the other 90 are copies, and all of her btree, graph, kv, lzw, matmul and sort strings equal ones we already had.
+
+\textbf{Checks.} Her host models reproduce the traces she collected in the kernel exactly (heap, join, SpMV). In our kernel each of the
+five programs produces a trace identical, byte for byte, to her model's prediction (short runs; the pointer-chase run is 149\,870 references
+and the SpMV run 2\,097\,678).
+
+\textbf{Simulator results} (23 streams, geometric mean of faults relative to Clock, over 5, 10 and 20\% memory): the linear kernel-signal
+model 0.85, S3-FIFO 0.93, ARC 0.94, LHD 0.95; the five extra models 0.94 to 1.02. The linear model gains most on heap programs (0.62 to 0.82)
+and on hash joins with uniform or Zipf keys (0.73 to 0.80). Nothing helps on the pointer-chase list or the Bloom filter (all 1.00); the best possible policy,
+which sees the future, reaches 0.66 there, so there is room, but no online policy finds it. On her patbench the results agree with mine, for example 0.76 against 0.76 on
+Zipf 0.99, and the oracle-feature model fails in the same way on moving hot sets (2.4 times Clock).
+
+\textbf{In the kernel} (13 streams at 10\% memory, 143 runs, no failures) the global linear model scores 0.91 against Clock. The heap programs
+improve most (0.65 on \code{heap-mixed}). Two of the extra models are dangerous outside their training workload: on the banded SpMV,
+set-attention makes 47.7 times Clock's faults and the ranking trees 6.7 times.
+
+\section{Why the kernel and the simulator disagree}
+\label{sec:gap}
+
+Two results of the first version of this report were unexplained. Both are now explained.
+
+\textbf{The kernel starts from filled memory; the simulator started empty.} Every benchmark first touches all its pages (the
+populate step, not traced) and only then starts the traced part, so the traced part begins with a full memory whose contents the
+policy has already shaped. The simulator replayed the traced string from empty memory. Putting one sweep over the pages in front of the string
+(its own faults not counted) removes the kv-scope linear model's gap on the Twitter replays: kernel over simulator changes from 0.903 to 0.999.
+For the other policies the change is at most 0.02.
+
+\begin{table}[h]
+\centering\small
+\input{tables/warmstart}
+\caption{Kernel faults over simulator faults (geometric mean over streams) with the simulator started empty and started from filled memory.}
+\end{table}
+
+\textbf{Set-attention is very sensitive to the starting state.} I replayed 14 streams from five starting states (empty, and after a
+populate sweep in ascending, descending and two random orders) and took, for each policy and stream, most faults over fewest.
+
+\begin{table}[h]
+\centering\small
+\input{tables/statesens}
+\caption{Spread of simulated faults over five starting states: median and largest over streams. 1.00 means the starting state does not matter.}
+\end{table}
+
+Clock, the global linear model, the CNN, the MLP and the boosted trees change by 1--5\% (largest spread 1.05). The linear model of one workload changes by
+more: matmul 6\%, kv 12\% (the gap above). Set-attention changes by a median of 2.0 times and up to 14.4 times (on one graph
+stream its faults go from 84\,820 to 164\,265), and the ranking trees by up to 1.37 times. In the simulator, from the empty start, set-attention looked excellent
+on graph (0.50 of Clock on five of the six streams and 0.78 on the sixth); in the kernel it scored 0.91 to 1.30. The empty start was the lucky case, and the kernel
+result lies inside the spread. A model whose result depends this much on what happened
+to be in memory first should not be trusted from one run.
+
+\section{All three memory sizes}
+\label{sec:sizes}
+
+The 10\% runs cover every stream. At 5\% and 20\% memory one stream per program variant was run, 42 streams, with the standard policies and the linear models
+everywhere, and the five extra models on one stream per workload. 1\,694 in-kernel runs were merged into one file. A run is identified by its stream, memory
+size, policy and model, and the long runs were split over this machine and four Kaggle notebooks. Where a run was done on both, the results are identical:
+all 261 runs done on both the Kaggle machines and this one gave the same faults, writes and evictions.
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/full_005}
+\caption{5\% memory. Faults relative to Clock in xv6. Every row of a column averages the same streams (those the extra models were run on).
+The extra models were trained on kv or graph only, so their other columns show how they carry over. A dash: not run.}
+\label{tab:full}
+\end{table}
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/full_01}
+\caption{10\% memory, same layout and the same streams.}
+\end{table}
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/full_02}
+\caption{20\% memory, same layout and the same streams.}
+\end{table}
+
+Geometric mean over the nine workloads for which every row has data (all except graph, lzw and Bloom), at 5, 10 and 20\% memory:
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+policy & 5\% & 10\% & 20\% \\
+\midrule
+FIFO & 1.28 & 1.27 & 1.34 \\
+Aging & 1.10 & 1.05 & 1.19 \\
+LFU & 1.13 & 1.11 & 1.24 \\
+linear, global & 0.94 & 0.92 & 0.79 \\
+linear, own workload & 0.98 & 0.91 & 0.79 \\
+CNN on aging bits & 0.93 & 0.95 & 0.87 \\
+deeper MLP & 0.93 & 0.96 & 0.86 \\
+boosted trees & 0.93 & 0.96 & 1.03 \\
+set-attention & 1.34 & 1.58 & 2.11 \\
+ranking trees & 1.07 & 1.17 & 1.31 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \best{The linear kernel-signal model beats Clock at all three sizes}, by 6\%, 8\% and 21\%, and is the best of the rows at 10 and 20\%. The CNN and MLP also
+  beat Clock at all three (by 5--13\%), but only by being run on workloads they were not trained for with about a hundred times the arithmetic. The 20\% figure of
+  the linear model is pulled down by the hash join, where it scores 0.41 against Clock; without the join the mean is 0.85.
+\item Where it fails: matmul at 5\% (1.48, with only 2 frames), SpMV (1.14 and 1.12 at 5 and 10\%), and, for the global model, graph at 20\% (1.60).
+  The graph model of its own is 0.97 at 5 and 20\% against 0.60 at 10\%: its gain is concentrated at one memory size, as week 14 found.
+\item The CNN, the MLP and the boosted trees are about 1\% better than the global linear model at 5\%, and worse at 10 and 20\%, though they were trained on
+  one workload only (see the table caption). Set-attention and ranking trees are worse than Clock at every size.
+\item FIFO, Aging and LFU lose to Clock by 4 to 34\%.
+\end{itemize}
+
+\section{What choosing a victim costs, and when it pays}
+\label{sec:cost}
+
+The earlier timing was one stream and one memory size. Here the memory limit is varied: \code{patbench} in uniform mode over 1\,024 pages, with 16, 64, 256 and
+512 frames, so that every eviction chooses among that many candidates, for every policy. QEMU runs in instruction-count mode, so the counts do not depend on the
+host. The unit is instructions spent in the policy itself (the candidate list and the swap-out wait are not included).
+
+\begin{table}[h]
+\centering\small
+\input{tables/costgrid}
+\caption{Instructions to choose one victim against the number of candidates. ``Sampled'' policies look at that many random candidates at most.}
+\end{table}
+
+\begin{itemize}
+\item The cost of a full scan grows in a straight line with the candidates: about 120 instructions per candidate for Aging and LFU, 360 for the linear
+  model, 7\,300 for boosted trees, 27\,000 for set-attention, 30\,000 for the CNN and 51\,000 for the MLP. Clock costs under 1\,100 instructions up to 512 candidates and FIFO under 2\,700.
+\item Sampling 32 candidates makes the cost independent of the memory size: the linear model costs 11\,800 instructions at 256 candidates and at 512,
+  against 91\,700 and 183\,300 for the full scan. The CNN with 32 sampled still costs about 930\,000.
+\item The rest of an eviction (finding the candidates and the bookkeeping) is about 6\,000 to 6\,500 instructions for every policy (measured on the kv stream, 57 candidates).
+\end{itemize}
+
+\textbf{Does the saving in faults pay for the extra time?} For each workload I took the faults saved per eviction (from the kernel runs) and the measured
+cost of the policy at that run's number of candidates, and computed the \emph{break-even}: the cost of one fault above which the policy wins. The time is
+then the faults times their cost plus the evictions times the choosing cost, relative to Clock. Two fault costs are shown: 100~\textmu s (a fast flash
+disk) and 8\,ms (a hard disk).
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/breakeven}
+\caption{Break-even and time relative to Clock, at 10\% memory (one instruction taken as one nanosecond).}
+\end{table}
+
+\begin{itemize}
+\item \best{The linear model of its own workload pays for itself on a hard disk on every workload that has one} (btree, graph, kv, kv-T, lzw, sort: time 0.58 to 0.94 of
+  Clock's), and roughly breaks even on fast flash (0.90 on graph, 0.96 on lzw, 1.03--1.05 on kv, 1.51 on btree, where 230 candidates make the scan expensive).
+\item The CNN and the MLP never pay: their break-even is 10 to 670 ms per fault, and they are 1.0 to 2.4 times slower than Clock on a hard disk
+  and 5 to 111 times slower on flash. Set-attention costs about as much as the CNN and does worse in faults, so it cannot pay either.
+\item Boosted trees pay only on a hard disk, on kv (0.93 of Clock's time) and kv-T (0.90), and nowhere else.
+\item Sampling keeps the linear model's choosing cost from growing with the memory size.
+\end{itemize}
+
+\textbf{How sure are the kernel numbers?} A kernel run repeats exactly, so there is no run-to-run noise. What varies is the stream, so for each workload I resampled
+its streams (10\,000 times) to get a 95\% interval, and compared each extra model with the linear model on the same streams.
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/kernelci}
+\caption{Faults relative to Clock in xv6 at 10\% memory, with 95\% intervals across the streams of each workload.}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\input{tables/paired}
+\caption{Extra models against the linear model of the same workload, on the same streams, in xv6.}
+\end{table}
+
+On kv the CNN and the MLP use 2.9\% and 2.7\% fewer faults than the linear kv model (intervals 0.966--0.977 and 0.968--0.979 over 11 streams); on the Twitter replays 2.7\% and 1.9\%,
+and so do the boosted trees (2.7\%). Everywhere else they use more faults than the linear model. The gain on kv is small but clearly not noise.
 
 \section{Noise floor}
 \label{sec:noise}
@@ -300,12 +484,18 @@ the other sources of variance (the choice of streams, which the bootstrap interv
 \begin{itemize}
 \item The real Redis/SQLite traces and the Twitter replays are small or lack read/write marks; the Twitter streams are
   hash-sampled to 1\,024 keys, which preserves each key's request sequence but not the original working-set size.
-\item Neural models were not scored on 1M+ reference streams, so the patbench and appbench groups compare trees only.
+\item Neural models were not scored on streams of more than 400\,000 references in the simulator, so the simulator comparison on those streams covers trees only; in the kernel all five models were run.
 \item The kernel runs of patbench and appbench use 50\,000 accesses, not the full 1M, for time.
-\item Selection cost is measured in instructions on one kv stream with 57 candidates per eviction; it grows with the
-  number of candidates, which was not varied. The timing floor is FIFO, not a separate empty policy.
-\item Next: add a heap/allocator-churn program; explain the kv-scope linear model's gap on the replays and the set-attention gap
-  on graph; measure cost against the number of candidates.
+\item The five extra models were each trained on one workload (kv for the CNN, MLP and boosted trees; graph for set-attention and
+  ranking trees). Where they are run on other workloads (Table~\ref{tab:full}) the numbers show how well they carry over, not what
+  they could do if trained there. Training them on all workloads, including the new programs, was only partly done: a first, incomplete run in the simulator (14 of 24 cells, five streams) gives the CNN 0.89 and the MLP 0.90 of Clock when trained on all workloads, against 0.94 for the global linear model, so the conclusion that richer models do not beat the linear model may need to be softened (their cost, 75 to 145 times as much, is unchanged). This result is \emph{work in progress}.
+\item At 5\% and 20\% memory one stream per program variant was run (42 streams), not every seed. Three runs are missing: the CNN, MLP
+  and set-attention on the Bloom filter at 20\%, which hit the three-hour limit on the Kaggle machine.
+\item Time is counted in instructions, at one nanosecond per instruction, which is conservative for a real processor. The break-even
+  figures depend on that and on the cost of a fault on the machine in question, which xv6 on QEMU does not give; two example costs are shown.
+\item The week-14 and the current builds of the benchmark programs differ, which moves every policy's fault counts by about 1\%. Results
+  were only compared within one build.
+\item Not done: training on the new programs; the Bloom filter 20\% cells above.
 \end{itemize}
 
 \section*{Reproducing}
@@ -315,6 +505,10 @@ python3 tools/ml2/extra_trees.py fit | select | test      # tree and neural mode
 python3 tools/ml2/extra_report.py                          # extra models vs linear vs baselines
 python3 tools/ml2/exp_transfer.py run [--set real|app]   # transfer streams
 python3 tools/ml2/kernel_eval.py --only lzw,kv-T --fracs 0.1  [--models lzw@32]
+python3 tools/ml2/merge_kernel_results.py                # one file of all in-kernel runs (kernel_eval_all.csv)
+python3 tools/ml2/cost_grid.py; python3 tools/ml2/cost_benefit.py   # cost against candidates; break-even
+python3 tools/ml2/state_sensitivity.py                   # dependence on the starting memory state
+python3 tools/kaggle/make_package.py                     # split of the long kernel runs over Kaggle notebooks
 python3 tools/ml2/kernel_vs_sim.py --only lzw,kv-T,pat,app --tag _w15
 python3 tools/ml2/report_w15.py                          # tables and figures of this report
 \end{verbatim}

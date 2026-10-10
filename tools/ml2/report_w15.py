@@ -177,13 +177,19 @@ def kernel():
 
 
 def kernel2():
-    rows = [r for r in csv.DictReader(open(R / "kernel_eval.csv")) if r["status"] == "ok"
+    rows = [r for r in csv.DictReader(open(R / "kernel_eval_all.csv")) if r["status"] == "ok" and r["fraction"] == "0.1"
             and r["stem"].startswith(("lzw", "kv-T", "pat", "app"))]
     f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"])
     clock = {r["stem"]: f(r) for r in rows if r["policy"] == "clock"}
     grp = lambda s: "kv-T" if s.startswith("kv-T") else s.split("-")[0]
     by, tk = defaultdict(list), defaultdict(list)
+    sampled = defaultdict(set)         # streams on which the sampled variants were run: every row of a group uses just these
     for r in rows:
+        if r["policy"] == "ml" and r["model"].endswith("@32"):
+            sampled[grp(r["stem"])].add(r["stem"])
+    for r in rows:
+        if sampled.get(grp(r["stem"])) and r["stem"] not in sampled[grp(r["stem"])]:
+            continue
         k = (grp(r["stem"]), r["policy"] + (":" + r["model"] if r["model"] else ""))
         by[k].append(f(r) / clock[r["stem"]])
         tk[k].append(int(r["select_ticks"]) / max(int(r["evictions"]), 1))
@@ -199,6 +205,7 @@ def kernel2():
     fig, axs = plt.subplots(1, 2, figsize=(8.4, 3.2))
     for ax, g, ms in ((axs[0], "lzw", ["clock", "aging", "ml:global", "ml:lzw", "ml:lzw@32", "ml:lzw@16"]),
                       (axs[1], "kv-T", ["clock", "aging", "ml:global", "ml:global@32", "ml:kv", "ml:kv@16"])):
+        ms = [m for m in ms if by.get((g, m))]      # a bar is skipped while its runs are missing
         ys = [gm(by[(g, m)]) for m in ms]
         cs = [np.mean(tk[(g, m)]) for m in ms]
         ax.bar(range(len(ms)), ys, color=["#999", "#999", "#1c5cab", "#1c5cab", "#7fa6d6", "#7fa6d6"])
@@ -234,10 +241,10 @@ def noise():
 
 def five_models():
     """In-kernel results of the five extra models next to the linear scorers, and their measured cost."""
-    p = R / "kernel_eval_w16.csv"
+    p = R / "kernel_eval_all.csv"
     if not p.exists():
         return
-    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok"]
+    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok" and r["fraction"] == "0.1"]
     f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"])
     clock = {r["stem"]: f(r) for r in rows if r["policy"] == "clock"}
     grp = lambda r: ("kv-T" if r["stem"].startswith("kv-T") else "kv " + r["split"]) if r["stem"].startswith("kv-") \
@@ -292,18 +299,28 @@ def five_models():
 def full_tests():
     """Every policy on every workload in xv6, for each memory size run: faults relative to Clock (geometric mean over
     the test and held-out streams of the workload)."""
-    p = R / "kernel_eval_w16.csv"
+    p = R / "kernel_eval_all.csv"
     if not p.exists():
         return
-    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok"]
+    reps = set((R / "stage2_streams.txt").read_text().strip().split(","))     # the same 42 streams at every memory size
+    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok" and r["stem"] in reps]
     f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"])
     clock = {(r["stem"], r["fraction"]): f(r) for r in rows if r["policy"] == "clock"}
     grp = lambda r: "kv-T" if r["stem"].startswith("kv-T") else r["stem"].split("-")[0]
+    # one set of streams per column and memory size: the streams the five extra models were run on, or every stream when they
+    # were not run for that workload; every row of the column then averages over the same streams
+    have = defaultdict(set)
+    for r in rows:
+        if r["policy"] == "ml" and r["model"] == "cnn-kv":
+            have[(r["fraction"], grp(r))].add(r["stem"])
     by = defaultdict(list)
     for r in rows:
         if (r["stem"], r["fraction"]) in clock:
+            sel = have.get((r["fraction"], grp(r)))
+            if sel and r["stem"] not in sel:
+                continue
             by[(r["fraction"], grp(r), r["policy"] + (":" + r["model"] if r["model"] else ""))].append(f(r) / clock[(r["stem"], r["fraction"])])
-    cols = ["btree", "graph", "kv", "kv-T", "lzw", "matmul", "sort", "pat", "app"]
+    cols = ["btree", "graph", "kv", "kv-T", "lzw", "matmul", "sort", "heap", "join", "spmv", "chase", "bloom"]
     pols = [("fifo", "FIFO"), ("aging", "Aging"), ("lfu", "LFU"), ("ml:global", "linear, global"), ("ml:own", "linear, own workload"),
             ("ml:cnn-kv", "CNN on aging bits"), ("ml:mlp-kv", "deeper MLP"), ("ml:trees-kv", "boosted trees"),
             ("ml:attention-graph", "set-attention"), ("ml:ranktrees-graph", "ranking trees")]
@@ -313,9 +330,104 @@ def full_tests():
             line = [name]
             for c in cols:
                 k = (frac, c, key if key != "ml:own" else "ml:" + ("kv" if c == "kv-T" else c))
+                if key == "ml:own" and k not in by:
+                    k = (frac, c, "ml:global")        # workloads without a model of their own run the global one
                 line.append(f"{gm(by[k]):.2f}" if k in by else "--")
             body.append(line)
         write(f"full_{frac.replace('.', '')}.tex", tab(body, ["policy"] + cols))
+
+
+def cost_tables():
+    """cost against the number of candidates, break-even fault cost, starting-state sensitivity, populated start"""
+    cg = R / "cost_grid.csv"
+    if cg.exists():
+        rows = list(csv.DictReader(open(cg)))
+        d = defaultdict(dict)
+        for r in rows:
+            d[r["policy"] + (":" + r["model"] if r["model"] else "")][int(r["frames"])] = float(r["select_instructions_per_eviction"])
+        names = [("fifo", "FIFO"), ("clock", "Clock"), ("aging", "Aging"), ("lfu", "LFU"), ("ml:global", "linear, full scan"),
+                 ("ml:global@32", "linear, 32 sampled"), ("ml:global@16", "linear, 16 sampled"), ("ml:trees-kv", "boosted trees"),
+                 ("ml:ranktrees-graph", "ranking trees"), ("ml:attention-graph", "set-attention"), ("ml:cnn-kv", "CNN on aging bits"),
+                 ("ml:mlp-kv", "deeper MLP"), ("ml:cnn-kv@32", "CNN, 32 sampled"), ("ml:mlp-kv@32", "MLP, 32 sampled")]
+        sizes = sorted({n for v in d.values() for n in v})
+        body = [[nm] + [f"{int(d[k][n]):,}" if n in d[k] else "--" for n in sizes] for k, nm in names if k in d]
+        write("costgrid.tex", tab(body, ["policy"] + [f"{n} candidates" for n in sizes]))
+    cb = R / "cost_benefit.csv"
+    if cb.exists():
+        rows = list(csv.DictReader(open(cb)))
+        pick = {"ml:own": "linear, own workload", "ml:cnn-kv": "CNN", "ml:mlp-kv": "MLP", "ml:trees-kv": "boosted trees"}
+        body = []
+        for wl in ("btree", "graph", "kv", "kv-T", "lzw", "heap", "join", "sort"):
+            for k, nm in pick.items():
+                r = next((x for x in rows if x["workload"] == wl and x["policy"] == k), None)
+                if r:
+                    be = r["break_even_us"]
+                    be = be if be == "never" else (f"{float(be):,.0f}" if float(be) < 1e6 else ">1,000,000")
+                    body.append([wl, nm, r["faults_over_clock"], f"{int(r['choose_instructions']):,}", be, r["time_vs_clock_ssd"], r["time_vs_clock_hdd"]])
+        write("breakeven.tex", tab(body, ["workload", "policy", "faults / Clock", "instructions to choose", "break-even (\\textmu s per fault)",
+                                          "time / Clock, SSD", "time / Clock, disk"], "llrrrrr"))
+    ss = R / "state_sensitivity.csv"
+    if ss.exists():
+        rows = list(csv.DictReader(open(ss)))
+        dd = defaultdict(dict)
+        for r in rows:
+            dd[(r["stem"], r["policy"])][r["start"]] = int(r["faults"])
+        sp = defaultdict(list)
+        for (stem, pol), v in dd.items():
+            if len(v) == 5:
+                sp[pol].append(max(v.values()) / min(v.values()))
+        order = ["clock", "global", "kv", "graph", "btree", "lzw", "sort", "matmul", "cnn-kv", "mlp-kv", "trees-kv", "ranktrees-graph", "attention-graph"]
+        body = [[p, len(sp[p]), f"{np.median(sp[p]):.3f}", f"{max(sp[p]):.2f}"] for p in order if p in sp]
+        write("statesens.tex", tab(body, ["policy", "streams", "median spread", "largest spread"], "lrrr"))
+    wc = R / "kernel_vs_sim_w16warm.csv"
+    wn = R / "kernel_vs_sim_w16.csv"
+    if wc.exists() and wn.exists():
+        def load(f):
+            by = defaultdict(list)
+            for r in csv.DictReader(open(f)):
+                g = "kv-T" if r["stem"].startswith("kv-T") else r["stem"].split("-")[0]
+                by[(g, r["policy"] + (":" + r["model"] if r["model"] else ""))].append(float(r["kernel_over_sim"]))
+            return by
+        a, b = load(wn), load(wc)
+        body = []
+        for key, nm in (("clock", "Clock"), ("ml:global", "linear, global"), ("ml:kv", "linear, kv"), ("ml:cnn-kv", "CNN"), ("ml:mlp-kv", "MLP"), ("ml:trees-kv", "boosted trees")):
+            for g in ("kv", "kv-T"):
+                if (g, key) in a and (g, key) in b:
+                    body.append([g, nm, f"{gm(a[(g, key)]):.3f}", f"{gm(b[(g, key)]):.3f}"])
+        write("warmstart.tex", tab(body, ["streams", "policy", "kernel / simulator, empty start", "kernel / simulator, populated start"], "llrr"))
+
+
+def ci_tables():
+    """in-kernel results with 95% intervals across the streams of each workload (10% memory)"""
+    c = R / "kernel_ci.csv"
+    if not c.exists():
+        return
+    rows = {(r["workload"], r["policy"]): r for r in csv.DictReader(open(c))}
+    fmt = lambda r: f"{r['faults_over_clock']} [{r['ci95_low']}, {r['ci95_high']}]" if r else "--"
+    cols = [("ml:own", "linear, own workload"), ("ml:global", "linear, global"), ("ml:cnn-kv", "CNN"), ("ml:mlp-kv", "MLP"), ("ml:trees-kv", "boosted trees")]
+    body = []
+    for wl in ("btree", "graph", "kv", "kv-T", "lzw", "sort", "heap", "join", "pat", "app"):
+        own = "ml:" + ("kv" if wl == "kv-T" else wl)
+        n = next((r["streams"] for (w, p), r in rows.items() if w == wl), "")
+        line = [wl, n]
+        for key, _ in cols:
+            k = own if key == "ml:own" else key
+            line.append(fmt(rows.get((wl, k))) if (key != "ml:own" or (wl, own) in rows) else "--")
+        body.append(line)
+    write("kernelci.tex", tab(body, ["workload", "streams"] + [n for _, n in cols], "lr" + "r" * len(cols)))
+    pr = R / "kernel_ci_paired.csv"
+    if pr.exists():
+        sel = {("kv", "ml:cnn-kv"), ("kv", "ml:mlp-kv"), ("kv", "ml:trees-kv"), ("kv-T", "ml:cnn-kv"), ("kv-T", "ml:mlp-kv"), ("kv-T", "ml:trees-kv"),
+               ("graph", "ml:attention-graph"), ("graph", "ml:ranktrees-graph"), ("btree", "ml:cnn-kv"), ("btree", "ml:mlp-kv"), ("lzw", "ml:cnn-kv"),
+               ("lzw", "ml:mlp-kv"), ("sort", "ml:cnn-kv"), ("sort", "ml:mlp-kv")}
+        names = {"ml:cnn-kv": "CNN", "ml:mlp-kv": "MLP", "ml:trees-kv": "boosted trees", "ml:attention-graph": "set-attention", "ml:ranktrees-graph": "ranking trees"}
+        body = []
+        for r in csv.DictReader(open(pr)):
+            if (r["workload"], r["model"]) in sel:
+                lo, hi = float(r["ci95_low"]), float(r["ci95_high"])
+                body.append([r["workload"], names[r["model"]], r["streams"], f"{r['faults_ratio']} [{r['ci95_low']}, {r['ci95_high']}]",
+                             "fewer faults" if hi < 1 else ("more faults" if lo > 1 else "no difference")])
+        write("paired.tex", tab(body, ["workload", "model", "streams", "faults vs linear [95\\% interval]", "result"], "llrrl"))
 
 
 if __name__ == "__main__":
@@ -326,6 +438,8 @@ if __name__ == "__main__":
     kernel2()
     five_models()
     full_tests()
+    cost_tables()
+    ci_tables()
     noise()
     (OUT / "tables" / "numbers.tex").write_text("".join(f"\\expandafter\\def\\csname v@{k}\\endcsname{{{v}}}\n" for k, v in NUM.items()))
     print("written", OUT)

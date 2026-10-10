@@ -1,0 +1,7 @@
+stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript,accesses,collect_ticks,path_ticks
+lzw-r30-s3,heldout,lzw,lzw-r30,0.1,45,ml,lzw@16,ok,1841407,1841527,138768,264816285,90234823,120,1376,test-logs/kernel_eval/20261010-233411-691705-vmrun-ml-lzw-16-lzwbench-45-30-0-3.log,,76944572,808743008
+lzw-r30-s2,heldout,lzw,lzw-r30,0.1,46,ml,lzw@64,ok,1783166,1783292,151150,549268554,89164600,126,1377,test-logs/kernel_eval/20261010-233411-692730-vmrun-ml-lzw-64-lzwbench-46-30-0-2.log,,73045011,1085706351
+lzw-r30-s2,heldout,lzw,lzw-r30,0.1,46,ml,lzw@16,ok,1836729,1836855,161877,268285411,91842750,126,1378,test-logs/kernel_eval/20261010-233411-692005-vmrun-ml-lzw-16-lzwbench-46-30-0-2.log,,77545886,822999181
+lzw-r30-s3,heldout,lzw,lzw-r30,0.1,45,ml,lzw@32,ok,1805759,1805879,131198,407595762,88488071,120,1380,test-logs/kernel_eval/20261010-233411-692392-vmrun-ml-lzw-32-lzwbench-45-30-0-3.log,,74469533,950341458
+lzw-r30-s3,heldout,lzw,lzw-r30,0.1,45,ml,lzw@64,ok,1788498,1788618,128220,543431587,87642282,120,1380,test-logs/kernel_eval/20261010-233411-701473-vmrun-ml-lzw-64-lzwbench-45-30-0-3.log,,74437963,1082285310
+lzw-r30-s2,heldout,lzw,lzw-r30,0.1,46,ml,lzw@32,ok,1799179,1799305,155774,410262244,89965250,126,1402,test-logs/kernel_eval/20261010-233411-706173-vmrun-ml-lzw-32-lzwbench-46-30-0-2.log,,74944975,961345111
