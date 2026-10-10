@@ -72,7 +72,7 @@ sizes of 5, 10 and 20\% of each program's pages.
   depends strongly on what is in memory at the start (up to 14 times), so its good simulated result was a lucky case.
 \item \textbf{Cost against number of candidates, and the break-even} (Section~\ref{sec:cost}): the linear model pays for itself on a hard disk on every workload with
   a model of its own and about breaks even on fast flash; the CNN, MLP and set-attention do not pay on either, because they cost about 75 to 145 times as much per eviction as the linear model.
-\item \textbf{Fairer comparison of the extra models.} Trained on all workloads, as the global linear model is, the CNN and MLP beat it by only 1.8\% and 0.9\% in the simulator (24 cells), below the 2\% bar, at 75 to 145 times the cost.
+\item \textbf{Fairer comparison of the extra models.} Trained on all workloads, as the global linear model is, the CNN and MLP beat it by only 1.8\% and 0.9\% in the simulator (24 cells), and not at all in the kernel at 10\% memory (ten streams: 0.936 and 0.934 against 0.934), at 75 to 145 times the cost.
 \item \textbf{A reproducibility bug was found and fixed.} Training samples depended on Python's per-process
   string hashing, so datasets could not be rebuilt identically. All models were refit; Clock, LRU and
   the other classical results are unchanged.
@@ -356,7 +356,7 @@ to be in memory first should not be trusted from one run.
 \label{sec:sizes}
 
 The 10\% runs cover every stream. At 5\% and 20\% memory one stream per program variant was run, 42 streams, with the standard policies and the linear models
-everywhere, and the five extra models on one stream per workload. 1\,694 in-kernel runs were merged into one file. A run is identified by its stream, memory
+everywhere, and the five extra models on one stream per workload. 1\,747 in-kernel runs were merged into one file. A run is identified by its stream, memory
 size, policy and model, and the long runs were split over this machine and four Kaggle notebooks. Where a run was done on both, the results are identical:
 all 261 runs done on both the Kaggle machines and this one gave the same faults, writes and evictions.
 
@@ -514,7 +514,20 @@ are not in the training data). Simulator, filled-memory start, the whole-number 
 
 Trained on all workloads, the CNN (0.878) and the MLP (0.886) beat the global linear model (0.894) by 1.8\% and 0.9\%, less than the 2\% bar, at 75 to 145 times the cost of choosing a
 victim. Boosted trees (0.963) and ranking trees (1.186) do not beat it. Set-attention improves from 1.48 to 0.90, level with the linear model, but it stays unstable (Section~\ref{sec:gap}).
-The same five models trained on all workloads are built into the kernel (\code{cnn-all}, \code{mlp-all}, \code{trees-all}, \code{attention-all}, \code{ranktrees-all}); their kernel runs are \emph{work in progress}.
+\textbf{In the kernel.} The same five models trained on all workloads are built into the kernel (\code{cnn-all}, \code{mlp-all}, \code{trees-all}, \code{attention-all}, \code{ranktrees-all}).
+At 10\% memory on ten streams (btree, kv, a Twitter replay, sort, matmul, heap, hash join, SpMV, pointer chase, Bloom filter):
+
+\begin{table}[h]
+\centering\small
+\input{tables/kernelall}
+\caption{xv6, 10\% memory, ten streams: faults relative to Clock (geometric mean) and the all-workloads models against the global linear model on the same streams (95\% interval from resampling the streams).}
+\end{table}
+
+\textbf{In the kernel the gain of the CNN and the MLP is gone.} Trained on all workloads they are level with the global linear model (0.936 and 0.934 against 0.934; the differences are well
+inside the intervals), where in the simulator they were 1.8\% and 0.9\% better. Boosted trees are worse (1.079 times the linear model's faults) and ranking trees much worse (one SpMV run makes 32 times
+Clock's faults). Set-attention reaches 0.956 against 1.72 when trained on one workload, not different from linear. Per stream, the CNN and the MLP are cautious: they stay near Clock where the linear
+model loses (matmul 0.96 and 1.01 against 1.21; SpMV 1.00 and 1.01 against 1.17) but gain less where it wins (heap 0.98 against 0.83; pointer chase 0.89 against 0.81). The 5\% and 20\% memory runs of these models
+are \emph{work in progress} (Kaggle round 2).
 
 \section{Noise floor}
 \label{sec:noise}
@@ -534,7 +547,7 @@ the other sources of variance (the choice of streams, which the bootstrap interv
 \item The kernel runs of patbench and appbench use 50\,000 accesses, not the full 1M, for time.
 \item The five extra models were each trained on one workload (kv for the CNN, MLP and boosted trees; graph for set-attention and
   ranking trees). Where they are run on other workloads (Table~\ref{tab:full}) the numbers show how well they carry over, not what
-  they could do if trained there. Training them on all workloads was done in the simulator (Section~\ref{sec:five}, 24 cells); the kernel runs of those all-workloads models, and training on the new programs, are not finished.
+  they could do if trained there. Training them on all workloads was done in the simulator (Section~\ref{sec:five}, 24 cells); their kernel runs at 10\% memory are in Section~\ref{sec:five}; the 5\% and 20\% runs and training on the new programs are not finished.
 \item At 5\% and 20\% memory one stream per program variant was run (42 streams), not every seed.
 \item Time is counted in instructions, at one nanosecond per instruction, which is conservative for a real processor. The break-even
   figures depend on that and on the cost of a fault on the machine in question, which xv6 on QEMU does not give; two example costs are shown.

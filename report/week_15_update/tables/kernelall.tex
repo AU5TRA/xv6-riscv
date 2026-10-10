@@ -1,0 +1,12 @@
+\begin{tabular}{lrrr}
+\toprule
+model & trained on one workload & trained on all workloads & all-workloads vs global linear [95\% interval] \\
+\midrule
+linear, global & -- & 0.934 & -- \\
+CNN on aging bits & 0.949 & 0.936 & 1.003 [0.933, 1.069] \\
+deeper MLP & 0.951 & 0.934 & 1.000 [0.941, 1.059] \\
+boosted trees & 0.975 & 1.008 & 1.079 [1.018, 1.157] \\
+set-attention & 1.718 & 0.956 & 1.024 [0.953, 1.090] \\
+ranking trees & 1.273 & 1.405 & 1.504 [1.007, 2.969] \\
+\bottomrule
+\end{tabular}

@@ -471,6 +471,40 @@ def trained_all_table():
     NUM["trainedall_cells"] = len(done)
 
 
+def kernel_all_table():
+    """in the kernel at 10%: the five kinds trained on one workload and on all workloads, against the global linear model, on the ten streams"""
+    p = R / "kernel_eval_all.csv"
+    if not p.exists():
+        return
+    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok" and r["fraction"] == "0.1"]
+    f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"])
+    clock = {r["stem"]: f(r) for r in rows if r["policy"] == "clock"}
+    d = defaultdict(dict)
+    for r in rows:
+        if r["policy"] == "ml":
+            d[r["model"]][r["stem"]] = f(r)
+    streams = ["btree-mixed-s5", "kv-A-s5", "kv-T17-s1", "sort-n40000-s3", "matmul-blocked128-s1", "heap-small-s1", "join-zipf-s1", "spmv-band-s1",
+               "chase-tree-s1", "bloom-k7-s1"]
+    pairs = [("CNN on aging bits", "cnn-kv", "cnn-all"), ("deeper MLP", "mlp-kv", "mlp-all"), ("boosted trees", "trees-kv", "trees-all"),
+             ("set-attention", "attention-graph", "attention-all"), ("ranking trees", "ranktrees-graph", "ranktrees-all")]
+    need = [sm for sm in streams if all(sm in d[m] for _, a, b in pairs for m in (a, b)) and sm in d["global"] and sm in clock]
+    if len(need) < 3:
+        return
+    rng = np.random.default_rng(1)
+    lin = np.array([math.log(d["global"][sm] / clock[sm]) for sm in need])
+
+    def ci(x):
+        bs = np.sort([math.exp(x[rng.integers(0, len(x), len(x))].mean()) for _ in range(10000)])
+        return f"{math.exp(x.mean()):.3f} [{bs[250]:.3f}, {bs[9749]:.3f}]"
+    body = [["linear, global", "--", f"{gm([d['global'][sm] / clock[sm] for sm in need]):.3f}", "--"]]
+    for nm, a, b in pairs:
+        one = np.array([math.log(d[a][sm] / clock[sm]) for sm in need])
+        al = np.array([math.log(d[b][sm] / clock[sm]) for sm in need])
+        body.append([nm, f"{math.exp(one.mean()):.3f}", f"{math.exp(al.mean()):.3f}", ci(al - lin)])
+    write("kernelall.tex", tab(body, ["model", "trained on one workload", "trained on all workloads", "all-workloads vs global linear [95\\% interval]"], "lrrr"))
+    NUM["kernelall_streams"] = len(need)
+
+
 if __name__ == "__main__":
     dataset()
     extra()
@@ -483,6 +517,7 @@ if __name__ == "__main__":
     ci_tables()
     guard_tables()
     trained_all_table()
+    kernel_all_table()
     noise()
     (OUT / "tables" / "numbers.tex").write_text("".join(f"\\expandafter\\def\\csname v@{k}\\endcsname{{{v}}}\n" for k, v in NUM.items()))
     print("written", OUT)
