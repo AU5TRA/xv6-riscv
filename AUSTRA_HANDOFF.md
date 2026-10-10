@@ -44,7 +44,7 @@ simulator that starts empty misjudges some models; one model (set-attention) cha
 ### 2. Results table (numbers are faults relative to Clock; below 1 is better; xv6 on QEMU unless it says simulator)
 | Result | Status | Where |
 |---|---|---|
-| Linear score, nine workloads, kernel: 0.94 / 0.92 / 0.79 at 5 / 10 / 20% memory; FIFO 1.28/1.27/1.34, Aging 1.10/1.05/1.19, LFU 1.13/1.11/1.24 | FINAL | report section "All three memory sizes"; `report/results2/kernel_eval_all.csv` |
+| Linear score, ten workloads, kernel: 0.95 / 0.92 / 0.81 at 5 / 10 / 20% memory; FIFO 1.26/1.25/1.30, Aging 1.09/1.04/1.17, LFU 1.12/1.10/1.21 | FINAL | report section "All three memory sizes"; `report/results2/kernel_eval_all.csv` |
 | Linear score per workload at 10% with 95% intervals (btree 0.84, graph 0.58 own-model, kv 0.87, lzw 0.84, heap 0.74 global, sort 0.94) | FINAL | `kernel_ci.csv`, table in the report |
 | Linear score fails on: matmul at 5% (1.48), SpMV (1.12 to 1.14), global model on graph at 20% (1.60) | FINAL | report, three-size tables |
 | CNN and MLP vs linear model on kv: 2.9% and 2.7% fewer faults, clear over 11 streams; worse than linear on btree, lzw, sort, graph | FINAL for models trained on one workload | `kernel_ci_paired.csv` |
@@ -58,7 +58,7 @@ simulator that starts empty misjudges some models; one model (set-attention) cha
 | Literature baselines in the simulator (ARC, S3-FIFO, an MGLRU analogue, LHD, MRU); LHD best untrained at 0.90 to 0.95 | FINAL (simulator only; none are in the kernel) | `baselines_ext.csv`, `transfer*.csv` |
 | Your programs (chase, join, Bloom, SpMV, heap) reproduce your host models byte for byte in our kernel; simulator and kernel results on them | FINAL | report section "Programs from AU5TRA" |
 | Noise from the choice of training rows: at most 0.0005 (kernel signals) | FINAL | `noise_floor.csv` |
-| Bloom filter at 20%: CNN, MLP, set-attention (3 runs timed out after 3 h on Kaggle) | **PLACEHOLDER** (missing; all policies score 1.00 on Bloom elsewhere) | |
+| Bloom filter at 20%: CNN, MLP, set-attention (timed out on Kaggle; rerun here, 3 of 3 done) | FINAL | `kernel_eval_w16j.csv` |
 
 ### 3. What is not done (WIP; write skeletons, no claims)
 * Test the five all-workloads models in the kernel (built in as `cnn-all`, `mlp-all`, ... ids 6-10; 10% runs local, 5%/20% on Kaggle round 2: `kaggle_package/README.txt`). Training and the simulator comparison are done.
@@ -178,8 +178,7 @@ Time delay: kernel counters `collect_ticks`, `select_ticks`, `path_ticks` (whole
 * **Cost**: `tools/ml2/cost_grid.py` (cost of choosing a victim against the number of candidates, all policies, repeatable clock) and
   `cost_benefit.py` (break-even fault cost; time vs Clock for SSD and disk). Result: linear model of its own workload pays on a disk everywhere it has one,
   about breaks even on flash; CNN/MLP/set-attention never pay; boosted trees pay only on a disk on kv.
-* **Known gaps**: the five extra models were trained on one workload each (kv or graph) and are only transferred elsewhere; 3 runs missing (Bloom 20%
-  with CNN, MLP, set-attention timed out after 3 h on Kaggle); 5%/20% use one stream per variant.
+* **Known gaps**: the five extra models were trained on one workload each (kv or graph) and are only transferred elsewhere; 5%/20% use one stream per variant.
 
 **New gotchas**
 * `pkill -f <pattern>` kills the shell that runs it if the pattern appears in the command line; use PIDs.

@@ -1,0 +1,6 @@
+stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript,accesses,collect_ticks,path_ticks
+sort-n40000-s3,test,sort,sort-n40000,0.1,8,ml,cnn-all,ok,1324,1363,659,2013129,16356,39,3,test-logs/kernel_eval/20261011-044904-089066-vmrun-ml-cnn-all-sortbench-2000-8-40000-3-0.log,,30672,2345697
+sort-n40000-s3,test,sort,sort-n40000,0.1,8,ml,attention-all,ok,1214,1253,624,2019608,15036,39,3,test-logs/kernel_eval/20261011-044904-089205-vmrun-ml-attention-all-sortbench-2000-8-40000-3-0.log,,35077,2375584
+sort-n40000-s3,test,sort,sort-n40000,0.1,8,ml,mlp-all,ok,1242,1281,637,3481723,15372,39,3,test-logs/kernel_eval/20261011-044904-089074-vmrun-ml-mlp-all-sortbench-2000-8-40000-3-0.log,,31317,3826628
+sort-n40000-s3,test,sort,sort-n40000,0.1,8,ml,ranktrees-all,ok,1168,1207,603,866750,14484,39,2,test-logs/kernel_eval/20261011-044907-299323-vmrun-ml-ranktrees-all-sortbench-2000-8-40000-3-0.log,,26807,1165937
+sort-n40000-s3,test,sort,sort-n40000,0.1,8,ml,trees-all,ok,1227,1266,623,963446,15192,39,2,test-logs/kernel_eval/20261011-044907-358051-vmrun-ml-trees-all-sortbench-2000-8-40000-3-0.log,,28962,1280189

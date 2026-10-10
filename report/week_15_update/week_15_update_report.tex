@@ -66,7 +66,7 @@ sizes of 5, 10 and 20\% of each program's pages.
 \item \textbf{AU5TRA's programs were merged} (pointer chase, hash join, Bloom filter, sparse matrix--vector, heap churn; Section~\ref{sec:austra}): in our
   kernel each reproduces her model's trace exactly. The linear model gains most on heap programs (kernel 0.65 on \code{heap-mixed}) and fails on SpMV.
 \item \textbf{All three memory sizes were run in the kernel} (Section~\ref{sec:sizes}; long runs split over this machine and four Kaggle notebooks, whose results matched this machine
-  exactly on all 261 runs done on both). Over nine workloads the linear model scores 0.94, 0.92 and 0.79 of Clock at 5, 10 and 20\% memory;
+  exactly on all 261 runs done on both). Over ten workloads the linear model scores 0.95, 0.92 and 0.81 of Clock at 5, 10 and 20\% memory;
   FIFO, Aging and LFU are worse than Clock at every size.
 \item \textbf{The two unexplained gaps are explained} (Section~\ref{sec:gap}): the kernel starts from filled memory while the simulator started empty, and set-attention's result
   depends strongly on what is in memory at the start (up to 14 times), so its good simulated result was a lucky case.
@@ -380,36 +380,36 @@ The extra models were trained on kv or graph only, so their other columns show h
 \caption{20\% memory, same layout and the same streams.}
 \end{table}
 
-Geometric mean over the nine workloads for which every row has data (all except graph, lzw and Bloom), at 5, 10 and 20\% memory:
+Geometric mean over the ten workloads for which every row has data (all except graph and lzw), at 5, 10 and 20\% memory:
 
 \begin{center}\small
 \begin{tabular}{lrrr}
 \toprule
 policy & 5\% & 10\% & 20\% \\
 \midrule
-FIFO & 1.28 & 1.27 & 1.34 \\
-Aging & 1.10 & 1.05 & 1.19 \\
-LFU & 1.13 & 1.11 & 1.24 \\
-linear, global & 0.94 & 0.92 & 0.79 \\
-linear, own workload & 0.98 & 0.91 & 0.79 \\
-CNN on aging bits & 0.93 & 0.95 & 0.87 \\
-deeper MLP & 0.93 & 0.96 & 0.86 \\
-boosted trees & 0.93 & 0.96 & 1.03 \\
-set-attention & 1.34 & 1.58 & 2.11 \\
-ranking trees & 1.07 & 1.17 & 1.31 \\
+FIFO & 1.26 & 1.25 & 1.30 \\
+Aging & 1.09 & 1.04 & 1.17 \\
+LFU & 1.12 & 1.10 & 1.21 \\
+linear, global & 0.95 & 0.92 & 0.81 \\
+linear, own workload & 0.98 & 0.91 & 0.81 \\
+CNN on aging bits & 0.94 & 0.95 & 0.89 \\
+deeper MLP & 0.93 & 0.96 & 0.87 \\
+boosted trees & 0.94 & 0.97 & 1.02 \\
+set-attention & 1.30 & 1.51 & 1.96 \\
+ranking trees & 1.07 & 1.15 & 1.27 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item \best{The linear kernel-signal model beats Clock at all three sizes}, by 6\%, 8\% and 21\%, and is the best of the rows at 10 and 20\%. The CNN and MLP also
-  beat Clock at all three (by 5--13\%), but only by being run on workloads they were not trained for with about a hundred times the arithmetic. The 20\% figure of
-  the linear model is pulled down by the hash join, where it scores 0.41 against Clock; without the join the mean is 0.85.
+\item \best{The linear kernel-signal model beats Clock at all three sizes}, by 5\%, 8\% and 19\%, and is the best of the rows at 10 and 20\%. The CNN and MLP also
+  beat Clock at all three (by 4 to 13\%), but only by being run on workloads they were not trained for with about a hundred times the arithmetic. The 20\% figure of
+  the linear model is pulled down by the hash join, where it scores 0.41 against Clock; without the join the mean is 0.87.
 \item Where it fails: matmul at 5\% (1.48, with only 2 frames), SpMV (1.14 and 1.12 at 5 and 10\%), and, for the global model, graph at 20\% (1.60).
   The graph model of its own is 0.97 at 5 and 20\% against 0.60 at 10\%: its gain is concentrated at one memory size, as week 14 found.
 \item The CNN, the MLP and the boosted trees are about 1\% better than the global linear model at 5\%, and worse at 10 and 20\%, though they were trained on
   one workload only (see the table caption). Set-attention and ranking trees are worse than Clock at every size.
-\item FIFO, Aging and LFU lose to Clock by 4 to 34\%.
+\item FIFO, Aging and LFU lose to Clock by 4 to 30\%.
 \end{itemize}
 
 \section{What choosing a victim costs, and when it pays}
@@ -535,8 +535,7 @@ the other sources of variance (the choice of streams, which the bootstrap interv
 \item The five extra models were each trained on one workload (kv for the CNN, MLP and boosted trees; graph for set-attention and
   ranking trees). Where they are run on other workloads (Table~\ref{tab:full}) the numbers show how well they carry over, not what
   they could do if trained there. Training them on all workloads was done in the simulator (Section~\ref{sec:five}, 24 cells); the kernel runs of those all-workloads models, and training on the new programs, are not finished.
-\item At 5\% and 20\% memory one stream per program variant was run (42 streams), not every seed. Three runs are missing: the CNN, MLP
-  and set-attention on the Bloom filter at 20\%, which hit the three-hour limit on the Kaggle machine.
+\item At 5\% and 20\% memory one stream per program variant was run (42 streams), not every seed.
 \item Time is counted in instructions, at one nanosecond per instruction, which is conservative for a real processor. The break-even
   figures depend on that and on the cost of a fault on the machine in question, which xv6 on QEMU does not give; two example costs are shown.
 \item The week-14 and the current builds of the benchmark programs differ, which moves every policy's fault counts by about 1\%. Results

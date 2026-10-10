@@ -1,1 +1,4 @@
 stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript,accesses,collect_ticks,path_ticks
+bloom-k7-s1,heldout,bloom,bloom-k7,0.2,102,ml,attention-graph,ok,2419561,2419970,732215,29767160474,256516820,511,4673,test-logs/kernel_eval/20261011-025541-844965-vmrun-ml-attention-graph-bloombench-512-102-131072-1-k7-0.log,,113967227,30557226178
+bloom-k7-s1,heldout,bloom,bloom-k7,0.2,102,ml,cnn-kv,ok,2420934,2421343,732968,31889799761,256662358,511,4894,test-logs/kernel_eval/20261011-025541-844971-vmrun-ml-cnn-kv-bloombench-512-102-131072-1-k7-0.log,,112150250,32679222631
+bloom-k7-s1,heldout,bloom,bloom-k7,0.2,102,ml,mlp-kv,ok,2420597,2421006,732954,50756819725,256626636,511,6708,test-logs/kernel_eval/20261011-025541-836269-vmrun-ml-mlp-kv-bloombench-512-102-131072-1-k7-0.log,,106421948,51541890471
