@@ -52,7 +52,7 @@ def policies(workload):
 # <repeat_count> <flags> <seed>, so the defaults would overwrite its repeat
 # count and seed.
 MARGIN_ARG = {"lzwbench": 1, "appbench": 1}
-ACC_ARG = {"patbench": 3, "appbench": 2}      # access-count argument, overridable with --accesses
+ACC_ARG = {"patbench": 3, "patbench2": 3, "appbench": 2}      # access-count argument, overridable with --accesses
 FLAGS_ARG = {"lzwbench": 3}
 
 

@@ -73,7 +73,7 @@ HELD_OUT = {"kv-F", "btree-scan", "graph-bfs2000", "sort-n60000",
             "patb-loop", "patb-scanhot", "patb-scanhotlo", "patb-zipf060", "patb-zipf099", "patb-zipf120", "patb-uniform",
             "patb-phase", "patb-phaseshort", "patb-switch",
             "kv-T4", "kv-T17", "kv-T18", "kv-T24", "kv-T35", "kv-T52",
-            "chase-n256", "bloom-k7"}
+            "chase-n256", "bloom-k7", "chase-list", "chase-tree", "bloom-k3"}
 STEM_RE = re.compile(r"^(?P<variant>(?P<workload>[a-z]+)-[A-Za-z0-9]+)-s(?P<seed>\d+)$")
 
 

@@ -21,7 +21,8 @@ OUT = R / "transfer.csv"
 OUT_REAL = R / "transfer_real.csv"
 OUT_APP = R / "transfer_app.csv"
 OUT_T3 = R / "transfer_traces3.csv"
-T3 = ([f"{w}-s1" for w in ("heap-small", "heap-mixed", "heap-churn", "join-r4", "join-uni", "join-zipf", "spmv-band", "spmv-rand")]
+T3 = ([f"{w}-s1" for w in ("heap-small", "heap-mixed", "heap-churn", "join-r4", "join-uni", "join-zipf", "spmv-band", "spmv-rand",
+                          "chase-list", "chase-tree", "chase-n256", "bloom-k3", "bloom-k7")]
       + [f"patb-{m}-s1" for m in ("loop", "scanhot", "scanhotlo", "zipf060", "zipf099", "zipf120", "uniform", "phase", "phaseshort", "switch")])
 NETS = ["cnn-kv", "attention-graph", "mlp-kv", "ranktrees-graph", "trees-kv"]
 APP = [f"app-{m}-s{k}" for m in ("chase", "spmv", "hashjoin", "bloom") for k in (1, 3)]

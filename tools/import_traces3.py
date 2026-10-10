@@ -54,7 +54,27 @@ def convert(src, wl, variant):
     print(stem, nrefs, len(np.unique(vpn)))
 
 
+def register_generated(wl, variant, source):
+    """a trace already written to traces/streams/<wl>/ by a host model: add its log and marker"""
+    stem = f"{wl}-{variant}-s1"
+    d = OUT / wl
+    t = d / f"{stem}.trace"
+    vpn = np.fromregex(str(t), r"[RW] (\d+)", [("v", np.int64)])["v"]
+    nrefs = len(vpn)
+    (d / f"{stem}.log").write_text(
+        f"HOSTGEN source={source} (no xv6 run)\n"
+        f"TRACEHDR workload={wl}-{variant} params=hostmodel seed=1 resident_limit=0 arena_cache_budget=0 policy=0 "
+        f"prefetch_enabled=0 arena_start_vpn={int(vpn.min())} arena_pages={len(np.unique(vpn))}\n"
+        f"TRACEEND refs={nrefs} bytes={t.stat().st_size}\nPASS\n# RESULT PASS\n")
+    (d / f"{stem}.ok").write_text("host-generated\n")
+    print(stem, nrefs, len(np.unique(vpn)))
+
+
 def main():
+    # chase and Bloom: AU5TRA's exact host models (tools/hostmodel/), run with the manifest's arguments
+    for wl, variant in (("chase", "list"), ("chase", "tree"), ("chase", "n256"), ("bloom", "k3"), ("bloom", "k7")):
+        if (OUT / wl / f"{wl}-{variant}-s1.trace").exists():
+            register_generated(wl, variant, f"tools/hostmodel/{wl}bench.py")
     for name in NEW:
         src = pick(name)
         wl, variant = name.split("-", 1)
