@@ -25,19 +25,32 @@ def sh(cmd, check=True, **kw):
 
 
 # 1. the package and the tools -------------------------------------------------------------------------------
-pk = glob.glob("/kaggle/input/**/xv6_package.tar.gz", recursive=True) or glob.glob("./xv6_package.tar.gz")
-if not pk:
-    raise SystemExit("xv6_package.tar.gz not found: add the dataset you uploaded to this notebook (+ Add Input)")
+INPUT = os.environ.get("XV6_INPUT", "/kaggle/input")
+pk = glob.glob(f"{INPUT}/**/xv6_package.tar*", recursive=True) or glob.glob("./xv6_package.tar*")
+extracted = [os.path.dirname(m) for m in glob.glob(f"{INPUT}/**/Makefile", recursive=True)
+             if os.path.exists(os.path.join(os.path.dirname(m), "kernel", "vmpage.c"))]
+if not pk and not extracted:
+    say(f"nothing found under {INPUT}. What is there:")
+    for root, dirs, files in os.walk(INPUT):
+        if root.count(os.sep) - INPUT.count(os.sep) <= 3:
+            print("  ", root, files[:8], flush=True)
+    raise SystemExit("the xv6-package dataset is not attached to this notebook: use '+ Add Input' -> 'Your Datasets' "
+                     "(or 'Datasets' tab), pick it, and check it appears under /kaggle/input in the right-hand panel")
 if not os.environ.get("SKIP_APT"):
     sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gcc-riscv64-linux-gnu "
        "binutils-riscv64-linux-gnu qemu-system-misc make rsync python3-pexpect")
 sh("riscv64-linux-gnu-gcc --version | head -1; qemu-system-riscv64 --version | head -1; nproc")
 shutil.rmtree(SRC, ignore_errors=True)
 os.makedirs(os.path.dirname(SRC), exist_ok=True)
-with tarfile.open(pk[0]) as t:
-    t.extractall(os.path.dirname(SRC))
-if os.path.basename(SRC) != "xv6":
-    os.rename(os.path.join(os.path.dirname(SRC), "xv6"), SRC)
+if pk:
+    say("package file:", pk[0])
+    with tarfile.open(pk[0]) as t:
+        t.extractall(os.path.dirname(SRC))
+    if os.path.basename(SRC) != "xv6":
+        os.rename(os.path.join(os.path.dirname(SRC), "xv6"), SRC)
+else:   # Kaggle unpacked the archive when the dataset was created
+    say("package folder:", extracted[0])
+    shutil.copytree(extracted[0], SRC)
 os.makedirs(f"{SRC}/report/results2", exist_ok=True)
 sh(f"cd {SRC} && make kernel/kernel fs.img > build.log 2>&1; tail -2 build.log")
 if not os.path.exists(f"{SRC}/kernel/kernel") or not os.path.exists(f"{SRC}/fs.img"):
