@@ -7,7 +7,8 @@ import extra_nn as N
 import netint
 import pagesim as ps
 
-MODELS = ["kv.agecnn.K.-", "graph.setctx.K.-", "kv.deep.K.-", "graph.rank.K.trees100-leaves16", "kv.gbdt.K.trees100-leaves16"]
+MODELS = ["kv.agecnn.K.-", "graph.setctx.K.-", "kv.deep.K.-", "graph.rank.K.trees100-leaves16", "kv.gbdt.K.trees100-leaves16",
+          "global.agecnn.K.-", "global.setctx.K.-", "global.deep.K.-", "global.rank.K.trees100-leaves16", "global.gbdt.K.trees100-leaves16"]
 AG = ps.FEATURES.index("aging")
 
 
@@ -18,7 +19,7 @@ def float_scores(spec, feat, hist):
 
 
 for name in MODELS:
-    scope = name.split(".")[0]
+    scope = "kv" if name.split(".")[0] == "global" else name.split(".")[0]      # validation candidate sets of one workload
     spec = Z.load_spec(name)
     d = Z.load("val", scope, hist=True)
     inet = netint.from_spec(spec)

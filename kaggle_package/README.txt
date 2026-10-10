@@ -1,3 +1,19 @@
+ROUND 2 (2026-10-11): the five model kinds trained on ALL workloads, at 5% and 20% memory
+==========================================================================================
+This folder now holds the round-2 package. Round 1 (your notebooks that already finished) is described further down.
+
+What to do (about 5 minutes, then about 1.7 hours of waiting):
+  1. Upload the NEW xv6_package.tar.gz: Kaggle -> your dataset "xv6-package" -> New Version -> drop in the new file -> Create.
+     (Or make a second dataset and attach that one; the notebook finds any xv6_package.tar* under /kaggle/input.)
+  2. In each of your 4 notebooks: delete the code cell, paste the NEW notebook_N.py (N = 1..4; they were rewritten), check the dataset input shows the new
+     version, Accelerator = None, Internet = On, then Save Version -> Save & Run All (Commit).
+  3. When they finish, download the files named kaggle_N_netsall.csv from each notebook's Output tab and put them into
+     /home/gawwy/Thesis/xv6-riscv/report/results2/  (Claude merges them; nothing else to do).
+  Expected sizes: notebook 1 about 1.7 h, notebooks 2-4 about 1.2 h each (4 CPU cores each). The runs are resumable: if a notebook stops, run it again.
+  The self test at the start must say "faults 10511, expected 10511"; if it does not, stop and tell Claude.
+
+------------------------------------------------------------------------------------------
+
 KAGGLE PACKAGE: 4 notebooks that run part of the thesis' xv6 kernel tests
 ==========================================================================
 

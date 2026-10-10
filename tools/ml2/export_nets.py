@@ -4,7 +4,7 @@
   kernel/mlnets.h       the networks / trees (struct mlnet, see kernel/mlnet.h)
   user/mlnet_names.h    name -> id, for `vmrun ml <name>`
 
-The five are the best kernel-observable models on validation streams, one per kind (extra_report /
+The first five are the best kernel-observable models on validation streams, one per kind (extra_report /
 the ranking in report_w15): a CNN over the aging bits (kv), set-attention (graph), a deeper MLP (kv),
 ranking boosted trees (graph), boosted trees (kv).
 
@@ -17,7 +17,10 @@ import netint
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS = [("cnn-kv", "kv.agecnn.K.-"), ("attention-graph", "graph.setctx.K.-"), ("mlp-kv", "kv.deep.K.-"),
-          ("ranktrees-graph", "graph.rank.K.trees100-leaves16"), ("trees-kv", "kv.gbdt.K.trees100-leaves16")]
+          ("ranktrees-graph", "graph.rank.K.trees100-leaves16"), ("trees-kv", "kv.gbdt.K.trees100-leaves16"),
+          # the same five kinds trained on all workloads (ids 6-10), for the fair comparison
+          ("cnn-all", "global.agecnn.K.-"), ("attention-all", "global.setctx.K.-"), ("mlp-all", "global.deep.K.-"),
+          ("ranktrees-all", "global.rank.K.trees100-leaves16"), ("trees-all", "global.gbdt.K.trees100-leaves16")]
 
 
 def main():

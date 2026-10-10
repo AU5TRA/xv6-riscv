@@ -6,11 +6,31 @@ import csv, glob, json, os, re, shutil, subprocess, sys, tarfile, threading, tim
 
 CONFIG = json.loads(r'''{
  "id": 4,
- "standard": [
-  "sort-n40000-s3"
- ],
+ "standard": [],
  "nets": [],
- "patapp": true,
+ "patapp": false,
+ "netsall": [
+  [
+   "bloom-k7-s1",
+   "0.05"
+  ],
+  [
+   "heap-small-s1",
+   "0.2"
+  ],
+  [
+   "btree-mixed-s5",
+   "0.2"
+  ],
+  [
+   "join-zipf-s1",
+   "0.05"
+  ],
+  [
+   "btree-mixed-s5",
+   "0.05"
+  ]
+ ],
  "selftest": {
   "stem": "kv-A-s5",
   "faults": 10511,
@@ -19,6 +39,7 @@ CONFIG = json.loads(r'''{
 }''')
 
 NETS = "cnn-kv,attention-graph,mlp-kv,ranktrees-graph,trees-kv"
+NETS_ALL = "cnn-all,attention-all,mlp-all,ranktrees-all,trees-all"
 SRC = os.environ.get("XV6_DIR", "/tmp/xv6")
 OUTDIR = os.environ.get("XV6_OUT", "/kaggle/working")
 T0 = time.time()
@@ -116,6 +137,12 @@ if CONFIG["nets"]:
     keval(f"kaggle_{i}_nets.csv", f"--fracs 0.05,0.2 --only {','.join(CONFIG['nets'])} --splits test,heldout --models {NETS}",
           start="start_kernel_eval_w16f.csv")
     save()
+if CONFIG.get("netsall"):
+    for fr in ("0.05", "0.2"):
+        sts = [st for st, f in CONFIG["netsall"] if f == fr]
+        if sts:
+            keval(f"kaggle_{i}_netsall.csv", f"--fracs {fr} --only {','.join(sts)} --splits test,heldout --models {NETS_ALL}")
+            save()
 if CONFIG["patapp"]:
     streams = "pat-zipf099-s5,pat-phase-s5,pat-scanhot-s5,pat-loop-s5,pat-uniform-s5,app-chase-s1,app-spmv-s1,app-hashjoin-s1,app-bloom-s1"
     keval(f"kaggle_{i}_patapp.csv", f"--fracs 0.05,0.2 --accesses 50000 --only {streams} --splits test,heldout "

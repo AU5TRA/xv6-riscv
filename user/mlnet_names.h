@@ -6,5 +6,10 @@ static const struct ml_net_name ml_net_names[] = {
   { "mlp-kv", 3 },
   { "ranktrees-graph", 4 },
   { "trees-kv", 5 },
+  { "cnn-all", 6 },
+  { "attention-all", 7 },
+  { "mlp-all", 8 },
+  { "ranktrees-all", 9 },
+  { "trees-all", 10 },
 };
-#define ML_NET_NAMES 5
+#define ML_NET_NAMES 10

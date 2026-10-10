@@ -24,6 +24,8 @@ NETS = "cnn-kv,attention-graph,mlp-kv,ranktrees-graph,trees-kv"
 NETS_REPS = "btree-mixed-s5,kv-A-s5,kv-T17-s1,sort-n40000-s3,matmul-blocked128-s1,heap-small-s1,join-zipf-s1,spmv-band-s1,chase-tree-s1,bloom-k7-s1".split(",")
 PATAPP = "pat-zipf099-s5,pat-phase-s5,pat-scanhot-s5,pat-loop-s5,pat-uniform-s5,app-chase-s1,app-spmv-s1,app-hashjoin-s1,app-bloom-s1".split(",")
 LANES = {"local": 6, "k1": 4, "k2": 4, "k3": 4, "k4": 4}
+NETS_ALL = "cnn-all,attention-all,mlp-all,ranktrees-all,trees-all"
+OLD_NAME = {"cnn-all": "cnn-kv", "attention-all": "attention-graph", "mlp-all": "mlp-kv", "ranktrees-all": "ranktrees-graph", "trees-all": "trees-kv"}
 
 
 def costs():
@@ -59,7 +61,62 @@ def costs():
     return items
 
 
+def costs_nets_all():
+    """5% / 20% runs of the five all-workloads models on the ten streams of the per-workload models; cost = measured wall time of the
+    corresponding per-workload model on the same stream and memory size"""
+    wall = {}
+    for r in csv.DictReader(open(R / "kernel_eval_all.csv")):
+        if r["status"] == "ok" and r["wall_s"] and r["model"] in OLD_NAME.values():
+            wall[(r["stem"], r["fraction"], r["model"])] = float(r["wall_s"])
+    done = set()
+    for f in R.glob("kaggle_*_netsall.csv"):
+        done |= {(r["stem"], r["fraction"], r["model"]) for r in csv.DictReader(open(f)) if r["status"] == "ok"}
+    items = {}
+    for st in NETS_REPS:
+        for fr in ("0.05", "0.2"):          # one item per (stream, memory size) so the notebooks balance
+            h = 0.0
+            for new, old in OLD_NAME.items():
+                if (st, fr, new) not in done:
+                    h += wall.get((st, fr, old), 1800.0) / 3600 / 1.4
+            if h:
+                items[("netsall", (st, fr))] = h
+    return items
+
+
+def main_nets_all():
+    items = costs_nets_all()
+    bins = {n: {"lanes": 4, "work": 0.0, "netsall": []} for n in ("k1", "k2", "k3", "k4")}
+    for (kind, st), h in sorted(items.items(), key=lambda kv: -kv[1]):
+        b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
+        b["work"] += h
+        b["netsall"].append(st)
+    for n, b in bins.items():
+        print(f"{n} {b['lanes']} lanes, {b['work']:5.1f} lane-h -> about {b['work'] / b['lanes']:.1f} h; {len(b['netsall'])} items")
+    PK.mkdir(exist_ok=True)
+    out = PK / "xv6_package.tar.gz"
+    skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
+    def keep(ti):
+        n = ti.name
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img"):
+            return None
+        return ti
+    with tarfile.open(out, "w:gz") as t:
+        for p in ("Makefile", "kernel", "user", "mkfs", "tools/ml2/kernel_eval.py", "tools/run_xv6_tests.py", "tools/extract_file.py",
+                  "tools/streams_manifest.tsv", "README", "corpus.txt", "corpus1.txt", "corpus2.txt", "corpus3.txt", "corpus4.txt", "corpus5.txt"):
+            if (ROOT / p).exists():
+                t.add(ROOT / p, arcname=f"xv6/{p}", filter=keep)
+        t.add(ROOT / "traces2/ML/index.json", arcname="xv6/traces2/ML/index.json")
+    exp = json.load(open(PK / "plan.json"))["selftest"]
+    tpl = (Path(__file__).parent / "notebook_template.py").read_text()
+    for i in (1, 2, 3, 4):
+        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "netsall": [list(x) for x in bins[f"k{i}"]["netsall"]], "selftest": exp}, indent=1)
+        (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
+    print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the all-workloads models")
+
+
 def main():
+    if "--nets-all" in __import__("sys").argv:
+        return main_nets_all()
     items = costs()
     patapp_h = 6.6   # 9 short streams x 11 policies x 2 sizes, about 2 minutes each (measured at 10%)
     bins = {n: {"lanes": l, "work": 0.0, "standard": [], "nets": [], "patapp": False} for n, l in LANES.items()}

@@ -6,21 +6,39 @@ import csv, glob, json, os, re, shutil, subprocess, sys, tarfile, threading, tim
 
 CONFIG = json.loads(r'''{
  "id": 2,
- "standard": [
-  "lzw-r20-s5",
-  "heap-mixed-s1",
-  "btree-insert-s5",
-  "btree-mixed-s5",
-  "kv-F-s1",
-  "kv-D-s5",
-  "kv-T24-s1",
-  "kv-T52-s1"
- ],
- "nets": [
-  "bloom-k7-s1",
-  "join-zipf-s1"
- ],
+ "standard": [],
+ "nets": [],
  "patapp": false,
+ "netsall": [
+  [
+   "chase-tree-s1",
+   "0.05"
+  ],
+  [
+   "join-zipf-s1",
+   "0.2"
+  ],
+  [
+   "spmv-band-s1",
+   "0.2"
+  ],
+  [
+   "kv-A-s5",
+   "0.2"
+  ],
+  [
+   "kv-A-s5",
+   "0.05"
+  ],
+  [
+   "kv-T17-s1",
+   "0.05"
+  ],
+  [
+   "matmul-blocked128-s1",
+   "0.2"
+  ]
+ ],
  "selftest": {
   "stem": "kv-A-s5",
   "faults": 10511,
@@ -29,6 +47,7 @@ CONFIG = json.loads(r'''{
 }''')
 
 NETS = "cnn-kv,attention-graph,mlp-kv,ranktrees-graph,trees-kv"
+NETS_ALL = "cnn-all,attention-all,mlp-all,ranktrees-all,trees-all"
 SRC = os.environ.get("XV6_DIR", "/tmp/xv6")
 OUTDIR = os.environ.get("XV6_OUT", "/kaggle/working")
 T0 = time.time()
@@ -126,6 +145,12 @@ if CONFIG["nets"]:
     keval(f"kaggle_{i}_nets.csv", f"--fracs 0.05,0.2 --only {','.join(CONFIG['nets'])} --splits test,heldout --models {NETS}",
           start="start_kernel_eval_w16f.csv")
     save()
+if CONFIG.get("netsall"):
+    for fr in ("0.05", "0.2"):
+        sts = [st for st, f in CONFIG["netsall"] if f == fr]
+        if sts:
+            keval(f"kaggle_{i}_netsall.csv", f"--fracs {fr} --only {','.join(sts)} --splits test,heldout --models {NETS_ALL}")
+            save()
 if CONFIG["patapp"]:
     streams = "pat-zipf099-s5,pat-phase-s5,pat-scanhot-s5,pat-loop-s5,pat-uniform-s5,app-chase-s1,app-spmv-s1,app-hashjoin-s1,app-bloom-s1"
     keval(f"kaggle_{i}_patapp.csv", f"--fracs 0.05,0.2 --accesses 50000 --only {streams} --splits test,heldout "
