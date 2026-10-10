@@ -453,6 +453,22 @@ def guard_tables():
         write(f"guard_{tag}.tex", tab(body, ["policy", f"all {len(done)} cells", f"{len(lose)} cells where learned loses", f"{len(win)} cells where it wins", "worst cell"], "lrrrr"))
 
 
+def trained_all_table():
+    p = R / "trained_on_all.csv"
+    if not p.exists():
+        return
+    cells = defaultdict(dict)
+    for r in csv.DictReader(open(p)):
+        cells[(r["stem"], r["fraction"])][r["policy"]] = int(r["faults"])
+    done = [k for k, v in cells.items() if len(v) >= 12]
+    rat = lambda pol: [max(cells[k][pol], 1) / cells[k]["clock"] for k in done]
+    body = [["linear, global", "--", f"{gm(rat('linear, global')):.3f}"]]
+    for kind in ("CNN on aging bits", "deeper MLP", "boosted trees", "set-attention", "ranking trees"):
+        body.append([kind, f"{gm(rat(kind + ' | one workload')):.3f}", f"{gm(rat(kind + ' | all workloads')):.3f}"])
+    write("trainedall.tex", tab(body, ["model", "trained on one workload", "trained on all workloads"], "lrr"))
+    NUM["trainedall_cells"] = len(done)
+
+
 if __name__ == "__main__":
     dataset()
     extra()
@@ -464,6 +480,7 @@ if __name__ == "__main__":
     cost_tables()
     ci_tables()
     guard_tables()
+    trained_all_table()
     noise()
     (OUT / "tables" / "numbers.tex").write_text("".join(f"\\expandafter\\def\\csname v@{k}\\endcsname{{{v}}}\n" for k, v in NUM.items()))
     print("written", OUT)

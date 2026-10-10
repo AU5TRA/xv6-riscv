@@ -37,7 +37,7 @@ Language rule from GawwyG: plain words, no jargon, no invented terms. Say what a
 A small linear score over signals an operating-system kernel can already see (accessed bit, dirty bit, how long a page was idle, how often it was
 evicted and came back), computed with whole numbers, makes fewer page faults than Clock in xv6 and is cheap enough to run. Bigger models (deeper networks,
 convolutional and attention models, boosted trees) cost 20 to 145 times more per eviction and gain at most about 3% in the kernel on the workloads they were
-trained for; whether they gain more when trained on everything is **WIP** (see section 3). Sampling a few candidates per eviction removes the growth of the cost
+trained for; trained on everything, the best two (CNN, MLP) gain 1.8% and 0.9% over the global linear model in the simulator (kernel confirmation is **WIP**). Sampling a few candidates per eviction removes the growth of the cost
 with memory size. Method lessons (worth a paragraph): every benchmark has an exact model of its reference string; the kernel starts from filled memory, so a
 simulator that starts empty misjudges some models; one model (set-attention) changes by up to 14 times with the starting memory state.
 
@@ -48,7 +48,7 @@ simulator that starts empty misjudges some models; one model (set-attention) cha
 | Linear score per workload at 10% with 95% intervals (btree 0.84, graph 0.58 own-model, kv 0.87, lzw 0.84, heap 0.74 global, sort 0.94) | FINAL | `kernel_ci.csv`, table in the report |
 | Linear score fails on: matmul at 5% (1.48), SpMV (1.12 to 1.14), global model on graph at 20% (1.60) | FINAL | report, three-size tables |
 | CNN and MLP vs linear model on kv: 2.9% and 2.7% fewer faults, clear over 11 streams; worse than linear on btree, lzw, sort, graph | FINAL for models trained on one workload | `kernel_ci_paired.csv` |
-| Same comparison with each model trained on all workloads | **PLACEHOLDER / WIP**: first partial result (14 of 24 cells, 5 streams, simulator): CNN 0.89, MLP 0.90, trees 1.01, set-attention 0.92, ranking trees 1.37 against 0.94 for the global linear model. This may overturn "richer models do not beat linear"; do not write that sentence as final | `trained_on_all.csv` (partial) |
+| Same comparison with each model trained on all workloads (simulator, 24 cells, filled start): linear global 0.894; CNN 0.878; MLP 0.886; boosted trees 0.963; set-attention 0.895 (was 1.48 trained on one workload); ranking trees 1.186. CNN and MLP beat linear by 1.8% and 0.9%, below a 2% bar, at 75-145x the cost | FINAL in the simulator; **kernel runs of these models: WIP** (round-2 Kaggle package + local 10% runs) | `trained_on_all.csv`; report section "The five extra models in the kernel" |
 | Cost of choosing a victim against number of candidates (linear 360 instructions per candidate, trees 7,300, set-attention 27,000, CNN 30,000, MLP 51,000; Clock under 1,100 up to 512 candidates) | FINAL | `cost_grid.csv`; report section "What choosing a victim costs" |
 | Break-even: linear model of its own workload pays on a hard disk (8 ms per fault) everywhere it has one (time 0.58 to 0.94 of Clock); about breaks even on fast flash (100 us); CNN and MLP never pay | FINAL given two assumptions: 1 instruction = 1 ns, and the two fault costs (**the fault cost was never measured**) | `cost_benefit.csv` |
 | Sampling 32 candidates: linear cost stops growing with memory (11,800 instructions at 256 and at 512 candidates against 91,700 and 183,300) | FINAL | `cost_grid.csv` |
@@ -61,8 +61,8 @@ simulator that starts empty misjudges some models; one model (set-attention) cha
 | Bloom filter at 20%: CNN, MLP, set-attention (3 runs timed out after 3 h on Kaggle) | **PLACEHOLDER** (missing; all policies score 1.00 on Bloom elsewhere) | |
 
 ### 3. What is not done (WIP; write skeletons, no claims)
-* Train each of the five model kinds on all workloads and test them in the kernel (about 5 hours of kernel time; see "Resuming" below). The simulator part is half done.
-* A safety guard that falls back to Clock when the learned policy does worse (the linear model loses on matmul at 5%, SpMV, graph at 20%). Not started.
+* Test the five all-workloads models in the kernel (built in as `cnn-all`, `mlp-all`, ... ids 6-10; 10% runs local, 5%/20% on Kaggle round 2: `kaggle_package/README.txt`). Training and the simulator comparison are done.
+* A safety guard that falls back to Clock when the learned policy does worse: **prototype in the simulator only** (`exp_guard.py`, report section "A safety guard"): on unseen streams it halves the damage (worst cell 1.86 -> 1.36) and costs about 2 points of average gain. The kernel version needs a decision (see `backlog.md`, D1).
 * A port of LHD (the best untrained baseline) into the kernel. Not started.
 * The cost of a real page fault (reading a page from disk and writing one back). Needs real hardware; xv6 on QEMU cannot give it.
 * More than one stream per variant at 5% and 20% memory; more seeds for error bars.
@@ -92,8 +92,7 @@ cd tools/ml2     # python is ~/.venvs/xv6ml/bin/python on GawwyG's machine
 # lzw sampled-scoring reruns on the current build (6 of 21 done) -> kernel_eval_w16g.csv
 KERNEL_EVAL_OUT=kernel_eval_w16g.csv KERNEL_EVAL_LANES=/tmp/xv6G python -u kernel_eval.py --lanes 6 --fracs 0.1 \
   --only lzw-r20-s5,lzw-r30-s0,lzw-r30-s1,lzw-r30-s2,lzw-r30-s3,lzw-r30-s4,lzw-r30-s5 --splits test,heldout --models lzw@16,lzw@32,lzw@64
-# trained-on-all comparison in the simulator (14 of 24 cells done) -> trained_on_all.csv (about 8 CPU-hours in total)
-python -u exp_trained_on_all.py --jobs 4 --only btree-mixed-s5,kv-A-s5,kv-T17-s1,sort-n40000-s3,matmul-blocked128-s1,heap-small-s1,join-zipf-s1,spmv-band-s1
+# (the trained-on-all simulation is finished: 24 of 24 cells)
 # the three missing Bloom runs (give them 12 hours)
 KERNEL_EVAL_OUT=kernel_eval_w16j.csv python -u kernel_eval.py --lanes 3 --fracs 0.2 --only bloom-k7-s1 --models cnn-kv,mlp-kv,attention-graph --timeout 43200
 # then, in this order:

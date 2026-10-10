@@ -72,6 +72,7 @@ sizes of 5, 10 and 20\% of each program's pages.
   depends strongly on what is in memory at the start (up to 14 times), so its good simulated result was a lucky case.
 \item \textbf{Cost against number of candidates, and the break-even} (Section~\ref{sec:cost}): the linear model pays for itself on a hard disk on every workload with
   a model of its own and about breaks even on fast flash; the CNN, MLP and set-attention do not pay on either, because they cost about 75 to 145 times as much per eviction as the linear model.
+\item \textbf{Fairer comparison of the extra models.} Trained on all workloads, as the global linear model is, the CNN and MLP beat it by only 1.8\% and 0.9\% in the simulator (24 cells), below the 2\% bar, at 75 to 145 times the cost.
 \item \textbf{A reproducibility bug was found and fixed.} Training samples depended on Python's per-process
   string hashing, so datasets could not be rebuilt identically. All models were refit; Clock, LRU and
   the other classical results are unchanged.
@@ -500,6 +501,20 @@ and $K$ from 4 to 80 on 11 streams (33 cells) and carried three settings over to
   which has its own problems because the learned policy's own running time would count against it. That choice is open.
 \end{itemize}
 
+\textbf{The same models trained on all workloads.} The comparison above is not fair to the extra models, because the global linear model was trained on every workload and they were not.
+So each of the five kinds was also trained on all workloads (the training workloads are the same as for the global linear model: btree, graph, kv, lzw, matmul, sort; the new programs
+are not in the training data). Simulator, filled-memory start, the whole-number versions the kernel uses, 8 streams at 5, 10 and 20\% memory (24 cells), faults relative to Clock:
+
+\begin{table}[h]
+\centering\small
+\input{tables/trainedall}
+\caption{Simulator, 24 cells: geometric mean of faults relative to Clock.}
+\end{table}
+
+Trained on all workloads, the CNN (0.878) and the MLP (0.886) beat the global linear model (0.894) by 1.8\% and 0.9\%, less than the 2\% bar, at 75 to 145 times the cost of choosing a
+victim. Boosted trees (0.963) and ranking trees (1.186) do not beat it. Set-attention improves from 1.48 to 0.90, level with the linear model, but it stays unstable (Section~\ref{sec:gap}).
+The same five models trained on all workloads are built into the kernel (\code{cnn-all}, \code{mlp-all}, \code{trees-all}, \code{attention-all}, \code{ranktrees-all}); their kernel runs are \emph{work in progress}.
+
 \section{Noise floor}
 \label{sec:noise}
 The linear model was refit from three extra datasets built with different sampling seeds and replayed on
@@ -518,7 +533,7 @@ the other sources of variance (the choice of streams, which the bootstrap interv
 \item The kernel runs of patbench and appbench use 50\,000 accesses, not the full 1M, for time.
 \item The five extra models were each trained on one workload (kv for the CNN, MLP and boosted trees; graph for set-attention and
   ranking trees). Where they are run on other workloads (Table~\ref{tab:full}) the numbers show how well they carry over, not what
-  they could do if trained there. Training them on all workloads, including the new programs, was only partly done: a first, incomplete run in the simulator (14 of 24 cells, five streams) gives the CNN 0.89 and the MLP 0.90 of Clock when trained on all workloads, against 0.94 for the global linear model, so the conclusion that richer models do not beat the linear model may need to be softened (their cost, 75 to 145 times as much, is unchanged). This result is \emph{work in progress}.
+  they could do if trained there. Training them on all workloads was done in the simulator (Section~\ref{sec:five}, 24 cells); the kernel runs of those all-workloads models, and training on the new programs, are not finished.
 \item At 5\% and 20\% memory one stream per program variant was run (42 streams), not every seed. Three runs are missing: the CNN, MLP
   and set-attention on the Bloom filter at 20\%, which hit the three-hour limit on the Kaggle machine.
 \item Time is counted in instructions, at one nanosecond per instruction, which is conservative for a real processor. The break-even
