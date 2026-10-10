@@ -1,0 +1,49 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}What changed in the data and the pipeline}{2}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}New workloads}{2}{section.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Workloads added this week. All are held out of training: they only test.}}{2}{table.caption.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Literature baselines}{2}{section.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces The study dataset after this week (176 streams).}}{3}{table.caption.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Transfer to unseen workloads}{3}{section.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Faults relative to Clock on workloads no model was trained on. Linear (K+) is the global linear model over all kernel signals.}}{3}{figure.caption.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Faults / Clock per stream group (geometric mean over streams and the three memory sizes). Simulator results; the three last columns are linear models (global kernel signals, global oracle+kernel signals, kv-scope kernel signals).}}{4}{table.caption.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Wider model comparison}{4}{section.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Faults / Clock on test and held-out streams. ``linear K'' is the week-14 model class (kernel signals); ``tree K'' and ``NN K'' use kernel signals only; ``NN K$^{\dagger }$'' also reads the oracle reuse history; ``FK'' adds oracle inputs. A dash: not run (cost rule) or not selected.}}{4}{table.caption.7}\protected@file@percent }
+\newlabel{tab:extra}{{4}{4}{Faults / Clock on test and held-out streams. ``linear K'' is the week-14 model class (kernel signals); ``tree K'' and ``NN K'' use kernel signals only; ``NN K$^{\dagger }$'' also reads the oracle reuse history; ``FK'' adds oracle inputs. A dash: not run (cost rule) or not selected}{table.caption.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Faults relative to the best linear scorer (below 1: the model is better), with 95\% intervals. Models with oracle inputs (blue-grey, orange-red, ``oracle'') cannot run in a kernel.}}{5}{figure.caption.6}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:extra}{{2}{5}{Faults relative to the best linear scorer (below 1: the model is better), with 95\% intervals. Models with oracle inputs (blue-grey, orange-red, ``oracle'') cannot run in a kernel}{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}In the xv6 kernel}{5}{section.6}\protected@file@percent }
+\newlabel{sec:kernel}{{6}{5}{In the xv6 kernel}{section.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Kernel faults relative to Clock; the number on each bar is the selection cost in timer ticks per eviction (Clock: 24). ``@k'' scans and scores only k random candidates per eviction.}}{6}{figure.caption.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}The five extra models in the kernel}{6}{section.7}\protected@file@percent }
+\newlabel{sec:five}{{7}{6}{The five extra models in the kernel}{section.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces In-kernel runs (faults = zero-fill plus swap faults; geometric means over streams).}}{7}{table.caption.9}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Faults relative to Clock in xv6 (geometric mean over streams). Each new model is shown only on the workload it was trained for.}}{7}{table.caption.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Programs from AU5TRA}{7}{section.8}\protected@file@percent }
+\newlabel{sec:austra}{{8}{7}{Programs from AU5TRA}{section.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Instructions per eviction on one kv stream (57 candidates per eviction). FIFO scans nothing, so it is the floor: the timer reads and the surrounding eviction code. At one nanosecond per instruction, 1\,658\,487 instructions is 1.7\,ms.}}{8}{table.caption.11}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Fault reduction against the cost of choosing a victim on the kv streams.}}{8}{figure.caption.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}Why the kernel and the simulator disagree}{9}{section.9}\protected@file@percent }
+\newlabel{sec:gap}{{9}{9}{Why the kernel and the simulator disagree}{section.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Kernel faults over simulator faults (geometric mean over streams) with the simulator started empty and started from filled memory.}}{9}{table.caption.13}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Spread of simulated faults over five starting states: median and largest over streams. 1.00 means the starting state does not matter.}}{9}{table.caption.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10}All three memory sizes}{10}{section.10}\protected@file@percent }
+\newlabel{sec:sizes}{{10}{10}{All three memory sizes}{section.10}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces 5\% memory. Faults relative to Clock in xv6. Every row of a column averages the same streams (those the extra models were run on). The extra models were trained on kv or graph only, so their other columns show how they carry over. A dash: not run.}}{10}{table.caption.15}\protected@file@percent }
+\newlabel{tab:full}{{10}{10}{5\% memory. Faults relative to Clock in xv6. Every row of a column averages the same streams (those the extra models were run on). The extra models were trained on kv or graph only, so their other columns show how they carry over. A dash: not run}{table.caption.15}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces 10\% memory, same layout and the same streams.}}{10}{table.caption.16}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces 20\% memory, same layout and the same streams.}}{10}{table.caption.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11}What choosing a victim costs, and when it pays}{11}{section.11}\protected@file@percent }
+\newlabel{sec:cost}{{11}{11}{What choosing a victim costs, and when it pays}{section.11}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces Instructions to choose one victim against the number of candidates. ``Sampled'' policies look at that many random candidates at most.}}{11}{table.caption.18}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces Break-even and time relative to Clock, at 10\% memory (one instruction taken as one nanosecond).}}{12}{table.caption.19}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Faults relative to Clock in xv6 at 10\% memory, with 95\% intervals across the streams of each workload.}}{12}{table.caption.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12}Noise floor}{12}{section.12}\protected@file@percent }
+\newlabel{sec:noise}{{12}{12}{Noise floor}{section.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Extra models against the linear model of the same workload, on the same streams, in xv6.}}{13}{table.caption.21}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13}Limits and what is next}{13}{section.13}\protected@file@percent }
+\gdef \@abspage@last{14}
