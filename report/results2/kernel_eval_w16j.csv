@@ -1,0 +1,1 @@
+stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript,accesses,collect_ticks,path_ticks

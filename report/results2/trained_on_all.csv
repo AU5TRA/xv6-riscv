@@ -167,3 +167,15 @@ join-zipf-s1,0.1,128,set-attention | one workload,84910,14.8
 join-zipf-s1,0.1,128,set-attention | all workloads,83529,16.3
 join-zipf-s1,0.1,128,ranking trees | one workload,77353,10.7
 join-zipf-s1,0.1,128,ranking trees | all workloads,79388,8.9
+btree-mixed-s5,0.05,88,clock,76498,0.0
+btree-mixed-s5,0.05,88,"linear, global",62845,0.2
+btree-mixed-s5,0.05,88,CNN on aging bits | one workload,67789,5.5
+btree-mixed-s5,0.05,88,CNN on aging bits | all workloads,62212,4.8
+btree-mixed-s5,0.05,88,deeper MLP | one workload,68293,8.5
+btree-mixed-s5,0.05,88,deeper MLP | all workloads,61723,7.4
+btree-mixed-s5,0.05,88,boosted trees | one workload,66917,3.7
+btree-mixed-s5,0.05,88,boosted trees | all workloads,67064,3.3
+btree-mixed-s5,0.05,88,set-attention | one workload,90222,5.9
+btree-mixed-s5,0.05,88,set-attention | all workloads,64112,4.2
+btree-mixed-s5,0.05,88,ranking trees | one workload,74929,3.6
+btree-mixed-s5,0.05,88,ranking trees | all workloads,82851,3.5
