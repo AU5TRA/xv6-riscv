@@ -76,6 +76,61 @@ def arc_ref(trace, c):
     return faults, st["ev"]
 
 
+def arck_ref(trace, c):
+    """ARC as a kernel that only reads accessed bits at eviction scans runs it: hits are not seen; at each fault with memory full every
+    resident page's accessed bit is read (the touch that loaded a page is ignored); a page found accessed moves to the head of T2."""
+    T1, T2, B1, B2 = OrderedDict(), OrderedDict(), OrderedDict(), OrderedDict()
+    st = {"p": 0, "ev": 0}
+    abit, fresh = {}, {}
+
+    def replace(in_b2):
+        if len(T1) >= 1 and ((in_b2 and len(T1) == st["p"]) or len(T1) > st["p"]):
+            k, _ = T1.popitem(last=False); B1[k] = None
+        else:
+            k, _ = T2.popitem(last=False); B2[k] = None
+        st["ev"] += 1
+
+    def scan():
+        for lst in (T1, T2):
+            for k in list(lst.keys()):               # least recent first
+                if fresh.get(k):
+                    fresh[k] = False; abit[k] = 0
+                elif abit.get(k):
+                    abit[k] = 0
+                    lst.pop(k, None); T2[k] = None   # head of T2
+
+    faults = 0
+    for x in trace:
+        if x in T1 or x in T2:
+            abit[x] = 1
+            continue
+        faults += 1
+        if len(T1) + len(T2) >= c:
+            scan()
+        if x in B1:
+            d = 1 if len(B1) >= len(B2) else len(B2) // len(B1)
+            st["p"] = min(c, st["p"] + d); replace(False); del B1[x]; T2[x] = None
+        elif x in B2:
+            d = 1 if len(B2) >= len(B1) else len(B1) // len(B2)
+            st["p"] = max(0, st["p"] - d); replace(True); del B2[x]; T2[x] = None
+        else:
+            l1 = len(T1) + len(B1)
+            if l1 == c:
+                if len(T1) < c:
+                    B1.popitem(last=False); replace(False)
+                else:
+                    T1.popitem(last=False); st["ev"] += 1
+            else:
+                tot = l1 + len(T2) + len(B2)
+                if tot >= c:
+                    if tot == 2 * c:
+                        B2.popitem(last=False)
+                    replace(False)
+            T1[x] = None
+        abit[x] = 1; fresh[x] = True
+    return faults, st["ev"]
+
+
 def s3_ref(trace, c, scan):
     small_cap = max(1, c // 10)
     main_cap = c - small_cap
@@ -289,6 +344,7 @@ def main():
             if c < 2 or c >= n_pages:
                 continue
             for name, ref in (("arc", lambda: arc_ref(tr, c)),
+                              ("arck", lambda: arck_ref(tr, c)),
                               ("s3fifo", lambda: s3_ref(tr, c, False)),
                               ("s3scan", lambda: s3_ref(tr, c, True)),
                               ("mglru", lambda: mglru_ref(tr, c)),
@@ -301,7 +357,7 @@ def main():
                     bad += 1
                     if bad <= 5:
                         print(f"MISMATCH {name} {kind} pages={n_pages} c={c}: C {got} aborted={r['aborted']} ref {want}")
-    print(f"ARC / S3-FIFO / S3-scan / MGLRU / LHD vs references: {checked - bad}/{checked} identical")
+    print(f"ARC / ARC-kernel / S3-FIFO / S3-scan / MGLRU / LHD vs references: {checked - bad}/{checked} identical")
 
     # MRU: exact, equals Belady on a pure cyclic loop (the textbook result)
     ok = 0
@@ -321,7 +377,7 @@ def main():
     # determinism and writeback accounting
     w = np.array([random.Random(3).random() < .2 for _ in range(4000)])
     s = Fake(traces(random.Random(9))[0][1], w[:4000])
-    for pol in ("arc", "s3fifo", "s3scan", "mru", "mglru", "lhd"):
+    for pol in ("arc", "arck", "s3fifo", "s3scan", "mru", "mglru", "lhd"):
         a, b = ps.run(s, 5, pol), ps.run(s, 5, pol)
         assert a == b, pol
         assert 0 <= a["writebacks"] <= a["evictions"], pol

@@ -32,6 +32,7 @@ enum policy {
   P_LEARNED, P_SD_OLD, P_GRU, P_EMBED,
   // list-based and reference policies (pagesim.py POLICIES keeps this order)
   P_MRU, P_ARC, P_S3FIFO, P_S3SCAN, P_MGLRU, P_LHD,
+  P_ARCK,      // ARC as a kernel that only reads accessed bits at eviction scans can run it (hits are not seen)
 };
 
 // Feature layout of every recorded / scored candidate row.
@@ -641,6 +642,21 @@ static int arc_fault(struct state *s, int p) {
   return v;
 }
 
+// ARC, kernel-observable form (P_ARCK). A hit is not seen when it happens. At each eviction (memory full) every resident page's accessed bit
+// is read: lists are walked from the least recent end; a page found accessed (the touch that loaded it is ignored) moves to the head of T2, as an
+// ARC hit would have moved it. Ghost hits, the adaptation of p and the replacement rule are exactly ARC's (faults are visible to a kernel).
+static void arck_scan(struct state *s) {
+  for (int l = L_T1; l <= L_T2; l++) {
+    int p = s->ltail[l];
+    while (p >= 0) {
+      int toward_head = s->lpv[p];
+      if (s->s3fresh[p]) { s->s3fresh[p] = 0; s->abit[p] = 0; }
+      else if (s->abit[p]) { s->abit[p] = 0; dl_remove(s, p); dl_push_head(s, L_T2, p); }
+      p = toward_head;
+    }
+  }
+}
+
 // ---- S3-FIFO (Yang et al., SOSP 2023) -----------------------------------------
 // small queue (10% of the cache), main queue, ghost queue (main's size).
 // per-access form: a hit adds 1 to the page's counter (cap 3).
@@ -912,7 +928,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
            ALLOC(s->hist, (int64_t)n_pages * GRU_K) &&
            ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1) &&
            ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1);
-  int listpol = policy == P_ARC || policy == P_S3FIFO || policy == P_S3SCAN || policy == P_MGLRU || policy == P_LHD;
+  int listpol = policy == P_ARC || policy == P_ARCK || policy == P_S3FIFO || policy == P_S3SCAN || policy == P_MGLRU || policy == P_LHD;
   if (ok && listpol)
     ok = ALLOC(s->lnx, n_pages) && ALLOC(s->lpv, n_pages) && ALLOC(s->lin, n_pages) &&
          ALLOC(s->s3freq, n_pages) && ALLOC(s->s3fresh, n_pages);
@@ -962,8 +978,9 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       o->faults++;
       if (max_faults > 0 && o->faults > max_faults) { o->aborted = 1; break; }
       int lv = -1;                            // list policies: victim chosen first
+      if (policy == P_ARCK && s->count >= cap) arck_scan(s);
       if (listpol)
-        lv = policy == P_ARC ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
+        lv = policy == P_ARC || policy == P_ARCK ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
       if (s->count >= cap) {                  // ---- evict ----
         int sampled = sampling && s->count > m->sample_k;
         int gclock = guard && g_use_clock;
@@ -1041,6 +1058,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       if (policy == P_CLOCK || guard) s->order[s->order_n++] = p;
       if (policy == P_MGLRU) mg_move(s, p, s->gmax);
       if (policy == P_LHD) { s->la1[p] = 0; s->la2[p] = LHD_AGES; s->s3fresh[p] = 1; }
+      if (policy == P_ARCK) s->s3fresh[p] = 1;
     } else {                                  // ---- hit ----
       s->abit[p] = 1;
       s->dbit[p] |= (uint8_t)w;
