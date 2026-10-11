@@ -19,6 +19,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PK = ROOT / "kaggle_package"
+_argv = __import__("sys").argv
+if "--round" in _argv:
+    PK = ROOT / "kaggle_package" / f"round{_argv[_argv.index('--round') + 1]}"
+    if (PK / "xv6_package.tar.gz").exists():
+        raise SystemExit(f"{PK} already holds a package; use a new --round number (older rounds are never overwritten)")
+    PK.mkdir(parents=True, exist_ok=True)
+    if not (PK / "plan.json").exists():          # the self-test expectation, from the newest earlier round
+        shutil.copy(sorted((ROOT / "kaggle_package").glob("round*/plan.json"))[-1], PK / "plan.json")
 R = ROOT / "report" / "results2"
 NETS = "cnn-kv,attention-graph,mlp-kv,ranktrees-graph,trees-kv"
 NETS_REPS = "btree-mixed-s5,kv-A-s5,kv-T17-s1,sort-n40000-s3,matmul-blocked128-s1,heap-small-s1,join-zipf-s1,spmv-band-s1,chase-tree-s1,bloom-k7-s1".split(",")
