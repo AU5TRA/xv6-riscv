@@ -1,0 +1,6 @@
+stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript,accesses,collect_ticks,path_ticks
+bloom-k7-s1,heldout,bloom,bloom-k7,0.05,26,ml,ranktrees-all,ok,2872097,2872582,869523,11276318499,86177460,511,5268,test-logs/kernel_eval/20261011-045757-863018-vmrun-ml-ranktrees-all-bloombench-512-26-131072-1-k7-0.log,,271879779,13599452354
+bloom-k7-s1,heldout,bloom,bloom-k7,0.05,26,ml,attention-all,ok,2871620,2872105,869574,27767866413,86163150,511,7004,test-logs/kernel_eval/20261011-045757-866330-vmrun-ml-attention-all-bloombench-512-26-131072-1-k7-0.log,,294496538,30277385376
+bloom-k7-s1,heldout,bloom,bloom-k7,0.05,26,ml,cnn-all,ok,2870254,2870739,868924,29080710342,86122170,511,7170,test-logs/kernel_eval/20261011-045757-863030-vmrun-ml-cnn-all-bloombench-512-26-131072-1-k7-0.log,,290018119,31578755110
+bloom-k7-s1,heldout,bloom,bloom-k7,0.05,26,ml,mlp-all,ok,2870499,2870984,868916,45576169276,86129520,511,8616,test-logs/kernel_eval/20261011-045757-868268-vmrun-ml-mlp-all-bloombench-512-26-131072-1-k7-0.log,,272972209,48092773250
+bloom-k7-s1,heldout,bloom,bloom-k7,0.05,26,ml,trees-all,ok,2870456,2870941,869035,9104097253,86128230,511,4128,test-logs/kernel_eval/20261011-062546-181571-vmrun-ml-trees-all-bloombench-512-26-131072-1-k7-0.log,,195531455,10859345853
