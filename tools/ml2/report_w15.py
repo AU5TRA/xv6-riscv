@@ -337,6 +337,44 @@ def full_tests():
         write(f"full_{frac.replace('.', '')}.tex", tab(body, ["policy"] + cols))
 
 
+def kernel_main():
+    """Main kernel tables (kernel results first): faults relative to Clock per workload, at each memory size.
+    kmain_A: classical policies and the global linear model on every stream that has all of them (the streams of a workload are averaged
+    with a geometric mean). kmain_B: the five models trained on all workloads against the global linear model and the best classical
+    policies, on the ten streams they were run on."""
+    p = R / "kernel_eval_all.csv"
+    if not p.exists():
+        return
+    rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok"]
+    f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"] or 0)
+    grp = lambda s: "kv-T" if s.startswith("kv-T") else s.split("-")[0]
+    d = defaultdict(dict)
+    for r in rows:
+        d[(r["fraction"], r["policy"] + (":" + r["model"] if r["model"] else ""))][r["stem"]] = f(r)
+    cols = ["btree", "graph", "kv", "kv-T", "lzw", "matmul", "sort", "heap", "join", "spmv", "chase", "bloom", "pat", "app"]
+    A = [("fifo", "FIFO"), ("aging", "Aging"), ("lfu", "LFU"), ("s3fifo", "S3-FIFO"), ("lhd", "LHD"), ("arck", "ARC"), ("ml:global", "linear, global")]
+    B = [("ml:global", "linear, global"), ("arck", "ARC"), ("lhd", "LHD"), ("ml:cnn-all", "CNN"), ("ml:mlp-all", "deeper MLP"),
+         ("ml:attention-all", "set-attention"), ("ml:trees-all", "boosted trees"), ("ml:ranktrees-all", "ranking trees")]
+    for tag, pols in (("A", A), ("B", B)):
+        for fr in ("0.05", "0.1", "0.2"):
+            clock = d.get((fr, "clock"), {})
+            have = [set(d.get((fr, k), {})) & set(clock) for k, _ in pols]
+            common = set.intersection(*have) if all(have) else set()
+            if not common:
+                continue
+            body = []
+            for key, name in pols:
+                line = [name]
+                allv = []
+                for c in cols:
+                    v = [d[(fr, key)][s] / clock[s] for s in common if grp(s) == c]
+                    line.append(f"{gm(v):.2f}" if v else "--")
+                    allv += [gm(v)] if v else []
+                line.append(f"{gm(allv):.2f}")
+                body.append(line)
+            write(f"kmain_{tag}_{fr.replace('.', '')}.tex", tab(body, ["policy"] + cols + ["mean"]))
+
+
 def cost_tables():
     """cost against the number of candidates, break-even fault cost, starting-state sensitivity, populated start"""
     cg = R / "cost_grid.csv"
@@ -513,6 +551,7 @@ if __name__ == "__main__":
     kernel2()
     five_models()
     full_tests()
+    kernel_main()
     cost_tables()
     ci_tables()
     guard_tables()
