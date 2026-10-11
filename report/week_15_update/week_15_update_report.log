@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  11 OCT 2026 00:01
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  11 OCT 2026 10:27
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -594,14 +594,14 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 dvips/lm/lm-ec.enc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-ts1.enc}{/usr/share/
 texmf/fonts/enc/dvips/lm/lm-mathsy.enc}]
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <9> on input line 97.
+(Font)              <9> on input line 98.
 
-Underfull \hbox (badness 10000) in paragraph at lines 110--111
+Underfull \hbox (badness 10000) in paragraph at lines 111--112
 []\T1/lmr/m/n/9 (+20) Irregular, scan-plus-random
  []
 
 
-Underfull \hbox (badness 1472) in paragraph at lines 110--111
+Underfull \hbox (badness 1472) in paragraph at lines 111--112
 \T1/lmr/m/n/9 (+20) struc-ture the other pro-grams
  []
 
@@ -609,31 +609,28 @@ Underfull \hbox (badness 1472) in paragraph at lines 110--111
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<figs/transfer.pdf, id=77, 592.61403pt x 260.17201pt>
+[2]
+<figs/transfer.pdf, id=89, 592.61403pt x 260.17201pt>
 File: figs/transfer.pdf Graphic file (type pdf)
 <use figs/transfer.pdf>
-Package pdftex.def Info: figs/transfer.pdf  used on input line 140.
+Package pdftex.def Info: figs/transfer.pdf  used on input line 141.
 (pdftex.def)             Requested size: 466.62503pt x 204.8627pt.
-[2] (./tables/transfer.tex)
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-[3{/usr/share/texmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/dv
-ips/lm/lm-mathit.enc} <./figs/transfer.pdf>]
-<figs/model_comparison.pdf, id=150, 549.25201pt x 462.52798pt>
+ [3{/usr/share/texmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/d
+vips/lm/lm-mathit.enc} <./figs/transfer.pdf>] (./tables/transfer.tex)
+<figs/model_comparison.pdf, id=154, 549.25201pt x 462.52798pt>
 File: figs/model_comparison.pdf Graphic file (type pdf)
 <use figs/model_comparison.pdf>
-Package pdftex.def Info: figs/model_comparison.pdf  used on input line 177.
+Package pdftex.def Info: figs/model_comparison.pdf  used on input line 178.
 (pdftex.def)             Requested size: 466.62503pt x 392.94595pt.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 (./tables/model_comparison.tex) [4]
-<figs/kernel.pdf, id=162, 607.068pt x 231.26399pt>
+<figs/kernel.pdf, id=166, 607.068pt x 231.26399pt>
 File: figs/kernel.pdf Graphic file (type pdf)
 <use figs/kernel.pdf>
-Package pdftex.def Info: figs/kernel.pdf  used on input line 218.
+Package pdftex.def Info: figs/kernel.pdf  used on input line 219.
 (pdftex.def)             Requested size: 466.62503pt x 177.75975pt.
 
 
@@ -651,10 +648,10 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<figs/cost_vs_faults.pdf, id=222, 448.07399pt x 260.17201pt>
+<figs/cost_vs_faults.pdf, id=226, 448.07399pt x 260.17201pt>
 File: figs/cost_vs_faults.pdf Graphic file (type pdf)
 <use figs/cost_vs_faults.pdf>
-Package pdftex.def Info: figs/cost_vs_faults.pdf  used on input line 276.
+Package pdftex.def Info: figs/cost_vs_faults.pdf  used on input line 277.
 (pdftex.def)             Requested size: 373.30144pt x 216.7605pt.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -662,63 +659,81 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 [6 <./figs/kernel.pdf>] [7] [8 <./figs/cost_vs_faults.pdf>]
 (./tables/warmstart.tex) (./tables/statesens.tex) [9] (./tables/full_005.tex)
 (./tables/full_01.tex) (./tables/full_02.tex) [10] (./tables/costgrid.tex)
-(./tables/breakeven.tex)
-Overfull \hbox (61.20267pt too wide) in paragraph at lines 1--443
+[11] (./tables/breakeven.tex)
+Overfull \hbox (71.05107pt too wide) in paragraph at lines 1--445
+ [][] 
+ []
+
+(./tables/kernelci.tex)
+Overfull \hbox (15.36798pt too wide) in paragraph at lines 1--464
  [][] 
  []
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
-
-[11] (./tables/kernelci.tex)
-Overfull \hbox (15.36798pt too wide) in paragraph at lines 1--461
- [][] 
- []
 
 (./tables/paired.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-(./tables/noise.tex) [12]
-Overfull \hbox (34.224pt too wide) in paragraph at lines 514--514
+[12] (./tables/guard_tuned.tex)
+Overfull \hbox (63.73204pt too wide) in paragraph at lines 1--487
+ [][] 
+ []
+
+(./tables/guard_heldout.tex)
+Overfull \hbox (63.73204pt too wide) in paragraph at lines 1--493
+ [][] 
+ []
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[13] (./tables/trainedall.tex) (./tables/kernelall.tex)
+Overfull \hbox (29.59558pt too wide) in paragraph at lines 1--523
+ [][] 
+ []
+
+(./tables/noise.tex) [14]
+Overfull \hbox (34.224pt too wide) in paragraph at lines 572--572
 []\T1/lmtt/m/n/9 python3 tools/ml2/extra_trees.py fit | select | test      # tr
 ee and neural models (extra_nn.py fit first)[] 
  []
 
-[13]
-Overfull \hbox (57.84895pt too wide) in paragraph at lines 514--514
+
+Overfull \hbox (57.84895pt too wide) in paragraph at lines 572--572
 []\T1/lmtt/m/n/9 python3 tools/ml2/merge_kernel_results.py                # one
  file of all in-kernel runs (kernel_eval_all.csv)[] 
  []
 
 
-Overfull \hbox (29.49901pt too wide) in paragraph at lines 514--514
+Overfull \hbox (29.49901pt too wide) in paragraph at lines 572--572
 []\T1/lmtt/m/n/9 python3 tools/ml2/cost_grid.py; python3 tools/ml2/cost_benefit
 .py   # cost against candidates; break-even[] 
  []
 
 
-Overfull \hbox (53.12396pt too wide) in paragraph at lines 514--514
+Overfull \hbox (53.12396pt too wide) in paragraph at lines 572--572
 []\T1/lmtt/m/n/9 python3 tools/kaggle/make_package.py                     # spl
 it of the long kernel runs over Kaggle notebooks[] 
  []
 
-[14] (./week_15_update_report.aux)
+[15] (./week_15_update_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
 Package rerunfilecheck Info: File `week_15_update_report.out' has not changed.
-(rerunfilecheck)             Checksum: 2AE311A4CFD4DDA0FC2B2B2838DBB73A;2403.
+(rerunfilecheck)             Checksum: D85E974CD9DB1627C0C7249F574E96D1;2679.
  ) 
 Here is how much of TeX's memory you used:
- 14546 strings out of 476182
- 233923 string characters out of 5795595
- 1968975 words of memory out of 5000000
- 36034 multiletter control sequences out of 15000+600000
- 629549 words of font info for 185 fonts, out of 8000000 for 9000
+ 14590 strings out of 476182
+ 234891 string characters out of 5795595
+ 1966975 words of memory out of 5000000
+ 36056 multiletter control sequences out of 15000+600000
+ 629733 words of font info for 187 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 75i,10n,79p,1018b,634s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,10n,79p,1018b,626s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
 pe1/public/lm/lmbx12.pfb></usr/share/texmf/fonts/type1/public/lm/lmbx9.pfb></us
 r/share/texmf/fonts/type1/public/lm/lmmi10.pfb></usr/share/texmf/fonts/type1/pu
@@ -729,10 +744,10 @@ nts/type1/public/lm/lmsy10.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy5.pf
 b></usr/share/texmf/fonts/type1/public/lm/lmsy6.pfb></usr/share/texmf/fonts/typ
 e1/public/lm/lmsy7.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt10.pfb></usr
 /share/texmf/fonts/type1/public/lm/lmtt9.pfb>
-Output written on week_15_update_report.pdf (14 pages, 432601 bytes).
+Output written on week_15_update_report.pdf (15 pages, 442712 bytes).
 PDF statistics:
- 463 PDF objects out of 1000 (max. 8388607)
- 227 compressed objects within 3 object streams
- 50 named destinations out of 1000 (max. 500000)
- 42109 words of extra memory for PDF output out of 42996 (max. 10000000)
+ 479 PDF objects out of 1000 (max. 8388607)
+ 242 compressed objects within 3 object streams
+ 56 named destinations out of 1000 (max. 500000)
+ 42117 words of extra memory for PDF output out of 42996 (max. 10000000)
 

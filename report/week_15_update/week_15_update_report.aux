@@ -23,10 +23,10 @@
 \newlabel{sec:five}{{7}{6}{The five extra models in the kernel}{section.7}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces In-kernel runs (faults = zero-fill plus swap faults; geometric means over streams).}}{7}{table.caption.9}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Faults relative to Clock in xv6 (geometric mean over streams). Each new model is shown only on the workload it was trained for.}}{7}{table.caption.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Programs from AU5TRA}{7}{section.8}\protected@file@percent }
-\newlabel{sec:austra}{{8}{7}{Programs from AU5TRA}{section.8}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Instructions per eviction on one kv stream (57 candidates per eviction). FIFO scans nothing, so it is the floor: the timer reads and the surrounding eviction code. At one nanosecond per instruction, 1\,658\,487 instructions is 1.7\,ms.}}{8}{table.caption.11}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Fault reduction against the cost of choosing a victim on the kv streams.}}{8}{figure.caption.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Programs from AU5TRA}{8}{section.8}\protected@file@percent }
+\newlabel{sec:austra}{{8}{8}{Programs from AU5TRA}{section.8}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {9}Why the kernel and the simulator disagree}{9}{section.9}\protected@file@percent }
 \newlabel{sec:gap}{{9}{9}{Why the kernel and the simulator disagree}{section.9}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Kernel faults over simulator faults (geometric mean over streams) with the simulator started empty and started from filled memory.}}{9}{table.caption.13}\protected@file@percent }
@@ -41,9 +41,15 @@
 \newlabel{sec:cost}{{11}{11}{What choosing a victim costs, and when it pays}{section.11}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces Instructions to choose one victim against the number of candidates. ``Sampled'' policies look at that many random candidates at most.}}{11}{table.caption.18}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces Break-even and time relative to Clock, at 10\% memory (one instruction taken as one nanosecond).}}{12}{table.caption.19}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Faults relative to Clock in xv6 at 10\% memory, with 95\% intervals across the streams of each workload.}}{12}{table.caption.20}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {12}Noise floor}{12}{section.12}\protected@file@percent }
-\newlabel{sec:noise}{{12}{12}{Noise floor}{section.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Faults relative to Clock in xv6 at 10\% memory, with 95\% intervals across the streams of each workload.}}{13}{table.caption.20}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Extra models against the linear model of the same workload, on the same streams, in xv6.}}{13}{table.caption.21}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {13}Limits and what is next}{13}{section.13}\protected@file@percent }
-\gdef \@abspage@last{14}
+\@writefile{toc}{\contentsline {section}{\numberline {12}A safety guard (prototype, simulator only)}{13}{section.12}\protected@file@percent }
+\newlabel{sec:guard}{{12}{13}{A safety guard (prototype, simulator only)}{section.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {17}{\ignorespaces Streams the settings were chosen on (faults relative to Clock; ``all cells'' is the geometric mean).}}{13}{table.caption.22}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {18}{\ignorespaces Streams the settings were not chosen on.}}{14}{table.caption.23}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {19}{\ignorespaces Simulator, 24 cells: geometric mean of faults relative to Clock.}}{14}{table.caption.24}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {20}{\ignorespaces xv6, 10\% memory, ten streams: faults relative to Clock (geometric mean) and the all-workloads models against the global linear model on the same streams (95\% interval from resampling the streams).}}{14}{table.caption.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13}Noise floor}{14}{section.13}\protected@file@percent }
+\newlabel{sec:noise}{{13}{14}{Noise floor}{section.13}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {14}Limits and what is next}{15}{section.14}\protected@file@percent }
+\gdef \@abspage@last{15}
