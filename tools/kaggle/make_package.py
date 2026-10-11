@@ -129,7 +129,7 @@ def main_nets_all():
     skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
     def keep(ti):
         n = ti.name
-        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img"):
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img") or n.endswith("/mkfs/mkfs"):
             return None
         return ti
     with tarfile.open(out, "w:gz") as t:
@@ -191,7 +191,7 @@ def main_classic():
     skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
     def keep(ti):
         n = ti.name
-        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img"):
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img") or n.endswith("/mkfs/mkfs"):
             return None
         return ti
     with tarfile.open(out, "w:gz") as t:
@@ -232,7 +232,7 @@ def main():
     skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
     def keep(ti):
         n = ti.name
-        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img"):
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img") or n.endswith("/mkfs/mkfs"):
             return None
         return ti
     with tarfile.open(out, "w:gz") as t:

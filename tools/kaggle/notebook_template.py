@@ -53,6 +53,8 @@ else:   # Kaggle unpacked the archive when the dataset was created
     say("package folder:", extracted[0])
     shutil.copytree(extracted[0], SRC)
 os.makedirs(f"{SRC}/report/results2", exist_ok=True)
+if os.path.exists(f"{SRC}/mkfs/mkfs"):      # a host binary from another machine; Kaggle datasets drop the executable bit, so build it here
+    os.remove(f"{SRC}/mkfs/mkfs")
 sh(f"cd {SRC} && make kernel/kernel fs.img > build.log 2>&1; tail -2 build.log")
 if not os.path.exists(f"{SRC}/kernel/kernel") or not os.path.exists(f"{SRC}/fs.img"):
     raise SystemExit("the build failed; see build.log (printed below)\n" + open(f"{SRC}/build.log").read()[-3000:])
