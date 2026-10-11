@@ -21,7 +21,8 @@ import models as M
 import pagesim as ps
 
 R = ps.ROOT / "report" / "results2"
-SIMPOL = {"fifo": "fifo", "clock": "clock", "aging": "aging", "lfu": "lfu_kernel"}
+SIMPOL = {"fifo": "fifo", "clock": "clock", "aging": "aging", "lfu": "lfu_kernel",
+          "arck": "arck", "s3fifo": "s3scan", "lhd": "lhd"}
 
 
 def final_models():

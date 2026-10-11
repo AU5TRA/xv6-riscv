@@ -25,7 +25,10 @@
 #define VM_POLICY_AGING 2
 #define VM_POLICY_LFU 3
 #define VM_POLICY_ML 4          // learned linear score (kernel/mlfeat.h)
-#define VM_POLICY_COUNT 5
+#define VM_POLICY_ARCK 5        // ARC, kernel-observable form (accessed-bit promotion)
+#define VM_POLICY_S3FIFO 6      // S3-FIFO, accessed-bit form
+#define VM_POLICY_LHD 7         // least hit density, accessed-bit form
+#define VM_POLICY_COUNT 8
 
 // VM_POLICY_ML features (kernel/mlfeat.h computes them), in the order of
 // tools/ml2/pagesim.py FEATURES[4:].
