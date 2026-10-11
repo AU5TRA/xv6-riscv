@@ -145,7 +145,7 @@ def main():
     for e in idx:
         if e["split"] not in a.splits.split(","):
             continue
-        if a.only and not any(e["stem"].startswith(p) for p in a.only.split(",")):
+        if a.only and not any(e["stem"] == p[:-1] if p.endswith("$") else e["stem"].startswith(p) for p in a.only.split(",")):
             continue
         for frac in a.fracs.split(","):
             frames = e["capacities"][frac]

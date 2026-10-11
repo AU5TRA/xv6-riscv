@@ -9,31 +9,124 @@ CONFIG = json.loads(r'''{
  "standard": [],
  "nets": [],
  "patapp": false,
- "netsall": [
+ "classic": [
+  [
+   "chase-list-s1",
+   "0.05"
+  ],
+  [
+   "chase-list-s1",
+   "0.2"
+  ],
+  [
+   "chase-n256-s1",
+   "0.05"
+  ],
+  [
+   "chase-tree-s1",
+   "0.2"
+  ],
+  [
+   "graph-both1000x3-s3",
+   "0.05"
+  ],
+  [
+   "heap-churn-s1",
+   "0.05"
+  ],
   [
    "spmv-band-s1",
    "0.05"
   ],
   [
-   "join-zipf-s1",
+   "matmul-naive128-s1",
+   "0.2"
+  ],
+  [
+   "btree-lookup-s5",
    "0.05"
   ],
   [
-   "join-zipf-s1",
+   "btree-mixed-s5",
+   "0.05"
+  ],
+  [
+   "pat-loop-s5",
    "0.2"
   ],
   [
-   "spmv-band-s1",
+   "app-chase-s1",
+   "0.05"
+  ],
+  [
+   "kv-Arehash-s5",
+   "0.2"
+  ],
+  [
+   "btree-mixed-s5",
+   "0.2"
+  ],
+  [
+   "kv-F-s1",
+   "0.05"
+  ],
+  [
+   "kv-D-s5",
+   "0.05"
+  ],
+  [
+   "app-hashjoin-s1",
+   "0.05"
+  ],
+  [
+   "kv-D-s5",
+   "0.2"
+  ],
+  [
+   "kv-B-s5",
    "0.2"
   ],
   [
    "kv-T17-s1",
+   "0.05"
+  ],
+  [
+   "kv-T4-s1",
+   "0.05"
+  ],
+  [
+   "kv-T24-s1",
    "0.2"
   ],
   [
-   "kv-T17-s1",
+   "kv-T35-s1",
+   "0.05"
+  ],
+  [
+   "sort-n60000-s1",
+   "0.2"
+  ],
+  [
+   "app-spmv-s1",
    "0.05"
   ]
+ ],
+ "short": [
+  "app-bloom-s1",
+  "app-chase-s1",
+  "app-hashjoin-s1",
+  "app-spmv-s1",
+  "pat-loop-s5",
+  "pat-phase-s5",
+  "pat-phaseshort-s5",
+  "pat-scanhot-s5",
+  "pat-scanhotlo-s5",
+  "pat-switch-s1",
+  "pat-uniform-s5",
+  "pat-zipf060-s5",
+  "pat-zipf080-s5",
+  "pat-zipf099-s5",
+  "pat-zipf120-s1"
  ],
  "selftest": {
   "stem": "kv-A-s5",
@@ -147,6 +240,14 @@ if CONFIG.get("netsall"):
         if sts:
             keval(f"kaggle_{i}_netsall.csv", f"--fracs {fr} --only {','.join(sts)} --splits test,heldout --models {NETS_ALL} --timeout 40000")
             save()
+if CONFIG.get("classic"):
+    for fr in ("0.05", "0.2"):
+        for is_short in (False, True):
+            sts = [st + "$" for st, f in CONFIG["classic"] if f == fr and (st in CONFIG["short"]) == is_short]
+            if sts:
+                keval(f"kaggle_{i}_classic.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
+                      f"--nonml arck,s3fifo,lhd --timeout 40000")
+                save()
 if CONFIG["patapp"]:
     streams = "pat-zipf099-s5,pat-phase-s5,pat-scanhot-s5,pat-loop-s5,pat-uniform-s5,app-chase-s1,app-spmv-s1,app-hashjoin-s1,app-bloom-s1"
     keval(f"kaggle_{i}_patapp.csv", f"--fracs 0.05,0.2 --accesses 50000 --only {streams} --splits test,heldout "
