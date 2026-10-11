@@ -476,7 +476,7 @@ and so do the boosted trees (2.7\%). Everywhere else they use more faults than t
 \section{A safety guard (prototype, simulator only)}
 \label{sec:guard}
 
-The linear model loses to Clock on some workloads (SpMV, parts of matmul and graph). A guard should stop that. The prototype alternates the two policies on the same memory:
+The linear model loses to Clock on some workloads (SpMV, parts of matmul and graph). That is a result, not a defect of the comparison; this section is an optional extra that asks whether a guard could stop it. The prototype alternates the two policies on the same memory:
 one window of $W$ accesses under the learned policy, one under Clock, compare the faults of the two windows, use the better one for the next $K$ windows, and test again.
 It runs in the simulator from a filled-memory start, with the global linear model as the learned policy. I tried window lengths of $n/200$ to $n/50$ of the stream
 and $K$ from 4 to 80 on 11 streams (33 cells) and carried three settings over to 18 streams the grid had never seen (54 cells).
@@ -499,8 +499,7 @@ and $K$ from 4 to 80 on 11 streams (33 cells) and carried three settings over to
   gain drops from 0.861 to 0.881 of Clock. The guard roughly halves the damage; it does not remove it.
 \item The guard hands about 40\% of evictions to Clock even where the learned policy wins, because a window that follows a Clock window starts from memory that Clock has shaped, which
   makes the learned policy look slightly worse. A better test would remove that bias.
-\item \emph{This is not in the kernel.} The kernel cannot count accesses, which the window length uses; a kernel version needs another measure of progress (for example time),
-  which has its own problems because the learned policy's own running time would count against it. That choice is open.
+\item \emph{This is not in the kernel and is not needed for the comparison of policies.} The kernel cannot count accesses, which the window length uses; a kernel version would need another measure of progress.
 \end{itemize}
 
 \textbf{The same models trained on all workloads.} The comparison above is not fair to the extra models, because the global linear model was trained on every workload and they were not.
@@ -554,7 +553,7 @@ the other sources of variance (the choice of streams, which the bootstrap interv
   figures depend on that and on the cost of a fault on the machine in question, which xv6 on QEMU does not give; two example costs are shown.
 \item The week-14 and the current builds of the benchmark programs differ, which moves every policy's fault counts by about 1\%. Results
   were only compared within one build.
-\item Not done: training on the new programs; the Bloom filter 20\% cells above; the guard in the kernel (Section~\ref{sec:guard}); LHD in the kernel; a measured cost of a real page fault.
+\item Not done: training on the new programs; the stronger classical policies (LHD, ARC, S3-FIFO) in the kernel, where they are compared in the simulator only; a measured cost of a real page fault.
 \end{itemize}
 
 \section*{Reproducing}

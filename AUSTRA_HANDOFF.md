@@ -76,8 +76,8 @@ What is settled and what is not, so you can start writing without waiting:
 
 ### 3. What is not done (WIP; write skeletons, no claims)
 * Test the five all-workloads models in the kernel (built in as `cnn-all`, `mlp-all`, ... ids 6-10; 10% runs local, 5%/20% on Kaggle round 2: `kaggle_package/README.txt`). Training and the simulator comparison are done.
-* A safety guard that falls back to Clock when the learned policy does worse: **prototype in the simulator only** (`exp_guard.py`, report section "A safety guard"): on unseen streams it halves the damage (worst cell 1.86 -> 1.36) and costs about 2 points of average gain. The kernel version needs a decision (see `backlog.md`, D1).
-* A port of LHD (the best untrained baseline) into the kernel. Not started.
+* (Optional extra, not needed for the comparison of policies) A safety guard that falls back to Clock when the learned policy does worse: a prototype exists in the simulator only (`exp_guard.py`, report section "A safety guard"); on unseen streams it halves the damage (worst cell 1.86 -> 1.36) and costs about 2 points of average gain. Not planned for the kernel.
+* A port of LHD (the best untrained classical baseline, 0.90-0.95 of Clock in the simulator) into the kernel, then ARC and S3-FIFO. Backlog, GawwyG will decide when. Matters because the kernel comparison only has Clock, Aging and LFU as classical policies.
 * The cost of a real page fault (reading a page from disk and writing one back). Needs real hardware; xv6 on QEMU cannot give it.
 * More than one stream per variant at 5% and 20% memory; more seeds for error bars.
 * Related work (a proper literature search; nothing is written beyond notes in `cache_ext_notes.md`), paper-quality figures, the choice of venue and format,
