@@ -1,0 +1,4 @@
+stem,policy,model,frames,kernel_faults,sim_plus0,sim_plus1,sim_plus2,sim_plus3,sim_plus4
+graph-pr2000x2-s3,s3fifo,,167,48906,139871,93293,47661,41731,37241
+graph-pr2000x2-s3,arck,,167,25148,54193,39059,24762,10853,3909
+graph-pr2000x2-s3,lhd,,167,26450,52734,39024,25951,14089,7429
