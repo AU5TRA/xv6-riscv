@@ -2,15 +2,22 @@ ROUND 2 (2026-10-11): the five model kinds trained on ALL workloads, at 5% and 2
 ==========================================================================================
 This folder now holds the round-2 package. Round 1 (your notebooks that already finished) is described further down.
 
-What to do (about 5 minutes, then about 1.7 hours of waiting):
+REAL ETA: notebooks 2, 3 and 4 about 1.5 hours each; notebook 1 about 3.5 hours (it holds the Bloom filter at 5%: five runs of 1.5-3 hours each, which cannot be
+split). All four run at the same time, plus about 15 minutes to install and build. The thesis PC runs the heaviest part (pointer chase at 5% and 20%, Bloom
+filter at 20%: 15 runs, 6-9 hours each at Kaggle speed) in parallel, about 4 hours. The whole round finishes in about 4 to 4.5 hours.
+How this was estimated (the round-1 estimate of 1.7 h was wrong; those notebooks took 6-8 h): 180 runs were repeated on the thesis PC and compared with the
+Kaggle runs. The faults, evictions and writes were IDENTICAL on all 180, but the Kaggle machines are about 3.1 times slower than the PC (median; quartiles 2.9-3.2).
+If a Kaggle machine is slower than usual allow up to 6 hours for notebook 1.
+
+What to do (about 5 minutes, then waiting):
   1. Upload the NEW xv6_package.tar.gz: Kaggle -> your dataset "xv6-package" -> New Version -> drop in the new file -> Create.
      (Or make a second dataset and attach that one; the notebook finds any xv6_package.tar* under /kaggle/input.)
   2. In each of your 4 notebooks: delete the code cell, paste the NEW notebook_N.py (N = 1..4; they were rewritten), check the dataset input shows the new
      version, Accelerator = None, Internet = On, then Save Version -> Save & Run All (Commit).
   3. When they finish, download the files named kaggle_N_netsall.csv from each notebook's Output tab and put them into
      /home/gawwy/Thesis/xv6-riscv/report/results2/  (Claude merges them; nothing else to do).
-  Expected sizes: notebook 1 about 1.7 h, notebooks 2-4 about 1.2 h each (4 CPU cores each). The runs are resumable: if a notebook stops, run it again.
-  The self test at the start must say "faults 10511, expected 10511"; if it does not, stop and tell Claude.
+  The runs are resumable: if a notebook stops, run it again. Each single run may now take up to 11 hours (the 3-hour limit that killed the Bloom runs in
+  round 1 was raised). The self test at the start must say "faults 10511, expected 10511"; if it does not, stop and tell Claude.
 
 ------------------------------------------------------------------------------------------
 

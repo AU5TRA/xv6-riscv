@@ -61,37 +61,61 @@ def costs():
     return items
 
 
-def costs_nets_all():
-    """5% / 20% runs of the five all-workloads models on the ten streams of the per-workload models; cost = measured wall time of the
-    corresponding per-workload model on the same stream and memory size"""
-    wall = {}
-    for r in csv.DictReader(open(R / "kernel_eval_all.csv")):
-        if r["status"] == "ok" and r["wall_s"] and r["model"] in OLD_NAME.values():
-            wall[(r["stem"], r["fraction"], r["model"])] = float(r["wall_s"])
+KAGGLE_SLOWDOWN = 3.1    # measured: 180 runs repeated here vs on Kaggle, median Kaggle wall / local wall (quartiles 2.9-3.2)
+
+
+def costs_nets_all(skip=()):
+    """5% / 20% runs of the five all-workloads models on the ten streams of the per-workload models (minus `skip`). Cost of one
+    (stream, memory size) item = the five runs, at Kaggle speed: the wall time of the corresponding per-workload model measured on Kaggle,
+    else this machine's wall time times KAGGLE_SLOWDOWN, else 3 hours (it timed out on Kaggle)."""
+    kag, loc = {}, {}
+    for f in R.glob("kaggle_*.csv"):
+        for r in csv.DictReader(open(f)):
+            if r["status"] == "ok" and r["wall_s"] and r["model"] in OLD_NAME.values():
+                kag[(r["stem"], r["fraction"], r["model"])] = float(r["wall_s"])
+    for f in [R / "kernel_eval_all.csv"] + sorted(R.glob("kernel_eval_w16*.csv")):
+        for r in csv.DictReader(open(f)):
+            if r["status"] == "ok" and r["wall_s"] and r["model"] in OLD_NAME.values():
+                loc.setdefault((r["stem"], r["fraction"], r["model"]), float(r["wall_s"]))
     done = set()
     for f in R.glob("kaggle_*_netsall.csv"):
         done |= {(r["stem"], r["fraction"], r["model"]) for r in csv.DictReader(open(f)) if r["status"] == "ok"}
     items = {}
     for st in NETS_REPS:
+        if st in skip:
+            continue
         for fr in ("0.05", "0.2"):          # one item per (stream, memory size) so the notebooks balance
+            if f"{st}@{fr}" in skip:        # "stream@fraction" skips just that size (it runs on the thesis PC instead)
+                continue
             h = 0.0
             for new, old in OLD_NAME.items():
-                if (st, fr, new) not in done:
-                    h += wall.get((st, fr, old), 1800.0) / 3600 / 1.4
+                if (st, fr, new) in done:
+                    continue
+                k = (st, fr, old)
+                if k in kag and not (k in loc and abs(loc[k] - kag[k]) < 1e-9):
+                    w = kag[k]
+                elif k in loc:
+                    w = loc[k] * KAGGLE_SLOWDOWN
+                else:
+                    w = 3 * 3600.0
+                h += w / 3600
             if h:
                 items[("netsall", (st, fr))] = h
     return items
 
 
 def main_nets_all():
-    items = costs_nets_all()
+    skip = ()
+    if "--skip" in __import__("sys").argv:
+        skip = tuple(__import__("sys").argv[__import__("sys").argv.index("--skip") + 1].split(","))
+    items = costs_nets_all(skip)
     bins = {n: {"lanes": 4, "work": 0.0, "netsall": []} for n in ("k1", "k2", "k3", "k4")}
     for (kind, st), h in sorted(items.items(), key=lambda kv: -kv[1]):
         b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
         b["work"] += h
         b["netsall"].append(st)
     for n, b in bins.items():
-        print(f"{n} {b['lanes']} lanes, {b['work']:5.1f} lane-h -> about {b['work'] / b['lanes']:.1f} h; {len(b['netsall'])} items")
+        print(f"{n} {b['lanes']} lanes, {b['work']:5.1f} lane-h at Kaggle speed -> at least {b['work'] / b['lanes']:.1f} h; {len(b['netsall'])} items")
     PK.mkdir(exist_ok=True)
     out = PK / "xv6_package.tar.gz"
     skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}

@@ -11,23 +11,27 @@ CONFIG = json.loads(r'''{
  "patapp": false,
  "netsall": [
   [
-   "bloom-k7-s1",
+   "spmv-band-s1",
    "0.05"
-  ],
-  [
-   "heap-small-s1",
-   "0.2"
-  ],
-  [
-   "btree-mixed-s5",
-   "0.2"
   ],
   [
    "join-zipf-s1",
    "0.05"
   ],
   [
-   "btree-mixed-s5",
+   "join-zipf-s1",
+   "0.2"
+  ],
+  [
+   "spmv-band-s1",
+   "0.2"
+  ],
+  [
+   "kv-T17-s1",
+   "0.2"
+  ],
+  [
+   "kv-T17-s1",
    "0.05"
   ]
  ],
@@ -141,7 +145,7 @@ if CONFIG.get("netsall"):
     for fr in ("0.05", "0.2"):
         sts = [st for st, f in CONFIG["netsall"] if f == fr]
         if sts:
-            keval(f"kaggle_{i}_netsall.csv", f"--fracs {fr} --only {','.join(sts)} --splits test,heldout --models {NETS_ALL}")
+            keval(f"kaggle_{i}_netsall.csv", f"--fracs {fr} --only {','.join(sts)} --splits test,heldout --models {NETS_ALL} --timeout 40000")
             save()
 if CONFIG["patapp"]:
     streams = "pat-zipf099-s5,pat-phase-s5,pat-scanhot-s5,pat-loop-s5,pat-uniform-s5,app-chase-s1,app-spmv-s1,app-hashjoin-s1,app-bloom-s1"

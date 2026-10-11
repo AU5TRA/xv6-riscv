@@ -41,6 +41,20 @@ trained for; trained on everything, the best two (CNN, MLP) gain 1.8% and 0.9% o
 with memory size. Method lessons (worth a paragraph): every benchmark has an exact model of its reference string; the kernel starts from filled memory, so a
 simulator that starts empty misjudges some models; one model (set-attention) changes by up to 14 times with the starting memory state.
 
+### 1b. OPEN DECISION D2 (GawwyG has not decided yet): the claim, the venue, the authors
+What is settled and what is not, so you can start writing without waiting:
+* **Settled, write it now**: background, the workloads, the method (held-out streams, validation-only selection, exact reference models, filled-memory start, intervals),
+  the results in section 2 tagged FINAL, the cost and break-even analysis, the limits.
+* **Not settled, leave as marked placeholders**: the title, the abstract, the framing of the introduction and the conclusion, the venue and its format, the author list and credits.
+* **Proposed claim (to confirm with GawwyG before it goes into the abstract)**: *A small linear score over signals a kernel can already see, computed with whole numbers, makes
+  fewer page faults than Clock in xv6 (0.95, 0.92 and 0.81 of Clock's faults at 5, 10 and 20% memory over ten workloads) and is cheap to run, especially with sampling.
+  Bigger models (deeper networks, convolutional and attention models, boosted trees) cost 20 to 145 times more per eviction and, trained on all workloads, add nothing in the kernel
+  at 10% memory (CNN and MLP level with the linear score, the others worse); they are more cautious where the linear score loses but gain less where it wins. A page-fault cost above
+  about 0.1 to 8 ms decides whether the saving pays for itself, and the sampled linear score pays on fast flash as well on the two workloads measured.*
+* **Things a reviewer will ask** (so the text should already say them): the fault cost was assumed, not measured; one operating system (xv6 on QEMU); the extra models were trained on one workload or on the six
+  original workloads, not on the new programs; 5% and 20% memory use one stream per variant; the guard is a simulator prototype.
+* **Venue / format / authors**: unknown. Do not guess a template. Write in plain Markdown or LaTeX sections that can be moved later.
+
 ### 2. Results table (numbers are faults relative to Clock; below 1 is better; xv6 on QEMU unless it says simulator)
 | Result | Status | Where |
 |---|---|---|
@@ -54,7 +68,7 @@ simulator that starts empty misjudges some models; one model (set-attention) cha
 | Sampling 32 candidates: linear cost stops growing with memory (11,800 instructions at 256 and at 512 candidates against 91,700 and 183,300) | FINAL | `cost_grid.csv` |
 | Sampling in the kernel, faults vs full scan (current build, all seven lzw streams): 32 candidates 0 to 1 point more (lzw 0.837 to 0.842, patbench 0.853 to 0.861), 16 candidates 1 to 2 points (lzw 0.858, Twitter replays 0.884, patbench 0.873); cost 11,700 instructions at 32 and 5,850 at 16, whatever the memory size. With 16 sampled the linear model beats Clock in total time even on flash on lzw (0.91) and the Twitter replays (0.93) | FINAL | `kernel_eval_all.csv`, `cost_benefit.csv`, report tables "kernelruns" and "breakeven" |
 | Kernel against simulator agree within about 4% except two gaps, both explained (filled memory at start; set-attention instability) | FINAL | report section "Why the kernel and the simulator disagree" |
-| Kaggle results equal this machine's results exactly (261 of 261 runs done on both) | FINAL | report |
+| Kaggle results equal this machine's results exactly: 180 independent repeats here, identical faults, evictions and writes on all 180 (`xcheck_kaggle.py`); Kaggle is about 3.1x slower than the thesis PC (use this for any Kaggle ETA) | FINAL | `xcheck_local.csv`, report section "All three memory sizes" |
 | Literature baselines in the simulator (ARC, S3-FIFO, an MGLRU analogue, LHD, MRU); LHD best untrained at 0.90 to 0.95 | FINAL (simulator only; none are in the kernel) | `baselines_ext.csv`, `transfer*.csv` |
 | Your programs (chase, join, Bloom, SpMV, heap) reproduce your host models byte for byte in our kernel; simulator and kernel results on them | FINAL | report section "Programs from AU5TRA" |
 | Noise from the choice of training rows: at most 0.0005 (kernel signals) | FINAL | `noise_floor.csv` |
@@ -171,8 +185,7 @@ Time delay: kernel counters `collect_ticks`, `select_ticks`, `path_ticks` (whole
   `tools/import_traces3.py` imports the new strings from `traces3/` (heap, join, spmv); chase and bloom streams are generated with her models.
   traces3 had 116 traces but 26 distinct strings; everything for btree, graph, kv, lzw, matmul, sort duplicates ours (`tools/traces3_inventory.py`).
 * **All memory sizes, Kaggle**: 5% and 20% memory runs (42 streams) were split over this machine and four Kaggle notebooks
-  (`tools/kaggle/make_package.py` builds `kaggle_package/`; `kaggle_results/` holds what came back). All 261 runs done on both machines are
-  identical. `tools/ml2/merge_kernel_results.py` -> `report/results2/kernel_eval_all.csv` (the single file the report reads).
+  (`tools/kaggle/make_package.py` builds `kaggle_package/`; `kaggle_results/` holds what came back). 180 runs repeated here were identical to the Kaggle results; Kaggle was ~3.1x slower than this PC. `tools/ml2/merge_kernel_results.py` -> `report/results2/kernel_eval_all.csv` (the single file the report reads).
   **Build caveat**: runs from the week-14 build (`kernel_eval.csv`) and from the current build differ by ~1% for every policy; the merge drops
   old-build rows from groups that have current-build rows. Never compare across builds.
 * **Cost**: `tools/ml2/cost_grid.py` (cost of choosing a victim against the number of candidates, all policies, repeatable clock) and

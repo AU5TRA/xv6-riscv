@@ -66,7 +66,7 @@ sizes of 5, 10 and 20\% of each program's pages.
 \item \textbf{AU5TRA's programs were merged} (pointer chase, hash join, Bloom filter, sparse matrix--vector, heap churn; Section~\ref{sec:austra}): in our
   kernel each reproduces her model's trace exactly. The linear model gains most on heap programs (kernel 0.65 on \code{heap-mixed}) and fails on SpMV.
 \item \textbf{All three memory sizes were run in the kernel} (Section~\ref{sec:sizes}; long runs split over this machine and four Kaggle notebooks, whose results matched this machine
-  exactly on all 261 runs done on both). Over ten workloads the linear model scores 0.95, 0.92 and 0.81 of Clock at 5, 10 and 20\% memory;
+  exactly on 180 runs repeated on both). Over ten workloads the linear model scores 0.95, 0.92 and 0.81 of Clock at 5, 10 and 20\% memory;
   FIFO, Aging and LFU are worse than Clock at every size.
 \item \textbf{The two unexplained gaps are explained} (Section~\ref{sec:gap}): the kernel starts from filled memory while the simulator started empty, and set-attention's result
   depends strongly on what is in memory at the start (up to 14 times), so its good simulated result was a lucky case.
@@ -357,8 +357,9 @@ to be in memory first should not be trusted from one run.
 
 The 10\% runs cover every stream. At 5\% and 20\% memory one stream per program variant was run, 42 streams, with the standard policies and the linear models
 everywhere, and the five extra models on one stream per workload. 1\,747 in-kernel runs were merged into one file. A run is identified by its stream, memory
-size, policy and model, and the long runs were split over this machine and four Kaggle notebooks. Where a run was done on both, the results are identical:
-all 261 runs done on both the Kaggle machines and this one gave the same faults, writes and evictions.
+size, policy and model, and the long runs were split over this machine and four Kaggle notebooks. To check that the Kaggle machines give the same results, 180 of their runs were repeated on this machine: the
+faults, zero-fill faults, evictions and page writes were identical on all 180. (An earlier version of this report said 261 runs; those were copies of rows each notebook started from, not repeats.)
+The Kaggle machines were about 3.1 times slower than this one (median over 61 repeats; quartiles 2.9 to 3.2).
 
 \begin{table}[h]
 \centering\scriptsize
