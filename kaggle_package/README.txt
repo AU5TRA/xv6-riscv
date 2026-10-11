@@ -61,3 +61,7 @@ WHAT IS IN HERE
   notebook_1..4.py     one script per notebook (each has its own list of streams to run)
   plan.json            which streams go to which notebook (and what stays local)
   local_resume.sh      restarts the local jobs on the local share (I run this after step 4)
+
+------------------------------------------------------------------------------------------
+NOTE (2026-10-11): kaggle_package/round1/ holds the round-1 files exactly as they were when your first four notebooks were run (restored from git commit 69d7407).
+The files directly in kaggle_package/ are round 2 (they overwrote round 1 in place when the package was rebuilt).
