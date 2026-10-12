@@ -1,0 +1,378 @@
+% =============================================================================
+\section{Evaluation}
+\label{sec:eval}
+% Budget: 3.0 pages. Draft FOURTH (Step 5.4). Questions first; each figure answers one
+% question and its caption states the answer. Oracle (Belady) everywhere. Spread on
+% main results. Losses stated. Every number here also goes in paper-state.md "Numbers".
+% =============================================================================
+
+We answer the four questions of \S\ref{sec:bg-rq}: RQ1 information
+(\S\ref{sec:eval-info}), RQ2 effect inside the kernel (\S\ref{sec:eval-kernel}), RQ3
+cost (\S\ref{sec:eval-cost}) and RQ4 robustness (\S\ref{sec:eval-robust}), then the
+ablations (\S\ref{sec:eval-ablate}) and where \sys does not help (\S\ref{sec:eval-loss}).
+
+% -----------------------------------------------------------------------------
+\subsection{Setup}
+\label{sec:eval-setup}
+
+\finding{Platform.} \xv on QEMU \todo{version}, one hart, 10\,MHz emulated timer;
+host \todo{CPU, OS}. Every run gets a fresh disk image. Repeated kernel runs give
+identical counters.
+
+\finding{Workloads.} Table~\ref{tab:workloads}. Five native workload families, each
+built so that no single fixed heuristic wins: a B+-tree over 4\,KB node pages (an SQLite
+pager stand-in), an open-addressing hash table with Zipfian keys and YCSB
+mixes~\citep{cooper2010ycsb} (a Redis stand-in), BFS and PageRank over a scale-free
+graph, merge sort, and naive vs.\ blocked matrix multiply. 89 streams, 123M references.
+\todo{decide: add the seven new families (LZW compression, six synthetic patterns,
+pointer chasing, hash join, Bloom filter, SpMV, allocator churn; 132 more streams,
+327M references) to training, or keep them as wholly unseen families for RQ4 -- see
+paper-state.md, Decision D3}
+
+\finding{Splits.} Fixed per stream. \emph{Held-out}: whole workload variants never seen
+in training (an unseen behaviour). Within every other variant: last seed \emph{test}
+(an unseen run), second-to-last \emph{validation}, the rest \emph{train}. Model and
+feature selection never see test or held-out streams.
+
+\finding{Memory.} The resident limit is 5, 10 or 20\% of each stream's distinct pages
+in simulation; the kernel runs use 10\%. \todo{kernel at 5\% and 20\%}
+
+\finding{Baselines.} B1: \clock, the best of xv6's built-in policies, plus FIFO, Aging
+and decayed LFU, all in the kernel. B2: exact LRU and exact LFU (simulated; not
+implementable in a kernel). \todo{B2 additions, simulated: ARC~\citep{megiddo2003arc},
+CLOCK-Pro~\citep{jiang2005clockpro} or LIRS~\citep{jiang2002lirs}, a dirty-aware
+\clock in the style of WSClock~\citep{carr1981wsclock}, and an MGLRU-like generational
+policy}. B3: \todo{closest learned prior work re-run on our traces, e.g.\
+LeCaR~\citep{vietri2018lecar} or CACHEUS~\citep{rodriguez2021cacheus} with
+kernel-observable inputs}. B4 (no model): single-feature scorers, which are part of the
+subset sweep. B5: \belady, the offline optimum.
+
+\finding{Metrics.} Faults (zero-fill plus swap-in) relative to \clock on the same stream
+and memory; the share of the \clock$\rightarrow$\belady gap closed; page writes
+(write-backs); victim-selection time per eviction. Across a family we report the
+geometric mean. \todo{end-to-end runtime of the workload phase; spread (bootstrap CI
+over streams) and a Wilcoxon signed-rank test vs.\ \clock}
+
+\begin{table}[t]
+\caption{Workloads. Streams are seed $\times$ variant runs; held-out variants never
+appear in training or selection.}
+\label{tab:workloads}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrl}
+\toprule
+Family & Models & Var. & Str. & Refs & Held-out variant \\
+\midrule
+btree  & SQLite pager    & 5 & 25 & 7.1M  & range scan \\
+kv     & Redis, YCSB     & 7 & 35 & 8.0M  & YCSB-F \\
+graph  & BFS, PageRank   & 4 & 14 & 77.9M & BFS, 2000 \\
+sort   & merge sort      & 3 & 9  & 16.6M & $n$=60,000 \\
+matmul & naive/blocked   & 6 & 6  & 13.8M & $n$=128 \\
+\midrule
+\multicolumn{6}{@{}p{0.95\linewidth}@{}}{\todo{new families, if used: lzw, pat, chase, join, bloom, spmv, heap}}\\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table}
+% src: traces/streams/ml/SPLITS.tsv (refs summed per family); ML_REPORT section 3.
+% New families (SPLITS.tsv): lzw 2 var/12 str/61.4M (held-out lzw-r30); pat 11/55/110.0M (pat-zipf120);
+% chase 3/15/29.3M (chase-n256); join 3/15/11.4M (join-r4); bloom 2/10/22.4M (bloom-k7);
+% spmv 2/10/41.9M (spmv-band); heap 3/15/50.8M (heap-churn). Total all 12: 221 streams, 450.5M refs.
+
+% -----------------------------------------------------------------------------
+\subsection{RQ1: Does the Kernel See Enough?}
+\label{sec:eval-info}
+
+\finding{Kernel-observable features are enough.} With only \tierKKp features, the
+validation-selected policy beats \clock on every family, on unseen seeds and unseen
+variants (Table~\ref{tab:tiers}): btree $-17\%$ (test) / $-14\%$ (held-out), graph
+$-15\%$ / $-20\%$, kv $-10\%$ / $-10\%$, matmul $-32\%$ (held-out), sort $-2\%$ /
+$-7\%$. This closes 22--38\% of the gap to \belady on test streams and 23--73\% on
+held-out variants.
+
+\finding{Oracle features buy almost nothing.} On btree, graph and kv the best oracle
+model is within $\pm1.5\%$ of the \tierKKp model, and it is far behind on matmul (0.823
+vs.\ 0.681) and held-out sort (0.999 vs.\ 0.933). Refault bookkeeping helps in all nine
+family--split cells.
+
+\finding{\feat{idle} carries the policy.} Adding \feat{idle} (scans since the page was
+last found accessed) to a subset that lacks it cuts faults by a median of 71\% on graph,
+29\% on btree, 20\% on kv and 22\% on matmul (Figure~\ref{fig:marginal}). This is the
+signal MGLRU generations and DAMON ages already track.
+
+\finding{Selection matters as much as the model.} Of the 255 kernel-observable subsets,
+more than half are worse than \clock on kv and sort, and 98 are catastrophic
+($\geq3\times$ \clock) on graph.
+% src: ML_REPORT 6.4-6.5 (headline_workload_test/heldout, marginal, kksubsets_workload_test)
+
+\begin{table}[t]
+\caption{Information tiers (simulated). Faults relative to \clock, geometric mean over
+5/10/20\% memory, validation-selected linear model per tier; in brackets, share of the
+\clock$\rightarrow$\belady gap closed by \tierKKp. Kernel-observable features match
+oracle features.}
+\label{tab:tiers}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{llrrrrr}
+\toprule
+Family & Split & LRU & \tierF & \tierK & \tierKKp & \belady \\
+\midrule
+btree  & test & 0.994 & 0.861 & 0.852 & 0.833 (38\%) & 0.550 \\
+graph  & test & 0.990 & 0.855 & 0.871 & 0.845 (26\%) & 0.456 \\
+kv     & test & 0.986 & 0.910 & 0.917 & 0.905 (22\%) & 0.571 \\
+sort   & test & 1.012 & 1.011 & 1.011 & 0.983 (30\%) & 0.830 \\
+\midrule
+btree  & h-o  & 0.997 & 0.861 & 0.893 & 0.863 (37\%) & 0.615 \\
+graph  & h-o  & 0.992 & 0.786 & 0.805 & 0.798 (30\%) & 0.482 \\
+kv     & h-o  & 0.982 & 0.890 & 0.916 & 0.905 (23\%) & 0.577 \\
+matmul & h-o  & 0.879 & 0.823 & 0.789 & 0.681 (73\%) & 0.617 \\
+sort   & h-o  & 0.999 & 0.999 & 0.999 & 0.933 (51\%) & 0.896 \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table}
+% src: ML_REPORT 6.5 headline_workload_test / headline_workload_heldout (per-workload scope).
+% matmul has no test split (one stream per variant).
+
+\begin{figure}[t]
+\centering
+\figbox{1.5in}{Median change in faults from adding each kernel feature to a subset that
+lacks it, per family.}{exists as report/figures2/marginal.pdf; re-plot for one column}
+\caption{\plan{Takeaway: \feat{idle} is worth 20--71\% fewer faults; most other features
+are worth a few percent.}}
+\label{fig:marginal}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\subsection{RQ2: Does It Work Inside the Kernel?}
+\label{sec:eval-kernel}
+
+Every test and held-out stream ran in the kernel at 10\% memory under seven policies:
+FIFO, \clock, Aging, decayed LFU, and \sys with three weight sets (the global \tierKKp
+model, the family's own \tierKKp model, and its \tierK-only model); 33 streams $\times$
+7 = 231 runs. The numbers are the kernel's own counters.
+
+\finding{\sys beats \clock in the kernel on every family, on unseen seeds and unseen
+variants} (Table~\ref{tab:kernel}). With per-family weights: btree $-18\%$ / $-15\%$
+(test / held-out), graph $-39\%$ / $-46\%$, kv $-13\%$ / $-13\%$, sort $-4\%$ / $-7\%$,
+matmul $-3\%$ (held-out). The global model, the kernel default, which gets no
+information about the program, beats \clock on btree, graph, kv and sort, and loses on
+matmul ($+12\%$), as the simulator predicted. Every classical alternative to \clock is
+worse than or equal to it almost everywhere (Table~\ref{tab:teaser}).
+
+\finding{Page writes fall more than faults} where the dirty bit matters: 95\% fewer
+than \clock on graph test streams, 86\% fewer on held-out graph, 96\% fewer on held-out
+matmul, 32\% fewer on kv test. On kv-F almost every victim is dirty, so writes track
+faults. The global model's matmul loss is also a write loss (3.9$\times$ \clock).
+% src: ML_REPORT 8b.1 kernel_test / kernel_heldout / kernel_writes_*; kv-F writes checked in kernel_eval.csv
+
+\finding{The simulator predicts the kernel.} For \clock, Aging, LFU and all three \sys
+weight sets, the median kernel/simulator fault ratio per family is 0.94--1.07, except
+the global model on matmul (0.83) (Figure~\ref{fig:kernelsim}). Two exceptions: FIFO is
+10--41\% worse in the kernel on kv, sort and matmul, likely because the resident limit
+also holds untraced code and stack pages that only FIFO evicts \todo{confirm with per-page
+fault counts}; and one PageRank stream sits on a capacity cliff where two frames change
+\clock's faults by 2.3$\times$ (\S\ref{sec:eval-loss}).
+% src: ML_REPORT 8b.1 kernel_vs_sim, kernel_cliff (Clock sim+0 54,948 vs sim+2 23,609)
+
+\begin{table}[t]
+\caption{Inside the kernel, 10\% memory. Faults and page writes relative to \clock,
+geometric mean over streams. Per-family weights beat \clock everywhere; the global
+model loses only on matmul.}
+\label{tab:kernel}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\setlength{\tabcolsep}{2.4pt}
+\begin{tabular}{llrrrrr}
+\toprule
+ & & \multicolumn{3}{c}{Faults} & \multicolumn{2}{c}{Writes} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-7}
+Family & Split & global & family & \tierK only & global & family \\
+\midrule
+btree  & test & 0.843 & 0.823 & 0.824 & 0.952 & 1.022 \\
+graph  & test & 0.989 & 0.614 & 0.630 & 0.515 & 0.045 \\
+kv     & test & 0.875 & 0.871 & 0.908 & 0.737 & 0.682 \\
+sort   & test & 0.980 & 0.960 & 0.988 & 0.965 & 0.944 \\
+\midrule
+btree  & h-o  & 0.893 & 0.854 & 0.893 & 0.984 & 0.966 \\
+graph  & h-o  & 0.535 & 0.541 & 0.550 & 0.395 & 0.138 \\
+kv     & h-o  & 0.878 & 0.875 & 0.924 & 0.878 & 0.875 \\
+matmul & h-o  & 1.115 & 0.973 & 0.999 & 3.889 & 0.035 \\
+sort   & h-o  & 0.977 & 0.933 & 0.998 & 0.971 & 0.925 \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table}
+% src: ML_REPORT 8b.1 (report/results2/summary_kernel.csv)
+
+\begin{figure}[t]
+\centering
+\figbox{1.6in}{Kernel faults vs.\ simulated faults for the same stream, frames and
+policy, one point per run (231 runs), log--log, diagonal = perfect agreement; the
+PageRank cliff stream marked.}{data: report/results2/kernel\_vs\_sim.csv; to plot}
+\caption{\plan{Takeaway: the simulator predicts the kernel to within a few percent for
+every policy but FIFO; selection in simulation transfers.}}
+\label{fig:kernelsim}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\subsection{RQ3: What Does a Decision Cost?}
+\label{sec:eval-cost}
+
+\finding{Integer arithmetic loses nothing.} With 8 fractional bits for the weights,
+every selected model is within $\pm0.002$ of its floating-point fault ratio on every
+family and split; 4-bit weights stay within about 2\% (worst: 0.875 vs.\ 0.863).
+% src: ML_REPORT 8, quant table
+
+\finding{The price is selection time.} Choosing a victim costs \sys 400--452 timer ticks
+per eviction, about 40--45\,\textmu s of emulated time: 11--13$\times$ \clock (35 ticks)
+and about 2$\times$ Aging (200), which also visits all of the $\approx$106 eligible pages
+(Table~\ref{tab:cost}). \sys adds one to five integer multiply-adds per page to a scan
+the kernel already performs for Aging and LFU.
+% src: ML_REPORT 8b kernel_cost
+
+\plan{Put the cost next to what it buys, the way accepted papers do (overhead next to
+the decision interval).} \todo{(1) cycles per eviction on the real path (rdcycle /
+rdtime around choose\_*), as a distribution (p50/p99), ideally on RISC-V hardware;
+(2) break-even: faults avoided $\times$ fault service time vs.\ evictions $\times$ extra
+selection time, with a measured or cited device latency; (3) end-to-end runtime of the
+workload phase; (4) the zero-benefit case: overhead on pat-uniform, where every online
+policy ties; (5) if built, sampled scoring: faults and ticks vs.\ sample size $k$
+(\S\ref{sec:design-cost})}
+
+\begin{table}[t]
+\caption{Victim-selection cost in the kernel: timer ticks (10\,MHz, emulated) and
+eligible candidates per eviction, mean over all 231 runs.}
+\label{tab:cost}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\begin{tabular}{lrr}
+\toprule
+Policy & ticks / eviction & candidates \\
+\midrule
+FIFO           & 12.6  & 106 \\
+\clock         & 35.3  & 106 \\
+Aging          & 199.6 & 106 \\
+LFU (decayed)  & 199.4 & 106 \\
+\sys, global   & 411.0 & 106 \\
+\sys, family   & 451.7 & 106 \\
+\sys, \tierK only & 400.6 & 106 \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table}
+% Note: "candidates" is the eligible list's size; Clock stops early and examines fewer.
+
+\begin{figure}[t]
+\centering
+\figbox{1.5in}{Trade-off: selection ticks per eviction (x, log) vs.\ faults relative to
+\clock (y), one point per policy and family, kernel runs. Optional: sampled \sys at
+$k=8\dots$all as a curve.}{data: report/results2/kernel\_eval.csv; to plot. Candidate
+page-1 teaser.}
+\caption{\plan{Takeaway: \sys buys 3--46\% fewer faults for 11--13$\times$ \clock's
+selection time; sampling moves it left.}}
+\label{fig:tradeoff}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\subsection{RQ4: Robustness and Generalisation}
+\label{sec:eval-robust}
+
+\finding{Unseen behaviours are not harder than unseen runs.} On held-out variants the
+share of the gap closed is higher than on test seeds for graph, kv and sort, and within
+one point on btree (Table~\ref{tab:tiers}).
+
+\finding{One model for every program keeps most of the gain.} The single global
+\tierKKp model beats \clock in 8 of 9 family--split cells in simulation and keeps most
+of the per-family gain on btree, graph and kv, but little on matmul (0.967 vs.\ 0.681
+simulated; 1.115 in the kernel).
+% src: ML_REPORT 6.5 headline_global_*
+
+\finding{Sensitivity to memory pressure.} On graph the gain concentrates at 10\%
+(0.62 test, 0.56 held-out); at 5\% and 20\% \sys is within 2--7\% of \clock although
+\belady still has large headroom, and no linear model we found gets below 0.93 there.
+% src: ML_REPORT 6.5 bycap_KpKp
+
+\finding{Sensitivity to hand-set parameters.} Probation is swept and selected on
+validation (\S\ref{sec:eval-ablate}). \todo{sensitivity of the selected models to the
+ridge strength, candidates recorded per decision (32), the recency stratum (4) and the
+label cap ($2^{20}$); one small table, simulation only}
+
+\todo{Unseen families: run the five-family global model, unchanged, on the seven new
+families (simulation, no retraining), and a leave-one-family-out linear refit. This is
+the strongest generalisation test available and needs no GPU.}
+
+\todo{Deliberately wrong models: negated weights, random weights and the catastrophic
+subsets, with and without the refault guard (\S\ref{sec:design-wrong}); report the worst
+per-stream ratio to \clock and how often the guard fires.}
+
+\todo{Kernel runs at 5\% and 20\% memory (mechanical; several hours of emulator time).}
+
+% -----------------------------------------------------------------------------
+\subsection{Ablations}
+\label{sec:eval-ablate}
+% One ablation per design element: A1 tiers (Table tab:tiers), A2 integer precision
+% (RQ3) and model class (here), A3 training data and probation (here), A4 guard (TODO),
+% A5 sampling (TODO).
+
+\finding{Training data (A3).} With uniform candidate sampling, graph's models were
+$\geq1.25\times$ \clock; recency-stratified recording and probation bring three of the four
+fixed feature groups to 0.66--0.81 on graph validation, and remove every catastrophic subset on sort
+and matmul (76 of 300 on matmul and 17--18 on sort before; 0 after). They do not help
+everything: graph's \tierKKp group gets worse (1.33 $\rightarrow$ 1.46 on test), which is
+why subset and probation are selected jointly.
+% src: ML_REPORT 7.2 v1v2, catastrophic
+
+\finding{Probation (A3).} Decisive on graph (all features: 0.810 $\rightarrow$ 0.613 from
+0 to 4 scans), harmful on matmul, where 5 frames leave little choice (\tierKKp: 0.626
+$\rightarrow$ 0.974 at 2 scans), irrelevant on btree, kv and sort (within 0.5\%).
+% src: ML_REPORT 7.2 protect
+
+\finding{Model class (A2).} An MLP over the same \tierKKp features is better on kv (0.852
+vs.\ 0.890 test) and held-out graph (0.495 vs.\ 0.560), worse on held-out btree and
+matmul, at about 260$\times$ the arithmetic per candidate ($\approx$1,300 multiply-adds vs.\
+5). A GRU over each page's access history adds nothing; a cross-page embedding is
+catastrophic on btree and graph; a ranking loss is worse than regression.
+\todo{one compact table or figure; capacity-matched comparison}
+% src: ML_REPORT 6.7 nn_workload_*
+
+\finding{On-policy data (DAgger).} One round does not help the selected models (e.g.\
+graph \tierKKp 0.845 $\rightarrow$ 0.889 on test): with recency-stratified recording and
+probation, LRU-recorded decisions already cover the states the policy meets.
+% src: ML_REPORT 7.3 dagger
+
+\todo{A4: refault guard on/off. A5: sample size $k$.}
+
+% -----------------------------------------------------------------------------
+\subsection{Where \sys Does Not Help}
+\label{sec:eval-loss}
+
+\plan{State losses and their causes; accepted papers that did were read as more
+credible.}
+\begin{itemize}
+\item \textbf{Little headroom:} sort is sequential by construction; \belady is only
+  10--17\% better than \clock, and \sys gains 2--7\%.
+\item \textbf{The global model on matmul:} $+12\%$ faults and 3.9$\times$ writes in the
+  kernel. Per-program weights fix it; choosing them automatically is open.
+\item \textbf{Capacity:} graph's gain is concentrated at 10\% memory.
+\item \textbf{A capacity cliff:} on one PageRank stream the kernel gives about two more
+  usable frames than nominal; at matching frames, per-family weights still beat \clock
+  (18,309 vs.\ 23,390 faults) but the global model does not (65,576), for a reason we
+  have not established. \todo{explain or bound}
+\item \textbf{Decision time} when there is nothing to gain. \todo{zero-benefit run}
+\end{itemize}
+% src: ML_REPORT 6.1, 6.5, 8b.1 kernel_cliff

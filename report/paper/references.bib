@@ -1,0 +1,350 @@
+% references.bib -- skeleton bibliography
+%
+% Provenance key (the skill's rule: never cite from memory without checking):
+%   [skill]   listed with full authors in the mlsys-ml-for-os-paper skill's papers.md
+%             (hand-checked against proceedings.mlsys.org by the skill's study)
+%   [VERIFY]  added from memory while building the skeleton. Check title, ALL authors
+%             (MLSys requires every author listed), venue, year and pages against the
+%             publisher page before submission, then delete the VERIFY line.
+%
+% Not included yet (find and add): the closest in-kernel learned eviction work at OS
+% venues (e.g. eBPF page-cache policies), Kleio (hybrid-memory page scheduling, HPDC'19),
+% HALP (YouTube CDN, NSDI'23), Linux kernel_fpu_begin cost, a stakes citation.
+
+% ---------------------------------------------------------------- classical ----
+% VERIFY
+@article{belady1966study,
+  author  = {Belady, L. A.},
+  title   = {A Study of Replacement Algorithms for a Virtual-Storage Computer},
+  journal = {IBM Systems Journal},
+  volume  = {5},
+  number  = {2},
+  pages   = {78--101},
+  year    = {1966}
+}
+
+% VERIFY (report number; also reprinted in "In Honor of Philip M. Morse", MIT Press, 1969)
+@techreport{corbato1968paging,
+  author      = {Corbat{\'o}, Fernando J.},
+  title       = {A Paging Experiment with the {M}ultics System},
+  institution = {MIT Project MAC},
+  number      = {MAC-M-384},
+  year        = {1968}
+}
+
+% VERIFY
+@inproceedings{carr1981wsclock,
+  author    = {Carr, Richard W. and Hennessy, John L.},
+  title     = {{WSCLOCK}---A Simple and Effective Algorithm for Virtual Memory Management},
+  booktitle = {Proceedings of the 8th ACM Symposium on Operating Systems Principles (SOSP)},
+  pages     = {87--95},
+  year      = {1981}
+}
+
+% VERIFY
+@article{denning1968working,
+  author  = {Denning, Peter J.},
+  title   = {The Working Set Model for Program Behavior},
+  journal = {Communications of the ACM},
+  volume  = {11},
+  number  = {5},
+  pages   = {323--333},
+  year    = {1968}
+}
+
+% VERIFY
+@article{mattson1970evaluation,
+  author  = {Mattson, R. L. and Gecsei, J. and Slutz, D. R. and Traiger, I. L.},
+  title   = {Evaluation Techniques for Storage Hierarchies},
+  journal = {IBM Systems Journal},
+  volume  = {9},
+  number  = {2},
+  pages   = {78--117},
+  year    = {1970}
+}
+
+% VERIFY
+@inproceedings{oneil1993lruk,
+  author    = {O'Neil, Elizabeth J. and O'Neil, Patrick E. and Weikum, Gerhard},
+  title     = {The {LRU-K} Page Replacement Algorithm for Database Disk Buffering},
+  booktitle = {Proceedings of the 1993 ACM SIGMOD International Conference on Management of Data},
+  pages     = {297--306},
+  year      = {1993}
+}
+
+% VERIFY
+@inproceedings{johnson1994twoq,
+  author    = {Johnson, Theodore and Shasha, Dennis},
+  title     = {{2Q}: A Low Overhead High Performance Buffer Management Replacement Algorithm},
+  booktitle = {Proceedings of the 20th International Conference on Very Large Data Bases (VLDB)},
+  pages     = {439--450},
+  year      = {1994}
+}
+
+% VERIFY
+@inproceedings{jiang2002lirs,
+  author    = {Jiang, Song and Zhang, Xiaodong},
+  title     = {{LIRS}: An Efficient Low Inter-Reference Recency Set Replacement Policy to Improve Buffer Cache Performance},
+  booktitle = {Proceedings of the 2002 ACM SIGMETRICS International Conference on Measurement and Modeling of Computer Systems},
+  pages     = {31--42},
+  year      = {2002}
+}
+
+% VERIFY
+@inproceedings{megiddo2003arc,
+  author    = {Megiddo, Nimrod and Modha, Dharmendra S.},
+  title     = {{ARC}: A Self-Tuning, Low Overhead Replacement Cache},
+  booktitle = {Proceedings of the 2nd USENIX Conference on File and Storage Technologies (FAST)},
+  year      = {2003}
+}
+
+% VERIFY
+@inproceedings{bansal2004car,
+  author    = {Bansal, Sorav and Modha, Dharmendra S.},
+  title     = {{CAR}: Clock with Adaptive Replacement},
+  booktitle = {Proceedings of the 3rd USENIX Conference on File and Storage Technologies (FAST)},
+  year      = {2004}
+}
+
+% VERIFY
+@inproceedings{jiang2005clockpro,
+  author    = {Jiang, Song and Chen, Feng and Zhang, Xiaodong},
+  title     = {{CLOCK-Pro}: An Effective Improvement of the {CLOCK} Replacement},
+  booktitle = {Proceedings of the USENIX Annual Technical Conference (ATC)},
+  year      = {2005}
+}
+
+% VERIFY
+@inproceedings{yang2023s3fifo,
+  author    = {Yang, Juncheng and Zhang, Yazhuo and Qiu, Ziyue and Yue, Yao and Vinayak, Rashmi},
+  title     = {{FIFO} Queues Are All You Need for Cache Eviction},
+  booktitle = {Proceedings of the 29th ACM Symposium on Operating Systems Principles (SOSP)},
+  year      = {2023}
+}
+
+% VERIFY
+@inproceedings{zhang2024sieve,
+  author    = {Zhang, Yazhuo and Yang, Juncheng and Yue, Yao and Vigfusson, Ymir and Rashmi, K. V.},
+  title     = {{SIEVE} is Simpler than {LRU}: An Efficient Turn-Key Eviction Algorithm for Web Caches},
+  booktitle = {Proceedings of the 21st USENIX Symposium on Networked Systems Design and Implementation (NSDI)},
+  year      = {2024}
+}
+
+% ------------------------------------------------------------ Linux / xv6 ------
+% VERIFY URL and the kernel version MGLRU was merged in (ML_REPORT says 5.18+; believed 6.1)
+@misc{linux_mglru,
+  author       = {{The Linux Kernel Documentation}},
+  title        = {Multi-Gen {LRU}},
+  howpublished = {\url{https://docs.kernel.org/admin-guide/mm/multigen_lru.html}},
+  year         = {2024}
+}
+
+% VERIFY
+@misc{linux_workingset,
+  author       = {{The Linux Kernel}},
+  title        = {mm/workingset.c: Workingset Detection (Refault Distance)},
+  howpublished = {\url{https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/mm/workingset.c}},
+  year         = {2024}
+}
+
+% VERIFY
+@misc{linux_damon,
+  author       = {{The Linux Kernel Documentation}},
+  title        = {{DAMON}: Data Access {MON}itor},
+  howpublished = {\url{https://docs.kernel.org/admin-guide/mm/damon/index.html}},
+  year         = {2024}
+}
+
+% VERIFY
+@misc{xv6,
+  author       = {Cox, Russ and Kaashoek, M. Frans and Morris, Robert},
+  title        = {xv6: A Simple, {U}nix-like Teaching Operating System ({RISC-V} version)},
+  howpublished = {\url{https://github.com/mit-pdos/xv6-riscv}},
+  year         = {2024}
+}
+
+% --------------------------------------------------- learned caching -----------
+% VERIFY
+@inproceedings{jain2016hawkeye,
+  author    = {Jain, Akanksha and Lin, Calvin},
+  title     = {Back to the Future: Leveraging {B}elady's Algorithm for Improved Cache Replacement},
+  booktitle = {Proceedings of the 43rd International Symposium on Computer Architecture (ISCA)},
+  year      = {2016}
+}
+
+% VERIFY
+@inproceedings{shi2019glider,
+  author    = {Shi, Zhan and Huang, Xiangru and Jain, Akanksha and Lin, Calvin},
+  title     = {Applying Deep Learning to the Cache Replacement Problem},
+  booktitle = {Proceedings of the 52nd IEEE/ACM International Symposium on Microarchitecture (MICRO)},
+  year      = {2019}
+}
+
+% VERIFY
+@inproceedings{liu2020parrot,
+  author    = {Liu, Evan Zheran and Hashemi, Milad and Swersky, Kevin and Ranganathan, Parthasarathy and Ahn, Junwhan},
+  title     = {An Imitation Learning Approach for Cache Replacement},
+  booktitle = {Proceedings of the 37th International Conference on Machine Learning (ICML)},
+  year      = {2020}
+}
+
+% VERIFY
+@inproceedings{song2020lrb,
+  author    = {Song, Zhenyu and Berger, Daniel S. and Li, Kai and Lloyd, Wyatt},
+  title     = {Learning Relaxed {B}elady for Content Distribution Network Caching},
+  booktitle = {Proceedings of the 17th USENIX Symposium on Networked Systems Design and Implementation (NSDI)},
+  year      = {2020}
+}
+
+% VERIFY (author list especially)
+@inproceedings{vietri2018lecar,
+  author    = {Vietri, Giuseppe and Rodriguez, Liana V. and Martinez, Wendy A. and Lyons, Steven and Liu, Jason and Rangaswami, Raju and Zhao, Ming and Narasimhan, Giri},
+  title     = {Driving Cache Replacement with {ML}-based {LeCaR}},
+  booktitle = {Proceedings of the 10th USENIX Workshop on Hot Topics in Storage and File Systems (HotStorage)},
+  year      = {2018}
+}
+
+% VERIFY (author list especially)
+@inproceedings{rodriguez2021cacheus,
+  author    = {Rodriguez, Liana V. and Yusuf, Farzana and Lyons, Steven and Paz, Eysler and Rangaswami, Raju and Liu, Jason and Zhao, Ming and Narasimhan, Giri},
+  title     = {Learning Cache Replacement with {CACHEUS}},
+  booktitle = {Proceedings of the 19th USENIX Conference on File and Storage Technologies (FAST)},
+  year      = {2021}
+}
+
+% ---------------------------------------------- learned OS components ----------
+% VERIFY
+@inproceedings{hashemi2018learning,
+  author    = {Hashemi, Milad and Swersky, Kevin and Smith, Jamie A. and Ayers, Grant and Litz, Heiner and Chang, Jichuan and Kozyrakis, Christos and Ranganathan, Parthasarathy},
+  title     = {Learning Memory Access Patterns},
+  booktitle = {Proceedings of the 35th International Conference on Machine Learning (ICML)},
+  year      = {2018}
+}
+
+% VERIFY
+@inproceedings{hao2020linnos,
+  author    = {Hao, Mingzhe and Toksoz, Levent and Li, Nanqinqin and Halim, Edward Edberg and Hoffmann, Henry and Gunawi, Haryadi S.},
+  title     = {{LinnOS}: Predictability on Unpredictable Flash Storage with a Light Neural Network},
+  booktitle = {Proceedings of the 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
+  year      = {2020}
+}
+
+% VERIFY
+@inproceedings{maas2020llama,
+  author    = {Maas, Martin and Andersen, David G. and Isard, Michael and Javanmard, Mohammad Mahdi and McKinley, Kathryn S. and Raffel, Colin},
+  title     = {Learning-based Memory Allocation for {C++} Server Workloads},
+  booktitle = {Proceedings of the 25th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS)},
+  year      = {2020}
+}
+
+% VERIFY (cited as "learned OS vision (Zhang & Huang, 2019)" inside the MLSys corpus)
+@article{zhang2019learned,
+  author  = {Zhang, Yiying and Huang, Yutong},
+  title   = {``{L}earned'' Operating Systems},
+  journal = {ACM SIGOPS Operating Systems Review},
+  volume  = {53},
+  number  = {1},
+  pages   = {40--45},
+  year    = {2019}
+}
+
+% VERIFY
+@inproceedings{ross2011dagger,
+  author    = {Ross, St{\'e}phane and Gordon, Geoffrey J. and Bagnell, J. Andrew},
+  title     = {A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning},
+  booktitle = {Proceedings of the 14th International Conference on Artificial Intelligence and Statistics (AISTATS)},
+  pages     = {627--635},
+  year      = {2011}
+}
+
+% ------------------------------------------- MLSys ML-for-OS corpus [skill] ----
+% [skill]
+@inproceedings{barbalho2023vmalloc,
+  author    = {Barbalho, Hugo and Kovaleski, Patricia and Li, Beibin and Marshall, Luke and Molinaro, Marco and Pan, Abhisek and Cortez, Eli and Leao, Matheus and Patwari, Harsh and Tang, Zuzu and Gon{\c{c}}alves, Larissa Rozales and Dion, David and Moscibroda, Thomas and Menache, Ishai},
+  title     = {Virtual Machine Allocation with Lifetime Predictions},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2023}
+}
+
+% [skill]
+@inproceedings{yang2025byom,
+  author    = {Yang, Chenxi and Li, Yan and Maas, Martin and Uysal, Mustafa and Hafeez, Ubaid Ullah and Merchant, Arif and McDougall, Richard},
+  title     = {A Bring-Your-Own-Model Approach for {ML}-Driven Storage Placement in Warehouse-Scale Computers},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2025}
+}
+
+% [skill]
+@inproceedings{ling2025lava,
+  author    = {Ling, Jianheng and Worah, Pratik and Wang, Yawen and Kong, Yunchuan and Wang, Chunlei and Stein, Clifford and Gupta, Diwakar and Behmer, Jason and Bush, Logan A. and Ramanan, Prakash and Kumar, Rajesh and Chestna, Thomas and Liu, Yajing and Liu, Ying and Zhao, Ye and McKinley, Kathryn S. and Park, Meeyoung and Maas, Martin},
+  title     = {{LAVA}: Lifetime-Aware {VM} Allocation with Learned Distributions and Adaptation to Mispredictions},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2025}
+}
+
+% [skill]
+@inproceedings{wang2025protorail,
+  author    = {Wang, Lu and Das, Mayukh and Yang, Fangkai and Qiao, Bo and Dong, Hang and Qin, Si and R{\"u}hle, Victor and Bansal, Chetan and Cortez, Eli and Goiri, {\'I}{\~n}igo and Rajmohan, Saravan and Lin, Qingwei and Zhang, Dongmei},
+  title     = {{ProtoRAIL}: A Risk-cognizant Imitation Agent for Adaptive {vCPU} Oversubscription In the Cloud},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2025}
+}
+
+% [skill]
+@inproceedings{zhao2026catur,
+  author    = {Zhao, Yibo and Wu, Tianyuan and Xue, Hui and Chen, Qi and Han, Zhenhua and Xu, Zikai and Chang, Yuntai and Gao, Rui and Deng, Steve and Chiang, Ray Jui-Hao and Li, Mingxia and Yang, Yuqing and Tan, Cheng and Yang, Fan and Cheng, Peng and Xiong, Yongqiang and Qiu, Lili and Zhou, Lidong},
+  title     = {Virtual Machine {NUMA} Placement at Scale: Learning the Norm, Shielding the Tail},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2026}
+}
+
+% [skill]
+@inproceedings{mallick2022matchmaker,
+  author    = {Mallick, Ankur and Hsieh, Kevin and Arzani, Behnaz and Joshi, Gauri},
+  title     = {Matchmaker: Data Drift Mitigation in Machine Learning for Large-Scale Systems},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2022}
+}
+
+% [skill]
+@inproceedings{tan2023ouroboros,
+  author    = {Tan, Cheng and Liu, Changliu and Jia, Zhihao and Wei, Tianhao},
+  title     = {Building Verified Neural Networks for Computer Systems with {O}uroboros},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2023}
+}
+
+% [skill]
+@inproceedings{qiu2024flash,
+  author    = {Qiu, Haoran and Mao, Weichao and Patke, Archit and Cui, Shengkun and Wang, Chen and Franke, Hubertus and Kalbarczyk, Zbigniew and Ba{\c{s}}ar, Tamer and Iyer, Ravi},
+  title     = {{FLASH}: Fast Model Adaptation in {ML}-Centric Cloud Platforms},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2024}
+}
+
+% [skill]
+@inproceedings{gohil2026uncertain,
+  author    = {Gohil, Varun and Stojkovic, Nevena and Bashir, Noman and Dev, Sundar and Upasani, Gaurang and Lo, David and Ranganathan, Parthasarathy and Delimitrou, Christina},
+  title     = {When Machine Learning Isn't Sure: Building Resilient {ML}-Based Computer Systems by Embracing Uncertainty},
+  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
+  year      = {2026}
+}
+
+% ----------------------------------------------------------- tools/data --------
+% VERIFY
+@inproceedings{cooper2010ycsb,
+  author    = {Cooper, Brian F. and Silberstein, Adam and Tam, Erwin and Ramakrishnan, Raghu and Sears, Russell},
+  title     = {Benchmarking Cloud Serving Systems with {YCSB}},
+  booktitle = {Proceedings of the 1st ACM Symposium on Cloud Computing (SoCC)},
+  pages     = {143--154},
+  year      = {2010}
+}
+
+% VERIFY
+@inproceedings{nethercote2007valgrind,
+  author    = {Nethercote, Nicholas and Seward, Julian},
+  title     = {Valgrind: A Framework for Heavyweight Dynamic Binary Instrumentation},
+  booktitle = {Proceedings of the 28th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
+  pages     = {89--100},
+  year      = {2007}
+}

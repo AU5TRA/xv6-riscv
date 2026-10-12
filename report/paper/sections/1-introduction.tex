@@ -1,0 +1,129 @@
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+% Budget: 1.5 pages, 1,000-1,150 words. Draft LAST among the core sections (Step 5.5).
+% Moves: stakes -> today's policy and its measured failure -> why prior learned
+% work does not apply -> insight (one sentence) -> challenges->techniques ->
+% contributions (3-4 bullets with sections) -> headline results -> roadmap.
+% Page-1 teaser: Table 1 (every policy family, measured in the kernel).
+% =============================================================================
+
+% --- Page-1 teaser ------------------------------------------------------------
+% Defined at the very top of the section so it floats to the top of column 2 on page 1.
+\begin{table}[t]
+\caption{\textbf{Measured inside the kernel.} Page faults relative to \clock on workload
+variants never seen in training, at a memory limit of 10\% of each workload's pages,
+and victim-selection cost per eviction. \sys cuts faults on every family; its cost is
+decision time. $^\dagger$\belady is offline and simulated (vs.\ simulated \clock).}
+\label{tab:teaser}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Policy & btree & kv & graph & sort & matmul & ticks/ev.\\
+\midrule
+FIFO            & 1.09 & 1.31 & 1.29 & 1.19 & 1.82 & 13 \\
+Aging           & 1.06 & 1.13 & 1.26 & 1.00 & 1.00 & 200 \\
+LFU (decayed)   & 1.07 & 1.19 & 1.27 & 1.01 & 1.00 & 199 \\
+\clock          & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 35 \\
+\midrule
+\sys, global    & 0.89 & 0.88 & 0.54 & 0.98 & 1.12 & 411 \\
+\sys, per-wkld  & 0.85 & 0.88 & 0.54 & 0.93 & 0.97 & 452 \\
+\midrule
+\belady$^\dagger$ & 0.63 & 0.59 & 0.38 & 0.92 & 0.84 & -- \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table}
+% src: faults = report/results2 kernel_heldout table (ML_REPORT 8b.1), geo-mean over streams.
+% src: ticks/ev = kernel_cost (mean over ALL 231 runs, test+heldout), 10 MHz emulated timer.
+% src: Belady = ML_REPORT 6.5 bycap_KpKp, "Belady 10%", heldout rows.
+% TODO: decide whether the teaser should instead be the Figure "faults vs decision
+% cost" scatter (a measured trade-off). Both are cheap; the table already works.
+
+% --- Move 1: stakes --------------------------------------------------------
+\plan{Stakes in one sentence with a number we can support. Page faults under memory
+pressure turn a memory access into a disk access; every avoidable fault is lost time,
+and memory limits (containers, cgroups, far memory) make pressure the normal case.}
+\todo{one supportable stakes number with a citation, e.g.\ DRAM share of server cost,
+or fault cost vs DRAM access; do not invent it}
+
+% --- Move 2: how the OS does it today, and the measured failure --------------
+Operating systems choose which page to evict with recency heuristics built on the
+hardware accessed bit: \clock and its descendants~\citep{corbato1968paging,carr1981wsclock},
+and in Linux the active/inactive lists and the multi-generational LRU~\citep{linux_mglru}.
+These heuristics leave a large gap to the optimum. On database-, key-value- and
+graph-shaped workloads, \belady's offline policy~\citep{belady1966study} incurs 43--54\%
+fewer faults than \clock, and \clock is within 1--2\% of exact LRU on four of our five
+workload families (\S\ref{sec:bg-headroom}).
+% src: ML_REPORT 6.1, classical_test: Belady btree 0.550, kv 0.571, graph 0.456; LRU 0.98-1.01x Clock
+
+% --- Move 3: why prior learned approaches do not solve it --------------------
+\plan{One or two sentences per family. Learned caching for CPU caches, CDNs and storage
+(\citealp{jain2016hawkeye,shi2019glider,liu2020parrot,song2020lrb,vietri2018lecar,rodriguez2021cacheus})
+observes every access, runs in floating point and is judged per request. A kernel sees
+none of that: it sees faults and the accessed/dirty bits it samples. No archival MLSys
+paper applies ML to kernel page replacement; the accepted ML-for-OS papers work above
+the kernel (VM allocation, NUMA placement, storage tiering).}
+\verify{closest in-kernel learned eviction work at OSDI/SOSP/ATC/ASPLOS/EuroSys
+(e.g.\ eBPF page-cache policies); no ``first'' claim until searched}
+
+% --- Move 4: the question and the insight ------------------------------------
+This paper asks whether a learned page-replacement policy is \emph{implementable} at
+operating-system level: with only the signals a kernel observes, without floating point,
+on the eviction path, and without access to the program it serves. Our answer is that
+\textbf{the kernel already sees enough}. Accessed-bit scans and the refault bookkeeping
+kernels already keep carry nearly all the signal of a full reference trace, and a few
+integer multiply-adds over them beat \clock inside the kernel.
+
+% --- Move 5: challenges -> techniques (the paper's spine; see paper-state.md) --
+\plan{Four (or five) challenges, each measured, each mapped to one technique of
+\S\ref{sec:design} and one ablation of \S\ref{sec:eval}:
+(C1) the kernel never sees accesses $\rightarrow$ features from accessed/dirty-bit scans
+and refault bookkeeping (\S\ref{sec:design-features});
+(C2) no floating point and a per-eviction budget $\rightarrow$ an integer linear scorer
+(\S\ref{sec:design-int});
+(C3) decisions compound, and naively sampled training data teaches the policy to evict
+the page being streamed through $\rightarrow$ decision-point training with
+recency-stratified recording, plus probation for new pages (\S\ref{sec:design-train});
+(C4) a wrong model can be catastrophic ($\geq3\times$ \clock) $\rightarrow$
+validation-only selection and a refault guard that falls back to \clock
+(\S\ref{sec:design-wrong}; guard \todo{not built yet});
+(C5, optional) full-scan selection is slow $\rightarrow$ scoring a sample of candidates
+(\S\ref{sec:design-cost}; \todo{not built yet}).}
+
+% --- Move 6: contributions ----------------------------------------------------
+Our contributions are:
+\begin{itemize}
+\item \textbf{\sys, a learned page-replacement policy that runs inside a kernel}, with
+  integer arithmetic only, on kernel-observable signals, with per-process weights
+  (\S\ref{sec:design}, \S\ref{sec:impl}).
+\item \textbf{A study of what a learned eviction policy needs}: three feature tiers, all
+  300 feature subsets in six training scopes (28,800 full-stream replays), and neural,
+  sequence, embedding and ranking models. Oracle features buy almost nothing over
+  kernel-observable ones, and model capacity does not pay
+  (\S\ref{sec:bg}, \S\ref{sec:eval-info}, \S\ref{sec:eval-ablate}).
+\item \textbf{An in-kernel evaluation} on unseen seeds and unseen workload variants:
+  231 kernel runs measuring faults, page writes and victim-selection cost, with the
+  simulator's prediction of each run (\S\ref{sec:eval-kernel}, \S\ref{sec:eval-cost}).
+\item \textbf{A paging platform and dataset for xv6}: demand paging and swap, complete
+  read/write-marked reference strings with verified integrity, and
+  \todo{89 or 221} streams with fixed splits and \belady labels
+  (\S\ref{sec:impl}, Appendix~\ref{app:data}). \todo{keep only if released anonymously}
+\end{itemize}
+
+% --- Move 7: headline results with baseline named ----------------------------
+Inside the kernel, on workload variants never seen in training, \sys incurs 3--46\%
+fewer page faults than \clock (Table~\ref{tab:teaser}) and up to 96\% fewer page
+writes. It closes \todo{X--Y\%} of the gap between \clock and \belady. The price is
+decision time: victim selection costs 11--13$\times$ as much as \clock (about
+40--45\,\textmu s of emulated time per eviction), which we bound in
+\S\ref{sec:eval-cost}. \todo{real-hardware cycles; end-to-end runtime effect}
+% src: kernel_heldout per-workload: btree 0.854, kv 0.875, graph 0.541, sort 0.933, matmul 0.973
+% src: kernel_writes_heldout matmul 0.035; kernel_writes_test graph 0.045; kernel_cost 400.6-451.7 vs 35.3 ticks
+
+\plan{Optional one-line roadmap.}
