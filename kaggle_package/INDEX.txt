@@ -2,5 +2,6 @@ Each Kaggle round has its own folder; nothing in an older folder is ever changed
   round1/  first split of the 5% / 20% runs (standard policies, linear models, the five extra models trained on one workload)
   round2/  the five model kinds trained on all workloads, 5% and 20%
   round3/  ARC, S3-FIFO and LHD (kernel-observable forms), 5% and 20%. FAILED at the build (mkfs/mkfs: Permission denied); kept as it was run
-  round4/  the same work as round 3 with the build fixed   <- current
+  round4/  the same work as round 3 with the build fixed (done; results in round4/kaggle_results)
+  round5/  more streams at 5% and 20% memory, eight policies each (N1 of the paper handoff)   <- current
 Build a new round with:  python3 tools/kaggle/make_package.py --classic --round 4   (refuses to touch a folder that already has a package)

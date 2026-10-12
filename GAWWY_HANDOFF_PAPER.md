@@ -205,7 +205,9 @@ label "first version of the study" in the text.
 
 ## Replies (GawwyG fills this in)
 
-*(item — result — file)*  Worked through on 2026-10-12. S1, S2, S3, N1, N2 not started (they are marked "should have" / "nice to have"; waiting for GawwyG's decision).
+*(item — result — file)*  Worked through on 2026-10-12. S1, S2, S3 not started ("should have"; waiting for GawwyG's decision). N2 dropped (below). **N1 is in progress (2026-10-12): 23 more streams at 5% and 20% memory, eight policies each (FIFO, Clock, Aging, LFU, ARC, LHD, S3-FIFO, linear global); this PC and four Kaggle notebooks, ETA about 3 hours after the notebooks are started; results will be merged into `kernel_eval_all.csv` and every table and interval regenerated. The five heavier models are not rerun, so their tables keep the ten streams.** The cut-off of 25 Oct is not at risk.
+
+**DROPPED by GawwyG, in full: N2 (the guard in the kernel) and the guard everywhere else.** It is not needed for the research question. Please remove it from the paper and do not work on it: it appears in `report/paper/outline.md` (rows 3 and 5.5), `paper-state.md` (lines about C4, the ablation and fallback rows, the guard numbers 1.86 to 1.36, step 6), `sections/1-introduction.tex` (line 104), `2-background.tex` (line 125), `3-design.tex` (the "fallback guard" item and its plan and todo, lines 168-180), `5-evaluation.tex` (line 275 and the robustness text) and `7-discussion.tex` (the "No guard in the kernel" item). Keep the plain statement that the learned policy can be worse than Clock and where. Anything else GawwyG marks "not required" is dropped the same way.
 
 **M1 — global, held-out row.** Cause found and fixed; it was not a scoring bug. The neural nets are not run on the longest streams (`NN_MAX_REFS` in `extra_trees.py`, numpy callbacks are slow), so in the global scope the
 net `extraKF-nn:deep` covers only 15 of the held-out cells (kv-F, five streams); `extra_report.py` took the intersection of cells over *all* systems, so every other column was cut to those streams too. Now, for the global scope, the main rows use the cells all non-net systems have

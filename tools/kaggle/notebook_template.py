@@ -121,6 +121,14 @@ if CONFIG.get("classic"):
                 keval(f"kaggle_{i}_classic.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
                       f"--nonml arck,s3fifo,lhd --timeout 40000")
                 save()
+if CONFIG.get("more"):
+    for fr in ("0.05", "0.2"):
+        for is_short in (False, True):
+            sts = [st + "$" for st, f in CONFIG["more"] if f == fr and (st in CONFIG["short"]) == is_short]
+            if sts:
+                keval(f"kaggle_{i}_more.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
+                      f"--nonml fifo,clock,aging,lfu,arck,s3fifo,lhd --models global --timeout 40000")
+                save()
 if CONFIG["patapp"]:
     streams = "pat-zipf099-s5,pat-phase-s5,pat-scanhot-s5,pat-loop-s5,pat-uniform-s5,app-chase-s1,app-spmv-s1,app-hashjoin-s1,app-bloom-s1"
     keval(f"kaggle_{i}_patapp.csv", f"--fracs 0.05,0.2 --accesses 50000 --only {streams} --splits test,heldout "

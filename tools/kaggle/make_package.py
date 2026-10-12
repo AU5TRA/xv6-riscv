@@ -209,7 +209,87 @@ def main_classic():
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for ARC / S3-FIFO / LHD")
 
 
+MORE_NONML = "fifo,clock,aging,lfu,arck,s3fifo,lhd"
+MORE_POLICIES = MORE_NONML.split(",") + ["ml:global"]
+
+
+def costs_more(skip=()):
+    """Streams that ran at 10% memory but not at 5% or 20% (51 of 74 streams were run at 5% and 20%): the eight policies (the seven
+    without a model and the global linear score) on each missing (stream, memory size). Cost of one item = eight runs, each costed like the Clock run of the
+    same stream at 10% (this machine's wall time times KAGGLE_SLOWDOWN, times 1.5 for 5% memory, which evicts more)."""
+    loc, short, have = {}, set(), set()
+    for f in [R / "kernel_eval_all.csv"]:
+        for r in csv.DictReader(open(f)):
+            if r["status"] != "ok":
+                continue
+            if r["policy"] == "clock":
+                have.add((r["stem"], r["fraction"]))
+                if r["fraction"] == "0.1" and r["wall_s"]:
+                    loc[r["stem"]] = float(r["wall_s"])
+                if r["accesses"]:
+                    short.add(r["stem"])
+    done = set()
+    for f in R.glob("kaggle_*_more.csv"):
+        done |= {(r["stem"], r["fraction"], r["policy"] + (":" + r["model"] if r["model"] else "")) for r in csv.DictReader(open(f)) if r["status"] == "ok"}
+    items = {}
+    for st, w in loc.items():
+        for fr in ("0.05", "0.2"):
+            if (st, fr) in have or f"{st}@{fr}" in skip or st in skip:
+                continue
+            n = sum((st, fr, p) not in done for p in MORE_POLICIES)
+            if n:
+                one = w * KAGGLE_SLOWDOWN * (1.5 if fr == "0.05" else 1.0)
+                items[("more", (st, fr))] = (one * n / 3600, one / 3600)
+    return items, short
+
+
+def main_more():
+    argv = __import__("sys").argv
+    skip = tuple(argv[argv.index("--skip") + 1].split(",")) if "--skip" in argv else ()
+    items, short = costs_more(skip)
+    # the thesis PC runs part of it: 6 lanes, each worth KAGGLE_SLOWDOWN Kaggle lanes (work is counted at Kaggle speed)
+    bins = {n: {"lanes": 4, "work": 0.0, "more": []} for n in ("k1", "k2", "k3", "k4")}
+    bins["local"] = {"lanes": 6 * KAGGLE_SLOWDOWN, "work": 0.0, "more": []}
+    for (kind, st), (h, one) in sorted(items.items(), key=lambda kv: -kv[1][0]):
+        b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
+        b["work"] += h
+        b["more"].append(st)
+    for n, b in bins.items():
+        print(f"{n} {b['lanes']:.1f} lanes, {b['work']:5.1f} lane-h at Kaggle speed -> at least {b['work'] / b['lanes']:.1f} h; {len(b['more'])} items")
+    sh = ["#!/bin/bash", "# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_more.csv", "cd \"$(dirname \"$0\")/../../tools/ml2\"",
+          "export KERNEL_EVAL_OUT=kernel_eval_more.csv KERNEL_EVAL_LANES=/tmp/xv6more", "PY=${PY:-python3}"]
+    for fr in ("0.05", "0.2"):
+        for is_short in (False, True):
+            sts = [st + "$" for st, f in bins["local"]["more"] if f == fr and (st in short) == is_short]
+            if sts:
+                sh.append(f'$PY -u kernel_eval.py --lanes 6 --fracs {fr} {"--accesses 50000 " if is_short else ""}--only "{",".join(sts)}" --splits test,heldout --nonml {MORE_NONML} --models global --timeout 40000')
+    (PK / "local_run.sh").write_text("\n".join(sh) + "\n")
+    print("items", len(items), "runs", sum(8 for _ in items), "longest single run (h):", sorted(((round(o, 1), k[1]) for k, (h, o) in items.items()), reverse=True)[:5])
+    out = PK / "xv6_package.tar.gz"
+    skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
+    def keep(ti):
+        n = ti.name
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img") or n.endswith("/mkfs/mkfs"):
+            return None
+        return ti
+    with tarfile.open(out, "w:gz") as t:
+        for p in ("Makefile", "kernel", "user", "mkfs", "tools/ml2/kernel_eval.py", "tools/run_xv6_tests.py", "tools/extract_file.py",
+                  "tools/streams_manifest.tsv", "README", "corpus.txt", "corpus1.txt", "corpus2.txt", "corpus3.txt", "corpus4.txt", "corpus5.txt"):
+            if (ROOT / p).exists():
+                t.add(ROOT / p, arcname=f"xv6/{p}", filter=keep)
+        t.add(ROOT / "traces2/ML/index.json", arcname="xv6/traces2/ML/index.json")
+    exp = json.load(open(PK / "plan.json"))["selftest"]
+    tpl = (Path(__file__).parent / "notebook_template.py").read_text()
+    for i in (1, 2, 3, 4):
+        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "more": [list(x) for x in bins[f"k{i}"]["more"]],
+                          "short": sorted(short), "selftest": exp}, indent=1)
+        (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
+    print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the extra 5% / 20% streams")
+
+
 def main():
+    if "--more-streams" in __import__("sys").argv:
+        return main_more()
     if "--classic" in __import__("sys").argv:
         return main_classic()
     if "--nets-all" in __import__("sys").argv:

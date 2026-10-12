@@ -77,7 +77,10 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 | Break-even against the real fault cost: the linear model of its own workload pays on a hard disk (8 ms per fault), about breaks even on fast flash; CNN and MLP never pay | FINAL given two assumptions (1 instruction = 1 ns; the fault costs were never measured) | `cost_benefit.csv`, week 15 report |
 | Sampling 32 candidates costs 0 to 1 point of faults and makes the linear cost independent of memory size | FINAL | week 15 report section "In the xv6 kernel" |
 | Literature baselines in the simulator (ARC, S3-FIFO, MGLRU analogue, LHD, MRU); LHD best untrained there (0.90 to 0.95) | FINAL (simulator) | `baselines_ext.csv`; report appendix |
-| Safety guard (fall back to Clock when worse): simulator prototype only; halves the worst case (1.86 -> 1.36), costs about 2 points on average | FINAL as a prototype; optional extra, not in the kernel | `exp_guard.py`, week 15 report |
+
+### 2b. DROPPED by GawwyG: do not work on these, do not write about them
+* **The safety guard** (fall back to Clock when the learned policy does worse): not needed for the research question (which learned policy works best against Clock and the other classical policies). Not in the kernel, not to be built, not to be presented as future work or a recommendation. Where it still appears in `report/paper/` (outline.md, paper-state.md, sections 1, 2, 3, 5, 7) it should be removed. The week 15 report section "A safety guard" and `tools/ml2/exp_guard.py` are kept only as history; do not cite them.
+* If GawwyG marks anything else "not required", it goes in this list and is dropped in full: no work, no text.
 
 ### 3. Cost of choosing one victim (68 candidates per eviction)
 | Policy | Instructions to choose one victim | Times the linear score |

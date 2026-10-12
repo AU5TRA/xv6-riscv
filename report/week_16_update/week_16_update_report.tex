@@ -200,7 +200,7 @@ and capacity cliffs explain most of the remaining differences. Earlier work foun
 \item \textbf{Fourteen workloads.} Some are close variants of each other, and 5 and 20\% memory use one stream per variant (51 streams). The intervals show the resulting uncertainty; most differences between the best policies are inside it.
 \item \textbf{Adapted forms.} ARC, LHD and S3-FIFO ran in the form a kernel can run (accessed bits read at evictions), not as published; S3-FIFO's result in particular should not be quoted as the algorithm's.
 \item \textbf{``All workloads'' means the six original ones} (btree, graph, kv, LZW, matmul, sort), for the global linear model and the five heavier kinds alike; the heap, hash join, SpMV, pointer chase, Bloom filter, pattern and application programs were not in training. The heavier models were run on only ten streams, so their intervals are the widest.
-\item \textbf{No safety guard.} The learned policy can be worse than Clock (matmul at 5\%, SpMV, graph with the global weights at 20\%). A simulator prototype of a guard that falls back to Clock exists (week 15 report) but is not in the kernel.
+\item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph with the global weights at 20\%); the tables show where.
 \end{itemize}
 
 \appendix
