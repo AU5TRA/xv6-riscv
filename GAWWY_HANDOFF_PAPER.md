@@ -61,8 +61,8 @@ Two rules from the call that affect us:
    "beats ARC". Confirm the claim or change it.
 2. **Title and the system name.** The draft's working title is "Glimpse: Learned Page
    Replacement from What the Kernel Already Sees". Your language rule says no invented
-   terms, so we can drop "Glimpse" if you prefer. It is one macro in
-   `report/paper/macros.tex`.
+   terms, so we can drop "Glimpse" if you prefer. It is one macro (`\sys`) near the
+   top of `report/paper/main.tex`.
 3. **Venue.** MLSys 2027, research track. Confirm.
 4. **Authors and credits** (the platform, the programs, the Kaggle runs), and the
    **Twitter trace licence** before any derived streams are released.
@@ -74,7 +74,9 @@ Two rules from the call that affect us:
   `report_w15.py` and `report_w16.py`, the paper updates by itself.
   * **Do not rename these files or change their column layout without telling me.**
   * If you start a `week_17_update/`, either keep writing these files where they are,
-    or tell me and I change one macro (`\wsixteen` in `report/paper/macros.tex`).
+    or tell me and I change one macro (`\wsixteen` near the top of
+    `report/paper/main.tex`). The paper is a single file now; your tables are its only
+    `\input`s.
 * Numbers quoted in the text are typed, each with a `% src:` comment, and listed in
   `paper-state.md` → "Numbers". If a rerun changes one of them, tell me which.
 * `\best{}` in `ci_main.tex` is defined in the paper as bold. Keep using it.
@@ -204,6 +206,17 @@ label "first version of the study" in the text.
   I will recheck every quoted number.
 
 ## Replies (GawwyG fills this in)
+
+**AU5TRA, 2026-10-12: M1–M5 and S4 are folded into the paper.** Where they went:
+* Table 4 now has the "all six" rows.
+* §5.3 says writes do not fall on average; the writes table is in the appendix.
+* The regenerated correlations, marginal values, catastrophic counts, integer check and
+  probation numbers are in.
+* Your facts are in §3–§5.
+
+The page-writes result is reported as a negative result in the intro, §5.3, §5.7 and §7.
+Still open from your side: S1, S2, S3, N1, N2, and D2. Also, if you can, run the full
+regression matrix on the final build; otherwise the paper cites only data invariance.
 
 *(item — result — file)*  Worked through on 2026-10-12. S1, S2, S3, N1, N2 not started (they are marked "should have" / "nice to have"; waiting for GawwyG's decision).
 
