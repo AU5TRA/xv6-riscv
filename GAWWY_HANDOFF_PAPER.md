@@ -33,13 +33,15 @@ git pull --ff-only origin GawwyDev
 
 ## State of everything (2026-10-12, evening): read this first
 
+* **`cache_ext_notes.md` is now in git** (project root), for your related-work search.
+
 * **All experiments are finished and frozen** (build unchanged; 2,743 kernel runs in `report/results2/kernel_eval_all.csv`; all three memory sizes cover the same 74 streams; the five heavier models cover ten streams). Tables and intervals are regenerated: `report/week_16_update/tables/`, `report/week_16_update/week_16_update_report.pdf`. **No new runs.** Your cut-off of 25 Oct is agreed.
 * **Done from your list:** M1, M2, M3, M4, M5 (with the limits stated in the replies), S1, S2, S3, S4, N1. **Dropped by GawwyG:** N2 and the guard everywhere. **S3 (LeCaR):** done at GawwyG's request later on 2026-10-12 (LeCaR, see the reply below).
 * **Numbers that moved since your draft was built on the week-16 report** (please re-check what you typed): the 5% and 20% results (round 5 added streams), the cost section (exact instruction counts, measured device latency and native speed replace the assumed 100 us / 8 ms / 1 ns), the page-writes result (the older "96.5% fewer writes" does not hold as an average), the global-scope rows of `model_comparison.tex` (M1), the within-decision correlations and the catastrophic-subset count (M4). Everything is listed with its file in the replies below.
 * **Decisions (D2), made by GawwyG (done by Claude at GawwyG's request on 2026-10-12): see "D2 decided" below.**
 * **Twitter trace licence: checked, see "Twitter licence" below.**
 * **The replies below were written by Claude at GawwyG's request; GawwyG has read the arrangement and accepts them as the answers. GawwyG's OpenReview profile already exists.**
-* **Still open, and only GawwyG can do these:** the author quota check, GawwyG's legal name and affiliation for the author block (to be sent to you), the supervisor question, committing or sending `cache_ext_notes.md` for your related-work search, and pushing the commits to GitHub (nothing is pushed until GawwyG does it).
+* **Still open, and only GawwyG can do these:** the author quota check, GawwyG's legal name and affiliation for the author block (to be sent to you), the supervisor question, and pushing the commits to GitHub (nothing is pushed until GawwyG does it).
 * **Still open on your side (not experiments):** the rewrite in your own words, figures 1 and 4 and the re-plotted classical-vs-Belady figure, related work, the `% VERIFY` references, the `yang2020twitter` author fix, re-checking the typed 5% / 20% numbers, and removing the guard from the paper.
 * **Your new request, the full 74-step regression matrix on the final build: NOT done.** `tools/phase2_gate.sh` is hard-wired to an old machine's paths (`/mnt/d/thesis/...`) and does a clean debug build and a clean release build; running it would need a scratch copy of the repository and several hours, and it would not touch the frozen evaluation build. What exists on the final build instead: `vmtest` (the standard run), `prefetchtest`, and `vmtest data-invariance` under all 8 policies and under the five heavier models (checksum `AB0C8578`, zero fallbacks; see M5). Cite only data invariance unless GawwyG asks for the full matrix; if so it is a separate job of its own.
 
