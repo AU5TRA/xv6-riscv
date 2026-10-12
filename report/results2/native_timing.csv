@@ -1,0 +1,17 @@
+policy,candidates,decisions_timed,ns_per_decision_median,ns_per_decision_min,ns_per_candidate_median
+linear score (global),68,500000,1350,1333,19.9
+linear score (global) 32 sampled,68,500000,856,849,26.8
+linear score (global) 16 sampled,68,500000,431,424,26.9
+boosted trees,68,50000,32520,32078,478.2
+ranking trees,68,50000,30115,29629,442.9
+set-attention,68,7500,105770,104616,1555.4
+CNN,68,7500,106945,105532,1572.7
+deeper MLP,68,7500,206188,202845,3032.2
+linear score (global),256,500000,5143,5060,20.1
+linear score (global) 32 sampled,256,500000,855,851,26.7
+linear score (global) 16 sampled,256,500000,429,426,26.8
+boosted trees,256,50000,129436,127300,505.6
+ranking trees,256,50000,120205,118323,469.5
+set-attention,256,7500,399109,391164,1559.0
+CNN,256,7500,409440,398548,1599.4
+deeper MLP,256,7500,776844,765347,3034.5

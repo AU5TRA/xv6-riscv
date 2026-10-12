@@ -1,0 +1,7 @@
+label,test,ops,median_us,mean_us,p95_us,p99_us,max_us
+SSD (Samsung 980 NVMe),randread,20000,63,67,82,134,725
+SSD (Samsung 980 NVMe),randwrite,20000,22,24,31,56,311
+
+HDD (WD Blue 1 TB SATA),randread,1500,8921,9526,15097,24541,288042
+HDD (WD Blue 1 TB SATA),randwrite,1500,2609,3338,5674,8074,545686
+

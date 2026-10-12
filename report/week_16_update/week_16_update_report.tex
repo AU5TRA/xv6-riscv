@@ -167,9 +167,24 @@ Five kinds of heavier model were trained on all workloads and put in the kernel:
 
 Counts are exact, not timings. The linear score costs about 22\,800 instructions per eviction at 68 candidates (about 340 per candidate), 55 times Clock. ARC and LHD cost about half to two thirds of that (11\,900 and 14\,200),
 S3-FIFO 1\,400. The heavier models cost 20 times (boosted trees, ranking trees), 79 (set-attention), 87 (CNN) and 150 times (deeper MLP) the linear score. So ARC is the cheaper of the two best policies, and its advantage over the
-linear score at 20\% memory is the thing to watch; the heavier models cost far more than they could save unless a page fault is very expensive. Whether a saved fault pays for the extra work depends on the real fault cost, which we did not measure;
-under the assumption of one instruction per nanosecond, the earlier break-even analysis (week 15 report) found that the linear score pays on a hard disk (8 ms per fault) and about breaks even on fast flash (100 \textmu s), and the CNN and MLP pay on neither.
-Choosing among only 32 sampled candidates makes the linear cost independent of memory size (11\,700 instructions) for 0 to 1 point of faults.
+linear score at 20\% memory is the thing to watch; the heavier models cost far more than they could save unless a page fault is very expensive. Whether a saved fault pays for the extra work depends on two things we have now measured on the thesis PC. \textbf{Device latency} (4\,KB random reads, one request at a time, bypassing the file cache): a Samsung 980 NVMe SSD, median 63 \textmu s (99th percentile 134 \textmu s), and a WD Blue 1\,TB hard disk, median 8.9 ms (99th percentile 24.5 ms). \textbf{Speed of the scoring code}: the kernel's own scoring headers compiled for this CPU (one core of a Ryzen 5 5600) take 1.35 \textmu s for 68 candidates with the linear score (20 ns per candidate), 33 \textmu s with boosted trees, 106 \textmu s with set-attention and the CNN, and 206 \textmu s with the deeper MLP. Divided by the kernel's instruction counts that is about 0.06 ns per instruction, 17 times faster than the 1 ns we had assumed; it is a lower bound, because the timing leaves out the kernel's page-table walk that reads the accessed bits.
+Time spent on faults and on choosing victims, relative to Clock (geometric mean over workloads; below 1 is faster):
+
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{1 ns per instruction (a slow core)} & \multicolumn{2}{c}{0.06 ns (this PC's core)} \\
+policy & SSD & hard disk & SSD & hard disk \\
+\midrule
+linear score, global & 1.34 & \best{0.92} & \best{0.95} & \best{0.92} \\
+CNN & 24.5 & 1.18 & 2.67 & \best{0.95} \\
+deeper MLP & 40.9 & 1.33 & 3.77 & \best{0.96} \\
+set-attention & 23.0 & 1.18 & 2.58 & \best{0.97} \\
+boosted trees & 7.4 & 1.07 & 1.50 & 1.01 \\
+\bottomrule
+\end{tabular}
+\end{center}
+So the linear score pays on a hard disk with either core, and on the SSD only with a fast core (faster than Clock on 9 of 14 workloads). The CNN, MLP and set-attention pay on neither an SSD nor a slow core, and win only a few percent on a hard disk with a fast core. This counts only device time per fault and choosing a victim; the rest of the fault path and the programs' own work are left out, and the device was read through a test file, not through xv6. Choosing among only 32 sampled candidates makes the linear cost independent of memory size (11\,700 instructions) for 0 to 1 point of faults.
 
 \section{Does the simulator predict the kernel?}
 \label{sec:gap}

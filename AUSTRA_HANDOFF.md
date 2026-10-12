@@ -74,7 +74,7 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 | Five heavier models trained on all (original six) workloads, in the kernel at 5, 10, 20% on ten streams | FINAL | `kmain_B_*` tables |
 | Trained on one workload against trained on all workloads (simulator 24 cells): CNN 0.939 -> 0.878, MLP 0.926 -> 0.886, trees 0.981 -> 0.963, set-attention 1.478 -> 0.895, ranking trees 1.109 -> 1.186 (worse) | FINAL | `trained_on_all.csv`, `tables/trainedall.tex` |
 | Cost of choosing a victim, exact instruction counts (QEMU instruction-counting mode, repeatable to 0.3%) at 68 candidates: see section 3 | FINAL | `cost_grid.csv` |
-| Break-even against the real fault cost: the linear model of its own workload pays on a hard disk (8 ms per fault), about breaks even on fast flash; CNN and MLP never pay | FINAL given two assumptions (1 instruction = 1 ns; the fault costs were never measured) | `cost_benefit.csv`, week 15 report |
+| Break-even with measured values (2026-10-12): device read latency 63 us (NVMe SSD) and 8.9 ms (hard disk); scoring code 0.06 ns per kernel instruction on a desktop core. Time vs Clock, linear score: 0.945 SSD / 0.917 hard disk at 0.06 ns; 1.34 / 0.92 at 1 ns. CNN, MLP, set-attention: lose on the SSD (2.6 to 3.8 times Clock at 0.06 ns), win 3 to 5% on the hard disk at 0.06 ns | FINAL for these devices and this CPU; a device read, not a full xv6 fault | `device_latency.csv`, `native_timing.csv`, `cost_benefit_*.csv`, week 16 report section "What choosing a victim costs" |
 | Sampling 32 candidates costs 0 to 1 point of faults and makes the linear cost independent of memory size | FINAL | week 15 report section "In the xv6 kernel" |
 | Literature baselines in the simulator (ARC, S3-FIFO, MGLRU analogue, LHD, MRU); LHD best untrained there (0.90 to 0.95) | FINAL (simulator) | `baselines_ext.csv`; report appendix |
 
@@ -100,7 +100,7 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 Exact counts from `report/results2/cost_grid.csv` (`tools/ml2/cost_grid.py --sizes 64`; QEMU instruction-counting mode; repeatable to 0.3%). FINAL.
 
 ### 4. What is not done
-* The cost of a real page fault (reading a page from a disk and writing one back). Needs real hardware; xv6 on QEMU cannot give it. All time estimates rest on an assumed fault cost.
+* The cost of a real xv6 page fault on real hardware (the whole path, not only the device read). Device read latency and the speed of the scoring code are now measured (see the break-even row); xv6 on QEMU cannot give the rest.
 * More than one stream per variant at 5% and 20% memory; more seeds for the heavier models (only ten streams). Deferred.
 * Related work (a proper literature search; only notes in `cache_ext_notes.md`, which is not in git), paper-quality figures in the venue's style, venue and format, licence check of the Twitter data before releasing derived streams, one clean README for the repository (this repo has many handoff files), author list and credits.
 * The three classical policies were run only in the accessed-bit form. A per-hit form is impossible in a kernel that does not see hits; this is a limit to state, not a task.
