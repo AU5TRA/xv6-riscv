@@ -9,6 +9,7 @@ counts once, like one with 2). The interval resamples workloads, then streams in
 """
 import csv
 import math
+import sys
 from collections import defaultdict
 
 import numpy as np
@@ -28,7 +29,8 @@ def group(stem):
 
 def main():
     rows = [r for r in csv.DictReader(open(R / "kernel_eval_all.csv")) if r["status"] == "ok"]
-    f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"] or 0)
+    metric = sys.argv[1] if len(sys.argv) > 1 else "faults"          # "faults" (default) or "writes" (page writes to swap)
+    f = (lambda r: int(r["swap_faults"]) + int(r["zero_faults"] or 0)) if metric == "faults" else (lambda r: max(int(r["page_writes"] or 0), 1))
     d = defaultdict(dict)                      # (fraction, policy) -> stem -> faults
     for r in rows:
         d[(r["fraction"], r["policy"] + (":" + r["model"] if r["model"] else ""))][r["stem"]] = f(r)
@@ -52,9 +54,9 @@ def main():
             bs = np.sort(bs)
             out.append([fr, a, b, len(by), sum(len(g) for g in groups), round(math.exp(point), 3),
                         round(math.exp(bs[250]), 3), round(math.exp(bs[9749]), 3)])
-    with open(R / "kernel_ci_classic.csv", "w", newline="") as fh:
+    with open(R / ("kernel_ci_classic.csv" if metric == "faults" else "kernel_ci_writes.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["fraction", "policy", "against", "workloads", "streams", "faults_ratio", "ci95_low", "ci95_high"])
+        w.writerow(["fraction", "policy", "against", "workloads", "streams", "faults_ratio" if metric == "faults" else "writes_ratio", "ci95_low", "ci95_high"])
         w.writerows(out)
     for r in out:
         sig = "<" if r[7] < 1 else (">" if r[6] > 1 else " ")

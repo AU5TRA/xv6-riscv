@@ -337,7 +337,7 @@ def full_tests():
         write(f"full_{frac.replace('.', '')}.tex", tab(body, ["policy"] + cols))
 
 
-def kernel_main():
+def kernel_main(metric="faults"):
     """Main kernel tables (kernel results first): faults relative to Clock per workload, at each memory size.
     kmain_A: classical policies and the global linear model on every stream that has all of them (the streams of a workload are averaged
     with a geometric mean). kmain_B: the five models trained on all workloads against the global linear model and the best classical
@@ -346,7 +346,7 @@ def kernel_main():
     if not p.exists():
         return
     rows = [r for r in csv.DictReader(open(p)) if r["status"] == "ok"]
-    f = lambda r: int(r["swap_faults"]) + int(r["zero_faults"] or 0)
+    f = (lambda r: int(r["swap_faults"]) + int(r["zero_faults"] or 0)) if metric == "faults" else (lambda r: max(int(r["page_writes"] or 0), 1))
     grp = lambda s: "kv-T" if s.startswith("kv-T") else s.split("-")[0]
     d = defaultdict(dict)
     for r in rows:
@@ -372,7 +372,7 @@ def kernel_main():
                     allv += [gm(v)] if v else []
                 line.append(f"{gm(allv):.2f}")
                 body.append(line)
-            write(f"kmain_{tag}_{fr.replace('.', '')}.tex", tab(body, ["policy"] + cols + ["mean"]))
+            write(f"kmain_{tag if metric == 'faults' else 'W' + tag}_{fr.replace('.', '')}.tex", tab(body, ["policy"] + cols + ["mean"]))
 
 
 def cost_tables():
@@ -552,6 +552,7 @@ if __name__ == "__main__":
     five_models()
     full_tests()
     kernel_main()
+    kernel_main("writes")
     cost_tables()
     ci_tables()
     guard_tables()

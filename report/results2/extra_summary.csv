@@ -74,9 +74,9 @@ graph,held-out,extra-nn:setcnn.K.-,0.7599,9
 graph,held-out,extraK-trees:rank.K.trees100-leaves16,0.7646,9
 graph,held-out,extraK-nn:setcnn.K.-,0.7599,9
 graph,held-out,extra-trees:rank.FKr.trees100-leaves16 / lin-any,0.9683,CI95 0.968-0.969
-graph,held-out,extra-nn:setcnn.K.- / lin-K+K+,0.9517,CI95 0.951-0.953
-graph,held-out,extraK-trees:rank.K.trees100-leaves16 / lin-K+K+,0.9576,CI95 0.956-0.959
-graph,held-out,extraK-nn:setcnn.K.- / lin-K+K+,0.9517,CI95 0.951-0.953
+graph,held-out,extra-nn:setcnn.K.- / lin-K+K+,0.9517,CI95 0.951-0.952
+graph,held-out,extraK-trees:rank.K.trees100-leaves16 / lin-K+K+,0.9576,CI95 0.956-0.958
+graph,held-out,extraK-nn:setcnn.K.- / lin-K+K+,0.9517,CI95 0.951-0.952
 kv,test,clock,1.0,15
 kv,test,lru,0.9839,15
 kv,test,belady,0.5591,15
@@ -93,11 +93,11 @@ kv,test,extra-nn:lstmmlp.FK.-,0.8427,15
 kv,test,extraK-trees:gbdt.K.trees100-leaves16,0.9018,15
 kv,test,extraK-nn:lstmmlp.K.-,0.8485,15
 kv,test,extraKF-nn:agecnn.K.-,0.85,15
-kv,test,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9749,CI95 0.955-0.992
-kv,test,extra-nn:lstmmlp.FK.- / lin-any,0.9394,CI95 0.928-0.952
-kv,test,extraK-trees:gbdt.K.trees100-leaves16 / lin-K+K+,1.0053,CI95 0.983-1.028
-kv,test,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9459,CI95 0.934-0.961
-kv,test,extraKF-nn:agecnn.K.- / lin-K+K+,0.9477,CI95 0.939-0.961
+kv,test,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9749,CI95 0.958-0.992
+kv,test,extra-nn:lstmmlp.FK.- / lin-any,0.9394,CI95 0.929-0.956
+kv,test,extraK-trees:gbdt.K.trees100-leaves16 / lin-K+K+,1.0053,CI95 0.985-1.035
+kv,test,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9459,CI95 0.934-0.964
+kv,test,extraKF-nn:agecnn.K.- / lin-K+K+,0.9477,CI95 0.940-0.962
 kv,held-out,clock,1.0,15
 kv,held-out,lru,0.9816,15
 kv,held-out,belady,0.5772,15
@@ -116,9 +116,9 @@ kv,held-out,extraK-nn:lstmmlp.K.-,0.8575,15
 kv,held-out,extraKF-nn:agecnn.K.-,0.8446,15
 kv,held-out,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9971,CI95 0.994-1.000
 kv,held-out,extra-nn:lstmmlp.FK.- / lin-any,0.946,CI95 0.944-0.948
-kv,held-out,extraK-trees:gbdt.K.trees100-leaves16 / lin-K+K+,1.0002,CI95 0.997-1.004
-kv,held-out,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9502,CI95 0.948-0.953
-kv,held-out,extraKF-nn:agecnn.K.- / lin-K+K+,0.9358,CI95 0.934-0.939
+kv,held-out,extraK-trees:gbdt.K.trees100-leaves16 / lin-K+K+,1.0002,CI95 0.996-1.004
+kv,held-out,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9502,CI95 0.948-0.952
+kv,held-out,extraKF-nn:agecnn.K.- / lin-K+K+,0.9358,CI95 0.934-0.938
 kv,kv-T,clock,1.0,18
 kv,kv-T,lru,0.9825,18
 kv,kv-T,belady,0.6113,18
@@ -135,11 +135,11 @@ kv,kv-T,extra-nn:lstmmlp.FK.-,0.8796,18
 kv,kv-T,extraK-trees:gbdt.K.trees100-leaves16,0.8607,18
 kv,kv-T,extraK-nn:lstmmlp.K.-,0.8827,18
 kv,kv-T,extraKF-nn:agecnn.K.-,0.851,18
-kv,kv-T,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.8751,CI95 0.845-0.925
-kv,kv-T,extra-nn:lstmmlp.FK.- / lin-any,0.8972,CI95 0.860-0.940
-kv,kv-T,extraK-trees:gbdt.K.trees100-leaves16 / lin-K+K+,0.8779,CI95 0.848-0.925
-kv,kv-T,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9004,CI95 0.873-0.942
-kv,kv-T,extraKF-nn:agecnn.K.- / lin-K+K+,0.8681,CI95 0.839-0.918
+kv,kv-T,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.8751,CI95 0.846-0.925
+kv,kv-T,extra-nn:lstmmlp.FK.- / lin-any,0.8972,CI95 0.859-0.941
+kv,kv-T,extraK-trees:gbdt.K.trees100-leaves16 / lin-K+K+,0.8779,CI95 0.849-0.926
+kv,kv-T,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9004,CI95 0.872-0.943
+kv,kv-T,extraKF-nn:agecnn.K.- / lin-K+K+,0.8681,CI95 0.840-0.920
 lzw,test,clock,1.0,3
 lzw,test,lru,0.9966,3
 lzw,test,belady,0.4655,3
@@ -177,11 +177,11 @@ lzw,held-out,extra-nn:deep.FK.-,0.8122,18
 lzw,held-out,extraK-trees:gbdt.Kr.trees100-leaves8,1.0683,18
 lzw,held-out,extraK-nn:cnnmlp.K.-,0.8408,18
 lzw,held-out,extraS-trees:gbdt.K.trees8-leaves8,1.5659,18
-lzw,held-out,extra-trees:gbdt.Kr.trees100-leaves8 / lin-K+K+,1.3136,CI95 1.295-1.335
-lzw,held-out,extra-nn:deep.FK.- / lin-any,0.9987,CI95 0.995-1.003
-lzw,held-out,extraK-trees:gbdt.Kr.trees100-leaves8 / lin-K+K+,1.3136,CI95 1.295-1.335
+lzw,held-out,extra-trees:gbdt.Kr.trees100-leaves8 / lin-K+K+,1.3136,CI95 1.293-1.335
+lzw,held-out,extra-nn:deep.FK.- / lin-any,0.9987,CI95 0.994-1.003
+lzw,held-out,extraK-trees:gbdt.Kr.trees100-leaves8 / lin-K+K+,1.3136,CI95 1.293-1.335
 lzw,held-out,extraK-nn:cnnmlp.K.- / lin-K+K+,1.0339,CI95 1.028-1.038
-lzw,held-out,extraS-trees:gbdt.K.trees8-leaves8 / lin-K+K+,1.9254,CI95 1.914-1.937
+lzw,held-out,extraS-trees:gbdt.K.trees8-leaves8 / lin-K+K+,1.9254,CI95 1.912-1.938
 matmul,held-out,clock,1.0,6
 matmul,held-out,lru,0.8787,6
 matmul,held-out,belady,0.6172,6
@@ -242,72 +242,123 @@ sort,held-out,extra-nn:cnnmlp.FK.-,0.9244,9
 sort,held-out,extraK-trees:gbdt.Kr.trees30-leaves8,0.9284,9
 sort,held-out,extraK-nn:lstmmlp.K.-,0.9605,9
 sort,held-out,extraS-trees:gbdt.K.trees16-leaves8,0.9635,9
-sort,held-out,extra-trees:rank.FK.trees100-leaves16 / lin-any,1.0054,CI95 0.998-1.018
-sort,held-out,extra-nn:cnnmlp.FK.- / lin-any,0.991,CI95 0.990-0.992
+sort,held-out,extra-trees:rank.FK.trees100-leaves16 / lin-any,1.0054,CI95 0.999-1.018
+sort,held-out,extra-nn:cnnmlp.FK.- / lin-any,0.991,CI95 0.991-0.992
 sort,held-out,extraK-trees:gbdt.Kr.trees30-leaves8 / lin-K+K+,0.9953,CI95 0.994-0.996
 sort,held-out,extraK-nn:lstmmlp.K.- / lin-K+K+,1.0297,CI95 1.028-1.033
 sort,held-out,extraS-trees:gbdt.K.trees16-leaves8 / lin-K+K+,1.033,CI95 1.032-1.034
-global,test,clock,1.0,27
-global,test,lru,0.9883,27
-global,test,belady,0.5551,27
-global,test,arc,0.9697,27
-global,test,s3fifo,0.9604,27
-global,test,lhd,0.9247,27
-global,test,lin-F,0.9122,27
-global,test,lin-K,0.9161,27
-global,test,lin-K+K+,0.8701,27
-global,test,lin-F+K,1.0095,27
-global,test,lin-any,0.8701,27
-global,test,extra-trees:gbdt.FK.trees100-leaves16,0.8422,27
-global,test,extra-nn:cnnmlp.FK.-,0.841,27
-global,test,extraK-trees:gbdt.Kr.trees100-leaves16,0.8903,27
-global,test,extraK-nn:lstmmlp.K.-,0.8496,27
-global,test,extraKF-nn:deep.K.-,0.8892,27
-global,test,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.968,CI95 0.959-0.978
-global,test,extra-nn:cnnmlp.FK.- / lin-any,0.9666,CI95 0.959-0.973
-global,test,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.0232,CI95 1.008-1.039
-global,test,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9764,CI95 0.971-0.983
-global,test,extraKF-nn:deep.K.- / lin-K+K+,1.0219,CI95 0.997-1.053
-global,held-out,clock,1.0,15
-global,held-out,lru,0.9816,15
-global,held-out,belady,0.5772,15
-global,held-out,arc,0.9816,15
-global,held-out,s3fifo,1.0131,15
-global,held-out,lhd,0.9006,15
-global,held-out,lin-F,0.9083,15
-global,held-out,lin-K,0.9301,15
-global,held-out,lin-K+K+,0.8914,15
-global,held-out,lin-F+K,1.0076,15
-global,held-out,lin-any,0.8914,15
-global,held-out,extra-trees:gbdt.FK.trees100-leaves16,0.8847,15
-global,held-out,extra-nn:cnnmlp.FK.-,0.8858,15
-global,held-out,extraK-trees:gbdt.Kr.trees100-leaves16,0.8981,15
-global,held-out,extraK-nn:lstmmlp.K.-,0.9102,15
-global,held-out,extraKF-nn:deep.K.-,0.9298,15
-global,held-out,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9925,CI95 0.990-0.995
-global,held-out,extra-nn:cnnmlp.FK.- / lin-any,0.9937,CI95 0.992-0.996
-global,held-out,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.0075,CI95 1.005-1.010
-global,held-out,extraK-nn:lstmmlp.K.- / lin-K+K+,1.0211,CI95 1.018-1.025
-global,held-out,extraKF-nn:deep.K.- / lin-K+K+,1.0432,CI95 1.041-1.046
-global,pat,clock,1.0,3
-global,pat,lru,0.9681,3
-global,pat,belady,0.5516,3
-global,pat,arc,0.8874,3
-global,pat,s3fifo,0.8996,3
-global,pat,lhd,0.8769,3
-global,pat,lin-F,0.916,3
-global,pat,lin-K,0.9387,3
-global,pat,lin-K+K+,0.8988,3
-global,pat,lin-F+K,2.6357,3
-global,pat,lin-any,0.8988,3
-global,pat,extra-trees:gbdt.FK.trees100-leaves16,0.9015,3
-global,pat,extra-nn:cnnmlp.FK.-,0.8888,3
-global,pat,extraK-trees:gbdt.Kr.trees100-leaves16,0.8864,3
-global,pat,extraK-nn:lstmmlp.K.-,0.8868,3
-global,pat,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,1.003,CI95 1.003-1.003
-global,pat,extra-nn:cnnmlp.FK.- / lin-any,0.9888,CI95 0.989-0.989
-global,pat,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,0.9862,CI95 0.986-0.986
-global,pat,extraK-nn:lstmmlp.K.- / lin-K+K+,0.9867,CI95 0.987-0.987
+global,test,clock,1.0,75
+global,test,lru,0.9916,75
+global,test,belady,0.5908,75
+global,test,arc,0.9484,75
+global,test,s3fifo,0.9784,75
+global,test,lhd,0.9262,75
+global,test,lin-F,0.9241,75
+global,test,lin-K,0.9322,75
+global,test,lin-K+K+,0.8768,75
+global,test,lin-F+K,1.0208,75
+global,test,lin-any,0.8768,75
+global,test,extra-trees:gbdt.FK.trees100-leaves16,0.8558,75
+global,test,extra-nn:cnnmlp.FK.-,0.8563,75
+global,test,extraK-trees:gbdt.Kr.trees100-leaves16,0.8975,75
+global,test,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9761,CI95 0.962-0.989
+global,test,extra-nn:cnnmlp.FK.- / lin-any,0.9766,CI95 0.956-0.997
+global,test,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.0236,CI95 1.007-1.040
+global,test (short streams),clock,1.0,27
+global,test (short streams),lru,0.9883,27
+global,test (short streams),belady,0.5551,27
+global,test (short streams),arc,0.9697,27
+global,test (short streams),s3fifo,0.9604,27
+global,test (short streams),lhd,0.9247,27
+global,test (short streams),lin-F,0.9122,27
+global,test (short streams),lin-K,0.9161,27
+global,test (short streams),lin-K+K+,0.8701,27
+global,test (short streams),lin-F+K,1.0095,27
+global,test (short streams),lin-any,0.8701,27
+global,test (short streams),extra-trees:gbdt.FK.trees100-leaves16,0.8422,27
+global,test (short streams),extra-nn:cnnmlp.FK.-,0.841,27
+global,test (short streams),extraK-trees:gbdt.Kr.trees100-leaves16,0.8903,27
+global,test (short streams),extraK-nn:lstmmlp.K.-,0.8496,27
+global,test (short streams),extraKF-nn:deep.K.-,0.8892,27
+global,test (short streams),extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.968,CI95 0.959-0.978
+global,test (short streams),extra-nn:cnnmlp.FK.- / lin-any,0.9666,CI95 0.960-0.974
+global,test (short streams),extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.0232,CI95 1.011-1.039
+global,test (short streams),extraK-nn:lstmmlp.K.- / lin-K+K+,0.9764,CI95 0.971-0.983
+global,test (short streams),extraKF-nn:deep.K.- / lin-K+K+,1.0219,CI95 0.994-1.051
+global,held-out,clock,1.0,72
+global,held-out,lru,0.9789,72
+global,held-out,belady,0.5576,72
+global,held-out,arc,0.9683,72
+global,held-out,s3fifo,1.0197,72
+global,held-out,lhd,0.9256,72
+global,held-out,lin-F,0.9248,72
+global,held-out,lin-K,0.9074,72
+global,held-out,lin-K+K+,0.896,72
+global,held-out,lin-F+K,0.9167,72
+global,held-out,lin-any,0.896,72
+global,held-out,extra-trees:gbdt.FK.trees100-leaves16,0.8539,72
+global,held-out,extra-nn:cnnmlp.FK.-,0.8469,72
+global,held-out,extraK-trees:gbdt.Kr.trees100-leaves16,0.8936,72
+global,held-out,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9531,CI95 0.927-0.980
+global,held-out,extra-nn:cnnmlp.FK.- / lin-any,0.9452,CI95 0.918-0.971
+global,held-out,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,0.9973,CI95 0.987-1.006
+global,held-out (short streams),clock,1.0,15
+global,held-out (short streams),lru,0.9816,15
+global,held-out (short streams),belady,0.5772,15
+global,held-out (short streams),arc,0.9816,15
+global,held-out (short streams),s3fifo,1.0131,15
+global,held-out (short streams),lhd,0.9006,15
+global,held-out (short streams),lin-F,0.9083,15
+global,held-out (short streams),lin-K,0.9301,15
+global,held-out (short streams),lin-K+K+,0.8914,15
+global,held-out (short streams),lin-F+K,1.0076,15
+global,held-out (short streams),lin-any,0.8914,15
+global,held-out (short streams),extra-trees:gbdt.FK.trees100-leaves16,0.8847,15
+global,held-out (short streams),extra-nn:cnnmlp.FK.-,0.8858,15
+global,held-out (short streams),extraK-trees:gbdt.Kr.trees100-leaves16,0.8981,15
+global,held-out (short streams),extraK-nn:lstmmlp.K.-,0.9102,15
+global,held-out (short streams),extraKF-nn:deep.K.-,0.9298,15
+global,held-out (short streams),extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9925,CI95 0.990-0.995
+global,held-out (short streams),extra-nn:cnnmlp.FK.- / lin-any,0.9937,CI95 0.992-0.996
+global,held-out (short streams),extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.0075,CI95 1.005-1.010
+global,held-out (short streams),extraK-nn:lstmmlp.K.- / lin-K+K+,1.0211,CI95 1.018-1.024
+global,held-out (short streams),extraKF-nn:deep.K.- / lin-K+K+,1.0432,CI95 1.041-1.045
+global,pat,clock,1.0,66
+global,pat,lru,0.9907,66
+global,pat,belady,0.6426,66
+global,pat,arc,0.8861,66
+global,pat,s3fifo,0.8755,66
+global,pat,lhd,0.9325,66
+global,pat,lin-F,0.9177,66
+global,pat,lin-K,0.9416,66
+global,pat,lin-K+K+,0.8371,66
+global,pat,lin-F+K,1.0116,66
+global,pat,lin-any,0.8371,66
+global,pat,extra-trees:gbdt.FK.trees100-leaves16,0.8449,66
+global,pat,extra-nn:cnnmlp.FK.-,0.8588,66
+global,pat,extraK-trees:gbdt.Kr.trees100-leaves16,0.8865,66
+global,pat,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,1.0094,CI95 1.005-1.014
+global,pat,extra-nn:cnnmlp.FK.- / lin-any,1.0259,CI95 1.006-1.051
+global,pat,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.059,CI95 1.037-1.078
+global,pat (short streams),clock,1.0,3
+global,pat (short streams),lru,0.9681,3
+global,pat (short streams),belady,0.5516,3
+global,pat (short streams),arc,0.8874,3
+global,pat (short streams),s3fifo,0.8996,3
+global,pat (short streams),lhd,0.8769,3
+global,pat (short streams),lin-F,0.916,3
+global,pat (short streams),lin-K,0.9387,3
+global,pat (short streams),lin-K+K+,0.8988,3
+global,pat (short streams),lin-F+K,2.6357,3
+global,pat (short streams),lin-any,0.8988,3
+global,pat (short streams),extra-trees:gbdt.FK.trees100-leaves16,0.9015,3
+global,pat (short streams),extra-nn:cnnmlp.FK.-,0.8888,3
+global,pat (short streams),extraK-trees:gbdt.Kr.trees100-leaves16,0.8864,3
+global,pat (short streams),extraK-nn:lstmmlp.K.-,0.8868,3
+global,pat (short streams),extra-trees:gbdt.FK.trees100-leaves16 / lin-any,1.003,CI95 1.003-1.003
+global,pat (short streams),extra-nn:cnnmlp.FK.- / lin-any,0.9888,CI95 0.989-0.989
+global,pat (short streams),extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,0.9862,CI95 0.986-0.986
+global,pat (short streams),extraK-nn:lstmmlp.K.- / lin-K+K+,0.9867,CI95 0.987-0.987
 global,kv-T,clock,1.0,18
 global,kv-T,lru,0.9825,18
 global,kv-T,belady,0.6113,18
@@ -319,6 +370,17 @@ global,kv-T,extra-nn:cnnmlp.FK.-,0.8715,18
 global,kv-T,extraK-trees:gbdt.Kr.trees100-leaves16,0.8496,18
 global,kv-T,extraK-nn:lstmmlp.K.-,0.8884,18
 global,kv-T,extraKF-nn:deep.K.-,0.8661,18
+global,kv-T (short streams),clock,1.0,18
+global,kv-T (short streams),lru,0.9825,18
+global,kv-T (short streams),belady,0.6113,18
+global,kv-T (short streams),arc,0.9831,18
+global,kv-T (short streams),s3fifo,1.0284,18
+global,kv-T (short streams),lhd,0.9162,18
+global,kv-T (short streams),extra-trees:gbdt.FK.trees100-leaves16,0.8956,18
+global,kv-T (short streams),extra-nn:cnnmlp.FK.-,0.8715,18
+global,kv-T (short streams),extraK-trees:gbdt.Kr.trees100-leaves16,0.8496,18
+global,kv-T (short streams),extraK-nn:lstmmlp.K.-,0.8884,18
+global,kv-T (short streams),extraKF-nn:deep.K.-,0.8661,18
 global,real,clock,1.0,6
 global,real,lru,0.9185,6
 global,real,belady,0.615,6
@@ -336,6 +398,23 @@ global,real,extraK-trees:gbdt.Kr.trees100-leaves16,1.2447,6
 global,real,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,1.3698,CI95 1.028-1.825
 global,real,extra-nn:cnnmlp.FK.- / lin-any,1.4127,CI95 1.413-1.413
 global,real,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.2244,CI95 1.170-1.281
+global,real (short streams),clock,1.0,6
+global,real (short streams),lru,0.9185,6
+global,real (short streams),belady,0.615,6
+global,real (short streams),arc,0.9569,6
+global,real (short streams),s3fifo,1.0931,6
+global,real (short streams),lhd,0.9498,6
+global,real (short streams),lin-F,0.9559,6
+global,real (short streams),lin-K,0.8929,6
+global,real (short streams),lin-K+K+,1.0166,6
+global,real (short streams),lin-F+K,1.9887,6
+global,real (short streams),lin-any,1.0166,6
+global,real (short streams),extra-trees:gbdt.FK.trees100-leaves16,1.3925,6
+global,real (short streams),extra-nn:cnnmlp.FK.-,1.4361,6
+global,real (short streams),extraK-trees:gbdt.Kr.trees100-leaves16,1.2447,6
+global,real (short streams),extra-trees:gbdt.FK.trees100-leaves16 / lin-any,1.3698,CI95 1.028-1.825
+global,real (short streams),extra-nn:cnnmlp.FK.- / lin-any,1.4127,CI95 1.413-1.413
+global,real (short streams),extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,1.2244,CI95 1.170-1.281
 global,app,clock,1.0,24
 global,app,lru,0.9954,24
 global,app,belady,0.6437,24
@@ -349,5 +428,20 @@ global,app,lin-F+K,0.9892,24
 global,app,lin-any,1.0757,24
 global,app,extra-trees:gbdt.FK.trees100-leaves16,0.9951,24
 global,app,extraK-trees:gbdt.Kr.trees100-leaves16,1.0379,24
-global,app,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9251,CI95 0.868-0.986
-global,app,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,0.9648,CI95 0.932-1.000
+global,app,extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9251,CI95 0.869-0.989
+global,app,extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,0.9648,CI95 0.932-1.001
+global,app (short streams),clock,1.0,24
+global,app (short streams),lru,0.9954,24
+global,app (short streams),belady,0.6437,24
+global,app (short streams),arc,0.9979,24
+global,app (short streams),s3fifo,1.005,24
+global,app (short streams),lhd,1.0049,24
+global,app (short streams),lin-F,0.9901,24
+global,app (short streams),lin-K,1.0043,24
+global,app (short streams),lin-K+K+,1.0757,24
+global,app (short streams),lin-F+K,0.9892,24
+global,app (short streams),lin-any,1.0757,24
+global,app (short streams),extra-trees:gbdt.FK.trees100-leaves16,0.9951,24
+global,app (short streams),extraK-trees:gbdt.Kr.trees100-leaves16,1.0379,24
+global,app (short streams),extra-trees:gbdt.FK.trees100-leaves16 / lin-any,0.9251,CI95 0.869-0.989
+global,app (short streams),extraK-trees:gbdt.Kr.trees100-leaves16 / lin-K+K+,0.9648,CI95 0.932-1.001

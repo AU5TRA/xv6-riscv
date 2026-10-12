@@ -72,37 +72,44 @@ def main():
                 if name.startswith("extra") or name.startswith("lin"):
                     pass
                 rows.setdefault(name, {})[g] = (cs, d)
+        NNC = ("extra-nn", "extraK-nn", "extraKF-nn")
         for g in GROUPS:
             extra_names = [n for n in rows if n.startswith("extra")]
             if not extra_names or not rows[extra_names[0]][g][0]:
                 continue
-            common = set(rows[extra_names[0]][g][0])
-            for n in rows:
-                if n.startswith(("extra", "lin-K+", "lin-any", "lru", "arc", "lhd", "s3fifo", "belady")) and rows[n][g][0]:
-                    common &= set(rows[n][g][0])
-            if not common:
-                continue
-            for n in rows:
-                d = rows[n][g][1]
-                if not all(c in d for c in common):
+            # Neural nets are not run on the longest streams (extra_trees.NN_MAX_REFS), so in the global scope they cover only a few
+            # streams and, as one more system in the intersection, used to cut every other column down to those streams too (the
+            # global held-out row was kv's five held-out streams). Now: the main row uses the cells all non-neural systems have, and
+            # neural nets show "--" there; their numbers, on the cells they do have, are in a second row "<group> (short streams)".
+            variants = [(g, lambda n: True, lambda n: n.startswith(NNC))] if scope != "global" else \
+                       [(g, lambda n: not n.startswith(NNC), lambda n: False), (g + " (short streams)", lambda n: True, lambda n: False)]
+            for glabel, in_common, _skip in variants:
+                common = None
+                for n in rows:
+                    if n.startswith(("extra", "lin-K+", "lin-any", "lru", "arc", "lhd", "s3fifo", "belady")) and rows[n][g][0] and in_common(n):
+                        common = set(rows[n][g][0]) if common is None else common & set(rows[n][g][0])
+                if not common:
                     continue
-                v = [min(d[c], 3 * systems["clock"][c]) / systems["clock"][c] for c in common]
-                out.append([scope, g, n, round(math.exp(sum(math.log(max(x, 1e-9)) for x in v) / len(v)), 4), len(common)])
-            ref = rows.get("lin-K+K+") or rows.get("lin-any")
-            for n in extra_names:       # paired stem-level bootstrap of the extra model vs the best linear model
-                refname = "lin-any" if ".FK" in n else "lin-K+K+"      # compare like with like: oracle features vs the best linear on any tier
-                d, dl = rows[n][g][1], sysf[(refname, scope)]
-                if not all(c in dl and c in d for c in common):
-                    continue
-                by = defaultdict(list)
-                for c in common:
-                    by[c[0]].append(math.log(max(min(d[c], 3 * systems["clock"][c]), 1) / max(min(dl[c], 3 * systems["clock"][c]), 1)))
-                stems_ = list(by)
-                rng = np.random.default_rng(1)
-                bs = sorted(math.exp(np.mean([x for i in rng.integers(0, len(stems_), len(stems_)) for x in by[stems_[i]]]))
-                            for _ in range(500))
-                out.append([scope, g, n + " / " + refname, round(math.exp(np.mean([x for v_ in by.values() for x in v_])), 4),
-                            f"CI95 {bs[12]:.3f}-{bs[487]:.3f}"])
+                for n in rows:
+                    d = rows[n][g][1]
+                    if not all(c in d for c in common):
+                        continue
+                    v = [min(d[c], 3 * systems["clock"][c]) / systems["clock"][c] for c in common]
+                    out.append([scope, glabel, n, round(math.exp(sum(math.log(max(x, 1e-9)) for x in v) / len(v)), 4), len(common)])
+                for n in extra_names:       # paired stem-level bootstrap of the extra model vs the best linear model
+                    refname = "lin-any" if ".FK" in n else "lin-K+K+"      # compare like with like: oracle features vs the best linear on any tier
+                    d, dl = rows[n][g][1], sysf[(refname, scope)]
+                    if not all(c in dl and c in d for c in common):
+                        continue
+                    by = defaultdict(list)
+                    for c in sorted(common):
+                        by[c[0]].append(math.log(max(min(d[c], 3 * systems["clock"][c]), 1) / max(min(dl[c], 3 * systems["clock"][c]), 1)))
+                    stems_ = sorted(by)
+                    rng = np.random.default_rng(1)
+                    bs = sorted(math.exp(np.mean([x for i in rng.integers(0, len(stems_), len(stems_)) for x in by[stems_[i]]]))
+                                for _ in range(500))
+                    out.append([scope, glabel, n + " / " + refname, round(math.exp(np.mean([x for v_ in by.values() for x in v_])), 4),
+                                f"CI95 {bs[12]:.3f}-{bs[487]:.3f}"])
     with open(R / "extra_summary.csv", "w", newline="") as f:
         w = csv.writer(f); w.writerow(["scope", "group", "system", "geo_ratio_vs_clock", "cells"]); w.writerows(out)
     show = ["lru", "arc", "s3fifo", "lhd", "belady", "lin-K+K+", "lin-any", "lin-F"]
