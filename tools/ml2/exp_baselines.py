@@ -19,6 +19,7 @@ import pagesim as ps
 R = ps.ROOT / "report" / "results2"
 FRACS = ("0.05", "0.1", "0.2")
 POLS = ["mru", "arc", "s3fifo", "s3scan", "mglru", "lhd"]
+ONLY = None        # --only NAME: run just that policy and append its rows to the existing file
 SHOW = ["fifo", "lru", "belady", "mru", "arc", "s3fifo", "s3scan", "mglru", "lhd"]
 OUT = R / "baselines_ext.csv"
 HEADER = ["policy", "stem", "split", "workload", "fraction", "frames", "faults", "writebacks", "aborted"]
@@ -35,7 +36,7 @@ def job(args):
     cap = s.capacities[frac]
     limit = 3 * clock_faults()[(stem, frac)]
     rows = []
-    for pol in POLS:
+    for pol in ([ONLY] if ONLY else POLS):
         r = ps.run(s, cap, pol, max_faults=limit)
         rows.append([pol, stem, s.split, s.workload, frac, cap, r["faults"], r["writebacks"], int(r["aborted"])])
     return rows
@@ -43,10 +44,13 @@ def job(args):
 
 def run(jobs):
     refs = {e["stem"]: e["refs"] for e in ps.index()["streams"]}
-    tasks = sorted(((st, fr) for st in ps.stems(("test", "heldout")) for fr in FRACS), key=lambda t: -refs[t[0]])
+    have = clock_faults()
+    tasks = sorted(((st, fr) for st in ps.stems(("test", "heldout")) for fr in FRACS if (st, fr) in have), key=lambda t: -refs[t[0]])
     t0 = time.time()
-    with Pool(jobs) as pool, open(OUT, "w", newline="") as f:
-        w = csv.writer(f); w.writerow(HEADER)
+    with Pool(jobs) as pool, open(OUT, "a" if ONLY else "w", newline="") as f:
+        w = csv.writer(f)
+        if not ONLY:
+            w.writerow(HEADER)
         for i, rows in enumerate(pool.imap_unordered(job, tasks), 1):
             w.writerows(rows); f.flush()
             if i % 20 == 0 or i == len(tasks):
@@ -97,5 +101,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("what", choices=["run", "report"])
     ap.add_argument("--jobs", type=int, default=6)
+    ap.add_argument("--only", default="")
     a = ap.parse_args()
+    ONLY = a.only or None
     run(a.jobs) if a.what == "run" else report()

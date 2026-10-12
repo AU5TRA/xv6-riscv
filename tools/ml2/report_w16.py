@@ -64,7 +64,7 @@ def cost_table():
 
 
 def copies():
-    for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer"]:
+    for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer", "lecar"]:
         shutil.copy(W15 / f"{n}.tex", OUT / f"{n}.tex")
 
 

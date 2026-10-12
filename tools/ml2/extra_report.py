@@ -30,7 +30,7 @@ def gather():
         if r["policy"] in ("clock", "lru", "belady"):
             sysf[(r["policy"], "*")][(r["stem"], r["fraction"])] = int(r["faults"])
     for r in csv.DictReader(open(R / "baselines_ext.csv")):
-        if r["policy"] in ("arc", "s3fifo", "lhd"):
+        if r["policy"] in ("arc", "s3fifo", "lhd", "lecar", "lecar_exact"):
             sysf[(r["policy"], "*")][(r["stem"], r["fraction"])] = int(r["faults"])
     for f in ("transfer.csv", "transfer_real.csv", "transfer_app.csv"):
         for r in csv.DictReader(open(R / f)):

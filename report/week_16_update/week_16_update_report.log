@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  12 OCT 2026 17:30
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  12 OCT 2026 18:00
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -601,8 +601,9 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <9> on input line 1.
 ) (./tables/cost.tex) [4]
-(./tables/model_comparison.tex) [5] (./tables/transfer.tex) [6{/usr/share/texmf
-/fonts/enc/dvips/lm/lm-mathsy.enc}] (./week_16_update_report.aux)
+(./tables/model_comparison.tex) [5] (./tables/transfer.tex) (./tables/lecar.tex
+) [6{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}] [7]
+(./week_16_update_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
@@ -611,11 +612,11 @@ Package rerunfilecheck Info: File `week_16_update_report.out' has not changed.
 (rerunfilecheck)             Checksum: 5EBF1FE6E4B57856549994BF6DCDD95E;1826.
  ) 
 Here is how much of TeX's memory you used:
- 14393 strings out of 476182
- 231201 string characters out of 5795595
+ 14409 strings out of 476182
+ 231444 string characters out of 5795595
  1969975 words of memory out of 5000000
- 35965 multiletter control sequences out of 15000+600000
- 630981 words of font info for 162 fonts, out of 8000000 for 9000
+ 35970 multiletter control sequences out of 15000+600000
+ 631254 words of font info for 165 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  75i,10n,79p,1406b,576s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
@@ -626,10 +627,10 @@ texmf/fonts/type1/public/lm/lmr5.pfb></usr/share/texmf/fonts/type1/public/lm/lm
 r7.pfb></usr/share/texmf/fonts/type1/public/lm/lmr8.pfb></usr/share/texmf/fonts
 /type1/public/lm/lmr9.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy5.pfb></u
 sr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
-Output written on week_16_update_report.pdf (6 pages, 353282 bytes).
+Output written on week_16_update_report.pdf (7 pages, 356170 bytes).
 PDF statistics:
- 156 PDF objects out of 1000 (max. 8388607)
- 121 compressed objects within 2 object streams
- 27 named destinations out of 1000 (max. 500000)
+ 163 PDF objects out of 1000 (max. 8388607)
+ 127 compressed objects within 2 object streams
+ 29 named destinations out of 1000 (max. 500000)
  43593 words of extra memory for PDF output out of 51595 (max. 10000000)
 

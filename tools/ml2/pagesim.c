@@ -33,6 +33,8 @@ enum policy {
   // list-based and reference policies (pagesim.py POLICIES keeps this order)
   P_MRU, P_ARC, P_S3FIFO, P_S3SCAN, P_MGLRU, P_LHD,
   P_ARCK,      // ARC as a kernel that only reads accessed bits at eviction scans can run it (hits are not seen)
+  P_LECAR,     // LeCaR, kernel-observable form (Clock and decayed LFU as the two experts, evictions as time)
+  P_LECARX,    // LeCaR as published (exact LRU and exact LFU experts, requests as time): needs every access, a reference only
 };
 
 // Feature layout of every recorded / scored candidate row.
@@ -232,6 +234,9 @@ struct state {
   int32_t *lnx, *lpv; int8_t *lin; int32_t lhead[4], ltail[4]; int llen[4];
   int arc_p;                                   // ARC target size of T1
   uint8_t *s3freq, *s3fresh;                   // S3-FIFO per-page counter / "ignore load touch"
+  // LeCaR: expert weights, per-expert history (queues of evicted pages, never wrapped: at most one push per eviction)
+  double lc_w[2], lc_d; int lc_h; int64_t *lc_t; uint8_t *lc_who, *lc_snap;
+  int32_t *lc_q[2]; int64_t *lc_qt[2]; int lc_qh[2], lc_qn[2], lc_live[2];
   int s3_small_cap, s3_main_cap;
   // MGLRU (generations): gen[p] = sequence number, gst[p] = order within it
   int64_t *gen, *gst; int gcnt[4]; int64_t gmin, gmax, gctr;
@@ -778,6 +783,76 @@ static int mg_victim(struct state *s) {
   }
 }
 
+// ---- LeCaR (Vietri et al., HotStorage 2018), kernel-observable form ---------------
+// Two experts and learned weights: each eviction one expert is picked at random in proportion to the weights and its victim is evicted; the
+// evicted page goes to that expert's history. A fault on a page found in an expert's history is that expert's regret: its weight is multiplied
+// by exp(-lambda * d^(age of the history entry)) and the weights are renormalised. Original parameters: lambda = 0.45, discount d = 0.005^(1/N),
+// history size N/2 per expert. Adapted to what a kernel sees: expert 0 (LRU in the paper) is Clock, expert 1 (LFU) is the kernel's decayed
+// frequency count; both read the same accessed bits at an eviction; time is counted in evictions (N = cache size in pages).
+#define LC_LAMBDA 0.45
+static void lecar_miss(struct state *s, int p, int64_t now) {
+  int w = s->lc_who[p];
+  if (!w) return;
+  int e = w - 1;
+  double r = pow(s->lc_d, (double)(now - s->lc_t[p]));
+  s->lc_w[e] *= exp(-LC_LAMBDA * r);
+  double sum = s->lc_w[0] + s->lc_w[1];
+  s->lc_w[0] /= sum; s->lc_w[1] /= sum;
+  s->lc_who[p] = 0; s->lc_live[e]--;
+}
+static void lecar_snapshot(struct state *s) {
+  for (int k = 0; k < s->count; k++) { int p = s->res[k]; s->lc_snap[p] = s->abit[p]; }
+}
+static void lecar_remember(struct state *s, int e, int p, int64_t now) {
+  s->lc_q[e][s->lc_qn[e]] = p; s->lc_qt[e][s->lc_qn[e]] = now; s->lc_qn[e]++;
+  s->lc_who[p] = (uint8_t)(e + 1); s->lc_t[p] = now; s->lc_live[e]++;
+  while (s->lc_live[e] > s->lc_h) {
+    int i = s->lc_qh[e]++;
+    int q = s->lc_q[e][i];
+    if (s->lc_who[q] == e + 1 && s->lc_t[q] == s->lc_qt[e][i]) { s->lc_who[q] = 0; s->lc_live[e]--; }
+  }
+}
+// returns the index into res[] of the page to evict
+static int lecar_choose(struct state *s) {
+  int n = s->order_n, vc = -1;                       // expert 0: Clock, on the snapshot (hand advances only if it is the one chosen)
+  int64_t hand = s->hand;
+  for (int scanned = 0; scanned < 2 * n; scanned++) {
+    int idx = (int)(hand++ % n), p = s->order[idx];
+    if (!s->lc_snap[p]) { vc = idx; break; }
+    s->lc_snap[p] = 0;
+  }
+  if (vc < 0) vc = (int)(hand++ % n);
+  int pc = s->order[vc];
+  int best = 0;                                      // expert 1: smallest decayed frequency, oldest load on a tie
+  for (int k = 1; k < s->count; k++) {
+    int p = s->res[k], q = s->res[best];
+    if (s->kfreq[p] < s->kfreq[q] || (s->kfreq[p] == s->kfreq[q] && s->load_seq[p] < s->load_seq[q])) best = k;
+  }
+  int pf = s->res[best];
+  double u = (double)(xs(&s->srng) >> 11) / 9007199254740992.0;
+  int e = u < s->lc_w[0] ? 0 : 1;
+  int v = e == 0 ? pc : pf;
+  if (e == 0) s->hand = hand;
+  if (pc != pf) lecar_remember(s, e, v, s->scans);
+  return s->pos[v];
+}
+// As published: expert 0 = exact LRU, expert 1 = exact LFU (frequency since the start of the stream, ties to the least recent); time = request index.
+static int lecar_choose_exact(struct state *s, int64_t now) {
+  int bl = 0, bf = 0;
+  for (int k = 1; k < s->count; k++) {
+    int p = s->res[k];
+    if (s->last_acc[p] < s->last_acc[s->res[bl]]) bl = k;
+    int q = s->res[bf];
+    if (s->freq[p] < s->freq[q] || (s->freq[p] == s->freq[q] && s->last_acc[p] < s->last_acc[q])) bf = k;
+  }
+  int pl = s->res[bl], pf = s->res[bf];
+  double u = (double)(xs(&s->srng) >> 11) / 9007199254740992.0;
+  int e = u < s->lc_w[0] ? 0 : 1;
+  int v = e == 0 ? pl : pf;
+  if (pl != pf) lecar_remember(s, e, v, now);
+  return s->pos[v];
+}
+
 // ---- LHD (Beckmann, Chen, Cidon, NSDI 2018), scan form ---------------------------
 // Evict the page with the lowest hit density: expected future hits per unit of
 // cache space-time, estimated per (class, age) from histograms of hit and
@@ -911,7 +986,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   s->n = n; s->n_pages = n_pages; s->cap = cap;
   s->pg = pg; s->wr = wr; s->nu = nu;
   int learned = policy == P_LEARNED || policy == P_GRU || policy == P_EMBED;
-  int need_scan = policy == P_AGING || policy == P_LFU_KERNEL || learned ||
+  int need_scan = policy == P_AGING || policy == P_LFU_KERNEL || policy == P_LECAR || learned ||
                   (r && r->p > 0);
   int need_bit = learned || (r && r->p > 0);
   double *score = NULL;
@@ -933,6 +1008,9 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
     ok = ALLOC(s->lnx, n_pages) && ALLOC(s->lpv, n_pages) && ALLOC(s->lin, n_pages) &&
          ALLOC(s->s3freq, n_pages) && ALLOC(s->s3fresh, n_pages);
   if (ok && policy == P_MGLRU) ok = ALLOC(s->gen, n_pages) && ALLOC(s->gst, n_pages);
+  if (ok && (policy == P_LECAR || policy == P_LECARX))
+    ok = ALLOC(s->lc_t, n_pages) && ALLOC(s->lc_who, n_pages) && ALLOC(s->lc_snap, n_pages) && ALLOC(s->lc_q[0], n + 1) &&
+         ALLOC(s->lc_q[1], n + 1) && ALLOC(s->lc_qt[0], n + 1) && ALLOC(s->lc_qt[1], n + 1);
   if (ok && policy == P_LHD) ok = ALLOC(s->la1, n_pages) && ALLOC(s->la2, n_pages);
   if (ok && need_bit) ok = ALLOC(s->bit, n + 1) != NULL;
   if (ok && policy == P_GRU)
@@ -953,6 +1031,11 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   if (policy == P_MGLRU)
     for (int p = 0; p < n_pages; p++) s->gen[p] = -1;
   if (policy == P_LHD) lhd_init(s, cap);
+  if (policy == P_LECAR || policy == P_LECARX) {
+    s->lc_w[0] = s->lc_w[1] = 0.5;
+    s->lc_d = pow(0.005, 1.0 / cap);
+    s->lc_h = cap / 2 > 0 ? cap / 2 : 1;
+  }
   uint64_t rng = r ? (r->rng ? r->rng : 88172645463325252ull) : 1;
   int32_t group = 0;
   s->srng = 0x9E3779B97F4A7C15ull ^ ((uint64_t)(m ? m->sample_seed : 0) * 0xD1B54A32D192ED03ull);
@@ -979,6 +1062,8 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       if (max_faults > 0 && o->faults > max_faults) { o->aborted = 1; break; }
       int lv = -1;                            // list policies: victim chosen first
       if (policy == P_ARCK && s->count >= cap) arck_scan(s);
+      if (policy == P_LECAR) lecar_miss(s, p, s->scans);
+      if (policy == P_LECARX) lecar_miss(s, p, t);
       if (listpol)
         lv = policy == P_ARC || policy == P_ARCK ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
       if (s->count >= cap) {                  // ---- evict ----
@@ -997,6 +1082,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
           }
           o->scored += m->sample_k;
         } else if (need_scan) {
+          if (policy == P_LECAR) lecar_snapshot(s);
           scan_all(s);
           o->scanned += s->count;
           if (learned) o->scored += s->count;
@@ -1010,6 +1096,13 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         if (listpol) {
           if (lv < 0 || s->pos[lv] < 0) { o->aborted = -1; break; }   // invariant broken
           k = s->pos[lv];
+        } else if (policy == P_LECARX) {
+          k = lecar_choose_exact(s, t);
+        } else if (policy == P_LECAR) {
+          k = lecar_choose(s);
+          int vv = s->res[k];
+          for (int i = 0; i < s->order_n; i++)
+            if (s->order[i] == vv) { memmove(s->order + i, s->order + i + 1, sizeof(int32_t) * (s->order_n - i - 1)); s->order_n--; break; }
         } else if (policy == P_CLOCK || gclock) {
           int idx = clock_choose(s);
           k = s->pos[s->order[idx]];
@@ -1055,7 +1148,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       s->kfreq[p] = 1;
       s->abit[p] = 1;
       s->dbit[p] = (uint8_t)w;
-      if (policy == P_CLOCK || guard) s->order[s->order_n++] = p;
+      if (policy == P_CLOCK || guard || policy == P_LECAR) s->order[s->order_n++] = p;
       if (policy == P_MGLRU) mg_move(s, p, s->gmax);
       if (policy == P_LHD) { s->la1[p] = 0; s->la2[p] = LHD_AGES; s->s3fresh[p] = 1; }
       if (policy == P_ARCK) s->s3fresh[p] = 1;
@@ -1096,6 +1189,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   free(s->gru_cache); free(s->gru_dirty); free(s->samp);
   free(s->gen); free(s->gst); free(s->la1); free(s->la2);
   free(s->lnx); free(s->lpv); free(s->lin); free(s->s3freq); free(s->s3fresh);
+  free(s->lc_t); free(s->lc_who); free(s->lc_snap); free(s->lc_q[0]); free(s->lc_q[1]); free(s->lc_qt[0]); free(s->lc_qt[1]);
   return 0;
 }
 
