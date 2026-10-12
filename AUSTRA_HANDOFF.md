@@ -42,12 +42,12 @@ resample the workloads, then the streams (`tools/ml2/kernel_ci_classic.py`, `rep
 
 | Comparison | 5% memory | 10% memory | 20% memory | Status |
 |---|---|---|---|---|
-| ARC (kernel form) against Clock | **0.946 [0.92, 0.98]** | **0.943 [0.90, 0.98]** | 0.986 [0.96, 1.02] | FINAL |
-| LHD against Clock | 1.009 [0.98, 1.05] | 0.951 [0.88, 1.00] | 0.944 [0.86, 1.00] | FINAL |
-| S3-FIFO against Clock | 1.091 [1.00, 1.23] | 1.016 [0.96, 1.07] | 1.073 [0.98, 1.17] | FINAL (adapted form, see below) |
-| FIFO / Aging / LFU against Clock (mean over workloads) | 1.23 / 1.04 / 1.07 | 1.25 / 1.07 / 1.13 | 1.34 / 1.15 / 1.26 | FINAL |
-| Linear score (global weights) against Clock | 0.979 [0.90, 1.09] | **0.914 [0.85, 0.98]** | 0.887 [0.77, 1.03] | FINAL |
-| Linear score against ARC | 1.035 [0.97, 1.14] | 0.970 [0.92, 1.01] | 0.899 [0.77, 1.05] | FINAL: no interval excludes 1 |
+| ARC (kernel form) against Clock | **0.947 [0.92, 0.98]** | **0.943 [0.90, 0.98]** | 0.984 [0.95, 1.02] | FINAL |
+| LHD against Clock | 1.005 [0.98, 1.05] | 0.951 [0.88, 1.00] | 0.949 [0.87, 1.01] | FINAL |
+| S3-FIFO against Clock | 1.086 [1.00, 1.22] | 1.016 [0.96, 1.07] | 1.086 [0.98, 1.20] | FINAL (adapted form, see below) |
+| FIFO / Aging / LFU against Clock (mean over workloads) | 1.23 / 1.04 / 1.07 | 1.25 / 1.07 / 1.13 | 1.35 / 1.17 / 1.27 | FINAL |
+| Linear score (global weights) against Clock | 0.976 [0.90, 1.09] | **0.914 [0.85, 0.98]** | 0.882 [0.77, 1.00] (upper end 1.001) | FINAL |
+| Linear score against ARC | 1.031 [0.97, 1.13] | 0.970 [0.92, 1.01] | 0.896 [0.77, 1.02] | FINAL: no interval excludes 1 |
 | CNN / deeper MLP against ARC (ten streams) | 0.999 / 1.024 | 0.987 / 0.985 | 0.864 / 0.873 (intervals include 1) | FINAL |
 | CNN / deeper MLP against the linear score (ten streams) | 0.981 / 1.006 | 1.003 / 1.000 | 1.028 / 1.039 | FINAL |
 
@@ -56,7 +56,7 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 * ARC, in the form a kernel can run, beats Clock at 5 and 10% memory. **We have not shown that a learned policy beats ARC on average**; the linear score moves from 1.035 to 0.899 of ARC's faults as memory grows, no interval excludes 1.
 * The heavier models (CNN, deeper MLP, set-attention, boosted trees, ranking trees; trained on all six original workloads, run on ten streams) are level with the linear score at 5 and 10%, 10 to 14% better than ARC at 20% with intervals that
   include 1, and cost 20 to 150 times as much per eviction (table below). Ranking trees lose to Clock at 5 and 10%.
-* The learned policy has specific failures that repeat: matmul at 5% (1.72, with only 2 frames), SpMV at 5 and 10% (1.10, 1.12), graph with the global weights at 5 and 20% (1.01, 1.60; graph weights of its own: 0.60 at 10%).
+* The learned policy has specific failures that repeat: matmul at 5% (1.72, with only 2 frames), SpMV at 5 and 10% (1.10, 1.12), graph with the global weights at 5 and 20% (1.01, 1.40; graph weights of its own: 0.60 at 10%).
   It is very good on btree, kv, heap programs (0.56 to 0.9), and the hash join at 20% (0.55).
 
 ### 1. Open decision D2 (GawwyG has not decided): the claim, the venue, the authors
@@ -68,7 +68,7 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 ### 2. Everything measured, with its status
 | Result | Status | Where |
 |---|---|---|
-| Kernel runs: 2,375 merged (all policies, all workloads, three memory sizes); Kaggle machines give identical faults to the thesis PC (180 repeats) | FINAL | `report/results2/kernel_eval_all.csv` (only read this file); `xcheck_local.csv` |
+| Kernel runs: 2,743 merged (all policies, all workloads, three memory sizes); Kaggle machines give identical faults to the thesis PC (180 repeats) | FINAL | `report/results2/kernel_eval_all.csv` (only read this file); `xcheck_local.csv` |
 | ARC, LHD, S3-FIFO in the kernel (`VM_POLICY_ARCK/S3FIFO/LHD` = 5/6/7, `vmrun arck|s3fifo|lhd`): kernel faults / simulator faults at 10%: 0.995, 1.014, 0.984 (74 streams; median within 1.5%) | FINAL | `kernel_vs_sim_classic.csv`, `kernel/vmpage.c` |
 | The simulator versions of the three match independent reference implementations on 570 traces (identical faults and evictions) | FINAL | `tools/ml2/test_baselines.py` |
 | Five heavier models trained on all (original six) workloads, in the kernel at 5, 10, 20% on ten streams | FINAL | `kmain_B_*` tables |
@@ -114,7 +114,7 @@ Exact counts from `report/results2/cost_grid.csv` (`tools/ml2/cost_grid.py --siz
 ### 6. How to read the numbers (traps)
 * **One file for kernel results**: `report/results2/kernel_eval_all.csv`, built by `tools/ml2/merge_kernel_results.py` from all `kernel_eval*.csv` and `kaggle_*.csv`. Never read the others directly.
 * **Two builds**: runs from the week-14 build and the current build differ by about 1% for every policy; the merge keeps current-build rows. Never compare across builds.
-* **Memory sizes**: 5, 10, 20% of a program's pages. 10% covers 74 streams; 5% and 20% cover 51. The heavier models cover ten streams at every size.
+* **Memory sizes**: 5, 10, 20% of a program's pages. All three memory sizes now cover the same 74 streams (round 5 added 23 streams at 5% and 20%). The heavier models cover ten streams at every size.
 * **Averages**: the report averages the streams of a workload (geometric mean), then the 14 workloads with equal weight. A plain average over all streams gives different numbers (linear score at 10%: 0.887 over all 74 streams, 0.914 equal-weight over workloads).
 * **Streams**: patbench and appbench kernel runs use 50,000 accesses, not the full strings.
 * **Time** is counted in instructions with QEMU in instruction-count mode (`QEMU_ICOUNT=1`; 1 timer tick = 100 instructions); the `select_ticks` in `kernel_eval_all.csv` were NOT taken in that mode (noisy), so use `cost_grid.csv` for costs.

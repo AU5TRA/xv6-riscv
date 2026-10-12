@@ -43,13 +43,13 @@ program's pages. Intervals are 95\% intervals from resampling the workloads, the
 
 \begin{itemize}
 \item \best{Classical policies, in the kernel.} ARC, LHD and S3-FIFO now run in the kernel, in the form a kernel that only sees faults and accessed
-  bits can run (Section~\ref{sec:forms}). \textbf{ARC beats Clock at 5 and 10\% memory} (0.946 and 0.943, intervals below 1) and is level at 20\% (0.986). LHD is level at 5\%
-  (1.009), and 0.95 at 10 and 20\% with intervals that touch 1. S3-FIFO is not better than Clock at any size (1.09, 1.02, 1.07). FIFO, Aging and LFU are
-  worse than Clock at every size (by 4 to 34\%).
+  bits can run (Section~\ref{sec:forms}). \textbf{ARC beats Clock at 5 and 10\% memory} (0.947 and 0.943, intervals below 1) and is level at 20\% (0.984). LHD is level at 5\%
+  (1.005), and 0.95 at 10 and 20\% with intervals that touch 1. S3-FIFO is not better than Clock at any size (1.09, 1.02, 1.09). FIFO, Aging and LFU are
+  worse than Clock at every size (by 4 to 35\%).
 \item \best{The linear model.} A small linear score over kernel-visible signals, with whole-number arithmetic, beats Clock at 10\% memory (0.914, interval
-  0.85 to 0.98). At 5\% (0.979) and 20\% (0.887) it is better on average but the intervals include 1: a few workloads decide the average (it is bad on graph and matmul at some sizes, very good on the
+  0.85 to 0.98). At 5\% (0.976) and 20\% (0.882) it is better on average but the intervals include 1 (at 20\% only just: the upper end is 1.001): a few workloads decide the average (it is bad on graph and matmul at some sizes, very good on the
   hash join at 20\% memory and on the heap programs).
-\item \textbf{Learned against the best classical policy.} The linear model against ARC: 1.035, 0.970 and 0.899 at 5, 10 and 20\% memory; no interval excludes 1. The gap
+\item \textbf{Learned against the best classical policy.} The linear model against ARC: 1.031, 0.970 and 0.896 at 5, 10 and 20\% memory; no interval excludes 1. The gap
   moves in the learned model's favour as memory grows. \textbf{We have not shown that a learned policy beats ARC on average}; we have shown that it beats Clock at 10\%, and
   that it is at least level with ARC.
 \item \textbf{Heavier models.} The five kinds trained on all workloads (CNN, deeper MLP, set-attention, boosted trees, ranking trees) are level with the linear model at 5 and 10\%,
@@ -65,11 +65,11 @@ program's pages. Intervals are 95\% intervals from resampling the workloads, the
 
 \textbf{The kernel and the metric.} Each run is one program in xv6 with its resident memory limited to a fraction of the program's pages, so every eviction goes through the policy under test.
 The count is zero-fill faults plus swap faults. xv6 runs are exactly repeatable (the same program, stream, memory size and policy give the same faults every time); the uncertainty
-in the tables comes from which streams were chosen, not from run-to-run noise. 2\,375 runs are merged in one file (\code{report/results2/kernel\_eval\_all.csv}); the long runs were split between the thesis PC and
+in the tables comes from which streams were chosen, not from run-to-run noise. 2\,743 runs are merged in one file (\code{report/results2/kernel\_eval\_all.csv}); the long runs were split between the thesis PC and
 Kaggle notebooks, and 180 runs repeated on both gave identical faults, evictions and writes.
 
 \textbf{Workloads (14).} B-tree, graph, key-value store (the original and the Twitter replays, ``kv-T''), LZW, matrix multiply, sort, heap churn, hash join, sparse matrix--vector product (SpMV),
-pointer chase, Bloom filter, the synthetic pattern suite (\code{pat}) and four application-shaped programs (\code{app}). 74 streams at 10\% memory, 51 at 5 and at 20\%.
+pointer chase, Bloom filter, the synthetic pattern suite (\code{pat}) and four application-shaped programs (\code{app}). 74 streams at each of the three memory sizes.
 Every program's access string is checked reference by reference against an independent model.
 
 \textbf{Policies in the kernel.} FIFO, Clock, Aging, LFU; the learned linear score (\code{global}: one set of weights for all workloads; a per-workload set exists too);
@@ -105,10 +105,10 @@ a result for this adapted form, not for the original algorithm.
 \end{table}
 
 \begin{itemize}
-\item \textbf{ARC} is best among the classical policies at small memory (0.85--0.92 on btree, kv, heap and the Twitter replays at 5 and 10\%); on graph it gives 0.86 at 10\% and 1.02 at 5 and 20\%, while LHD does very well at 10\% (0.63), and on matmul and
-  sort the learned model is worse than Clock at 5\% (1.72 and 1.06) while ARC is level.
+\item \textbf{ARC} is best among the classical policies at small memory (0.85--0.91 on btree, kv, heap and the Twitter replays at 5 and 10\%); on graph it gives 0.86 at 10\% and 1.02 and 1.03 at 5 and 20\%, while LHD does very well at 10\% (0.63), and on matmul and
+  sort the learned model is worse than Clock at 5\% (1.72 and 1.03) while ARC is level.
 \item \textbf{The linear model} does best where recency is a poor guide: btree and kv (0.82--0.96 at all sizes), heap and chase, and the hash join at 20\% (0.55).
-  Its failures are specific and repeat across sizes: matmul at 5\% (1.72; only 2 frames), SpMV at 5 and 10\% (1.10, 1.12), graph at 5 and 20\% with the global weights (1.01 and 1.60; the graph-specific weights score 0.60 at 10\%).
+  Its failures are specific and repeat across sizes: matmul at 5\% (1.72; only 2 frames), SpMV at 5 and 10\% (1.10, 1.12), graph at 5 and 20\% with the global weights (1.01 and 1.40; the graph-specific weights score 0.60 at 10\%).
 \item \textbf{LHD} wins clearly on one workload, graph at 10\% (0.63), and on LZW and matmul at 20\%; it is the most uneven.
 \item \textbf{No policy helps} on Bloom filter (all 1.00) or the application programs at 5\%.
 \end{itemize}
@@ -167,7 +167,7 @@ Five kinds of heavier model were trained on all workloads and put in the kernel:
 
 Counts are exact, not timings. The linear score costs about 22\,800 instructions per eviction at 68 candidates (about 340 per candidate), 55 times Clock. ARC and LHD cost about half to two thirds of that (11\,900 and 14\,200),
 S3-FIFO 1\,400. The heavier models cost 20 times (boosted trees, ranking trees), 79 (set-attention), 87 (CNN) and 150 times (deeper MLP) the linear score. So ARC is the cheaper of the two best policies, and its advantage over the
-linear score at 20\% memory is the thing to watch; the heavier models cost far more than they could save unless a page fault is very expensive. Whether a saved fault pays for the extra work depends on two things we have now measured on the thesis PC. \textbf{Device latency} (4\,KB random reads, one request at a time, bypassing the file cache): a Samsung 980 NVMe SSD, median 63 \textmu s (99th percentile 134 \textmu s), and a WD Blue 1\,TB hard disk, median 8.9 ms (99th percentile 24.5 ms). \textbf{Speed of the scoring code}: the kernel's own scoring headers compiled for this CPU (one core of a Ryzen 5 5600) take 1.35 \textmu s for 68 candidates with the linear score (20 ns per candidate), 33 \textmu s with boosted trees, 106 \textmu s with set-attention and the CNN, and 206 \textmu s with the deeper MLP. Divided by the kernel's instruction counts that is about 0.06 ns per instruction, 17 times faster than the 1 ns we had assumed; it is a lower bound, because the timing leaves out the kernel's page-table walk that reads the accessed bits.
+linear score at 20\% memory is the thing to watch; the heavier models cost far more than they could save unless a page fault is very expensive. Whether a saved fault pays for the extra work depends on two things we have now measured on the thesis PC. \textbf{Device latency} (4\,KB random reads, one request at a time, bypassing the file cache): a Samsung 980 NVMe SSD, median 63 \textmu s (99th percentile 134 \textmu s), and a WD Blue 1\,TB hard disk, median 8.9 ms (99th percentile 24.5 ms). The hard-disk figure is for reads spread over a 1\,GB file; a compact swap area (xv6's is 32\,MB) would see shorter seeks and a lower figure, so 8.9 ms is a pessimistic value for a hard disk (a 32\,MB test fits in the drive's own cache and measures the cache, not the disk, so it cannot be used). \textbf{Speed of the scoring code}: the kernel's own scoring headers compiled for this CPU (one core of a Ryzen 5 5600) take 1.35 \textmu s for 68 candidates with the linear score (20 ns per candidate), 33 \textmu s with boosted trees, 106 \textmu s with set-attention and the CNN, and 206 \textmu s with the deeper MLP. Divided by the kernel's instruction counts that is about 0.06 ns per instruction, 17 times faster than the 1 ns we had assumed; it is a lower bound, because the timing leaves out the kernel's page-table walk that reads the accessed bits.
 Time spent on faults and on choosing victims, relative to Clock (geometric mean over workloads; below 1 is faster):
 
 \begin{center}\small
@@ -212,7 +212,7 @@ and capacity cliffs explain most of the remaining differences. Earlier work foun
 \begin{itemize}
 \item \textbf{One operating system.} xv6 on QEMU, a teaching kernel with a single-threaded benchmark process at a time. Nothing here says what happens in Linux.
 \item \textbf{The fault cost is assumed.} Whether a saved fault pays for the extra selection work depends on how long a real page-in takes; no real device was measured. Instruction counts are measured, times are not.
-\item \textbf{Fourteen workloads.} Some are close variants of each other, and 5 and 20\% memory use one stream per variant (51 streams). The intervals show the resulting uncertainty; most differences between the best policies are inside it.
+\item \textbf{Fourteen workloads.} Some are close variants of each other, and the five heavier models were run on only ten streams. The intervals show the resulting uncertainty; most differences between the best policies are inside it.
 \item \textbf{Adapted forms.} ARC, LHD and S3-FIFO ran in the form a kernel can run (accessed bits read at evictions), not as published; S3-FIFO's result in particular should not be quoted as the algorithm's.
 \item \textbf{``All workloads'' means the six original ones} (btree, graph, kv, LZW, matmul, sort), for the global linear model and the five heavier kinds alike; the heap, hash join, SpMV, pointer chase, Bloom filter, pattern and application programs were not in training. The heavier models were run on only ten streams, so their intervals are the widest.
 \item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph with the global weights at 20\%); the tables show where.
