@@ -11,7 +11,7 @@ Step 5.1–5.4 prose, and the Step 6 review simulation.
 
 ## Basics
 - **Working title:** Glimpse: Learned Page Replacement from What the Kernel Already Sees.
-  - "Glimpse" is a working name (`\sys` in `macros.tex`). The handoff's language rule is "plain words, no
+  - "Glimpse" is a working name (`\sys`, near the top of `main.tex`). The handoff's language rule is "plain words, no
     invented terms", which argues against a system name. Decide with the title (D2).
   - Alternatives: *Can the Kernel Learn to Evict?*; *The Kernel Already Sees Enough: …*
 - **Target:** MLSys 2027, research track. The author's intent is assumed; venue choice is part of D2.
@@ -98,13 +98,13 @@ Step 5.1–5.4 prose, and the Step 6 review simulation.
 | B5 oracle | done (sim) | Belady |
 | Held-out workloads | done | 8 of 14 never trained on |
 | End-to-end metric | partial | break-even time vs Clock under assumed fault costs; no measured fault cost |
-| Ablation per technique | mostly | A3 numbers pre-refit; A4 guard sim only |
+| Ablation per technique | mostly | A3 regenerated (M4); DAgger first version only; A4 guard sim only |
 | Sensitivity | done | memory 5/10/20%; sample size; probation |
 | Generalisation | done | unseen workloads; real traces (sim) |
-| Overhead | done | exact instructions per decision, all policies; per-page bytes TODO |
-| Fallback / OOD | partial | validated victim + Clock fallback; guard sim only |
+| Overhead | done | exact instructions per decision; +40 B per page, 12 B per swap slot, 80 B weights (M5) |
+| Fallback / OOD | partial | validated victim + Clock fallback (0 fallbacks in all correctness runs; not counted in eval runs); guard sim only |
 | Runs, spread, test | done | exact repeatability; 95% intervals (workloads, then streams); noise floor |
-| Page writes | missing for the final build | week-14 build: −96.5% at 10% with per-workload weights |
+| Page writes | done (negative) | linear vs Clock 1.199 / 1.120 / 1.029, all intervals include 1; ARC 0.894 / 0.883 at 5 / 10% (M3) |
 | Code release | missing | anonymous mirror; Twitter licence check |
 
 ## Numbers (single source; abstract = body)
@@ -124,34 +124,53 @@ Step 5.1–5.4 prose, and the Step 6 review simulation.
 | kernel/sim ARC 0.995, S3-FIFO 1.014, LHD 0.984 | §5.3 | week-16 report |
 | Belady 43–54% fewer than Clock (btree/kv/graph), LZW 53–59% | §1, §2.2 | classical tables (unchanged); `model_comparison.tex` |
 | oracle-input models 22–41% worse than linear on real traces | §1, §5.2 | week-15 report |
+| writes vs Clock 1.199 [0.83, 2.02] / 1.120 [0.84, 1.72] / 1.029 [0.73, 1.67]; matmul 4.75, SpMV 4.22 | §1, §5.3, §5.7, §7 | `kmain_WA_*`, `kernel_ci_writes.csv` (M3) |
+| "all six" rows of Table 4: test 0.877 / 0.897 / 0.856 / 0.856 / 0.591; h-o 0.896 / 0.894 / 0.854 / 0.847 / 0.558 | §5.2 | `model_comparison.tex` after the M1 fix |
+| sfreq −0.27 vs freq −0.24 (mean of six); btree −0.53/−0.59, kv −0.47/−0.54; rdist +0.32 | §2.3 | `feature_diagnostics.csv` (M4) |
+| idle marginal −71% graph, −30% btree, −19% kv, −1% lzw | §5.2 | `summary_marginal.csv` (M4) |
+| catastrophic sets: graph 113/300, kv 52/300 | §3.5 | `tables.md` (M4) |
+| 8-bit integer within 0.002 on 39/44 cells, 0.005 on 42; max 0.013 (oracle model) | §5.4 | `tables.md` (M4) |
+| probation graph 0.817 → 0.612; matmul 0.626 → 0.973 | §5.6 | `tables.md` (M4) |
+| 5.22M train rows / 377K decisions; 0.91M val / 43K | §3.3 | `dataset_summary.csv` (M5) |
+| QEMU 8.2.2, virt, 1 hart, 128 MB; GCC 13.3; 6-core desktop, Ubuntu 24.04 | §5.1 | M5 |
+| +40 B/page, 12 B/swap slot, 80 B weights, 100,716 B heavier models, ~0.95 MB classical state | §4 | M5 |
+| training: MLP/CNN 48 s, set-attention 67 s (GPU); trees 2–3 s (CPU) | §4 | M5 |
 
 **No longer used (superseded; do not reintroduce):**
 - "11–13× Clock" and "40–45 µs". These came from `select_ticks`, which the handoff says were not measured in
   instruction-count mode and are noisy.
-- "3–46% fewer faults", "−96% writes", "231 runs" (week-14 build).
+- "3–46% fewer faults", "−96% writes", "231 runs" (week-14 build). In the final runs writes do NOT fall on average.
 - "89 streams / 123M refs" as the dataset headline.
+- Old feature correlations ("−0.45 vs −0.52", "+0.45"), "98 of 255" catastrophic, "within ±0.002 everywhere".
 
 ## Issues to raise with the collaborator
 Handed off on 2026-10-12 in `GAWWY_HANDOFF_PAPER.md` (repo root): items M1–M5 (must have), S1–S4 (should
 have), N1–N2 (nice to have). D2 is needed by 14 Oct; the proposed cut-off for new runs is 25 Oct.
 
-1. **`model_comparison.tex`, "global, held-out" row:** in `extra_summary.csv` it has 15 cells, and its
-   LRU/ARC/S3-FIFO/LHD/Belady values equal kv held-out's exactly. It looks like it covers only kv's held-out
-   streams. The paper leaves the global rows out until this is confirmed.
-2. In the same table, is "ARC"/"LHD" the per-hit simulator form or the kernel form (`arck`)? The paper does
-   not quote those columns.
-3. Page writes for the final build (`kernel_eval_all.csv` has `page_writes`): can `report_w16.py` generate a
-   writes table?
-4. Regenerate `feature_diagnostics.csv` and `summary_marginal.csv` on the current datasets (§2.3, §5.2 quote
-   pre-refit values), and the v1/v2 + probation ablations, or label them "first version".
-5. D2: claim, title, venue, author list, credits; the Twitter trace licence.
+**Answered 2026-10-12 (commits 556f1c2, 5f3e0d9) and folded into the paper the same day:**
+- **M1:** fixed. The global rows had been cut to the streams the nets ran on; they now appear in Table 4 as "all six".
+- **M2:** in the simulator, ARC and S3-FIFO are the per-hit forms and LHD is the accessed-bit form. The paper
+  does not quote the simulator ARC/S3-FIFO columns.
+- **M3:** writes tables are in the appendix; §5.3 has a paragraph "Page writes do not fall on average".
+- **M4:** regenerated values are in §2.3, §3.5, §5.2, §5.4 and §5.6.
+- **M5:** facts are in §3.3, §3.5, §4 and §5.1.
+- **S4:** `report/results2/tradeoff.csv` is ready for Fig 7.
+
+**Still open:**
+- S1: measured device latency.
+- S2: native ns per decision.
+- S3: LeCaR, or a reason to exclude it.
+- N1, N2.
+- D2: claim, title, venue, authors, credits, Twitter licence.
+- Full 74-step regression matrix on the final build, or cite only data invariance.
 
 ## Experiment / writing priority (18 days; profiles due ~16 Oct)
 1. **Now:** create or complete OpenReview profiles for every author (≈16 Oct). Settle D2 and the author list.
    Check the author quota.
 2. Rewrite the draft text in the authors' own words (LLM policy), starting with §2–§5.
-3. Ask the collaborator for items 1–4 above (small script runs, no new experiments).
-4. Figures: draw Fig 1 (eviction path) and Fig 4 (overview); plot Fig 7 (cost vs faults) from `cost_grid.csv`.
+3. The collaborator's must-have items are done. Remaining from him: S1–S3 (and N1–N2 if time allows).
+4. Figures: draw Fig 1 (eviction path) and Fig 4 (overview); plot Fig 7 (cost vs faults) from
+   `report/results2/tradeoff.csv`.
 5. Related-work search: in-kernel learned eviction, eBPF page-cache policies. Verify every `% VERIFY` bib entry.
 6. Optional if time allows: B3 (LeCaR/CACHEUS in sim); guard in the kernel; a real-hardware page-in cost.
 
@@ -160,18 +179,19 @@ have), N1–N2 (nice to have). D2 is needed by 14 Oct; the proposed cut-off for 
 |---|---|---|
 | Abstract | redrafted on final results (192 words) | claim pending D2; code link |
 | 1 Introduction | Moves 2, 4, 6, 7 drafted on final results; teaser = kernel table, 3 sizes + cost | stakes number; D2 |
-| 2 Background | observations drafted; RQs updated | Fig 1; Fig 2/3 re-plots; diagnostics regenerate |
-| 3 Design | updated: heavier models, guard prototype, sampling, Alg 1 | per-page bytes; Fig 4 |
-| 4 Implementation | rewritten (code sizes, kernel classical forms, instruction counting, cross-check) | QEMU version; training time |
-| 5 Evaluation | rewritten; kernel tables `\input` from week-16 | B3; page writes; Fig 7 |
+| 2 Background | observations drafted on current numbers (M4) | Fig 1; Fig 2/3 re-plots |
+| 3 Design | heavier models, guard prototype, sampling, Alg 1; dataset size and fallback count (M5) | Fig 4 |
+| 4 Implementation | code sizes, memory cost, training time, data invariance (M5) | full regression matrix? |
+| 5 Evaluation | kernel tables `\input`; Table 4 with "all six" rows; writes paragraph | B3 (S3); Fig 7; S1/S2 |
 | 6 Related work | + LHD; difference sentence updated | literature search; VERIFY entries |
 | 7 Discussion | limits from the week-16 report | — |
 | 8 Conclusion | redrafted | D2 |
 | Appendix | 5%/20% tables, heavier models, trained-on-all, marginal figure | dataset table, simulator validation |
 
 ## Submission check (Step 7)
-- 2026-10-12 build: body ends on page 10, with references from page 10. 15 pages including the appendix; no
-  overfull boxes.
+- 2026-10-12 build (after folding in M1–M5): the conclusion ends on page 10 and references start on page 11.
+  **No slack left**: the remaining `[Plan: …]` notes must become prose of equal or shorter length, and figure
+  placeholders must not grow. No overfull boxes.
 - `check_draft.py main.tex`: all ingredients found. Remaining flags:
   - the style-required corresponding-author e-mail, a placeholder that the style hides in blind mode;
   - 18 subsections against a median of 13; merge some when trimming.
@@ -186,3 +206,12 @@ have), N1–N2 (nice to have). D2 is needed by 14 Oct; the proposed cut-off for 
 - 2026-10-12: The teaser is the kernel table across three memory sizes plus decision cost.
 - 2026-10-12: The marginal-value figure moved to the appendix, to keep the body within 10 pages and because
   it needs regenerating.
+- 2026-10-12: Page writes are reported as a negative result: no saving on average, 4–5× Clock on matmul
+  and SpMV. They are named in the intro, §5.3, §5.7 and §7. Reason: candour, and reviewers would find it in
+  the appendix anyway.
+- 2026-10-12: Trimmed to fit 10 pages: merged the duplicated failures list into §5.7, moved the controls to
+  the appendix, shortened the conclusion and limitations.
+- 2026-10-12 (author question): MLSys does not require the source to be split by section; only PDFs are
+  submitted (paper, plus a separate appendix PDF). At the author's request the paper is now **one file**,
+  `main.tex` (sections marked `% ----- N TITLE -----`). The PDF text is identical to the split version. The
+  generated tables stay as `\input` from `../week_16_update/tables`.

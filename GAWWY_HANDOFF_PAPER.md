@@ -72,8 +72,8 @@ Two rules from the call that affect us:
    "beats ARC". Confirm the claim or change it.
 2. **Title and the system name.** The draft's working title is "Glimpse: Learned Page
    Replacement from What the Kernel Already Sees". Your language rule says no invented
-   terms, so we can drop "Glimpse" if you prefer. It is one macro in
-   `report/paper/macros.tex`.
+   terms, so we can drop "Glimpse" if you prefer. It is one macro (`\sys`) near the
+   top of `report/paper/main.tex`.
 3. **Venue.** MLSys 2027, research track. Confirm.
 4. **Authors and credits** (the platform, the programs, the Kaggle runs), and the
    **Twitter trace licence** before any derived streams are released.
@@ -85,7 +85,9 @@ Two rules from the call that affect us:
   `report_w15.py` and `report_w16.py`, the paper updates by itself.
   * **Do not rename these files or change their column layout without telling me.**
   * If you start a `week_17_update/`, either keep writing these files where they are,
-    or tell me and I change one macro (`\wsixteen` in `report/paper/macros.tex`).
+    or tell me and I change one macro (`\wsixteen` near the top of
+    `report/paper/main.tex`). The paper is a single file now; your tables are its only
+    `\input`s.
 * Numbers quoted in the text are typed, each with a `% src:` comment, and listed in
   `paper-state.md` → "Numbers". If a rerun changes one of them, tell me which.
 * `\best{}` in `ci_main.tex` is defined in the paper as bold. Keep using it.
@@ -216,13 +218,26 @@ label "first version of the study" in the text.
 
 ## Replies (GawwyG fills this in)
 
+**AU5TRA, 2026-10-12: M1–M5 and S4 are folded into the paper.** Where they went:
+* Table 4 now has the "all six" rows.
+* §5.3 says writes do not fall on average; the writes table is in the appendix.
+* The regenerated correlations, marginal values, catastrophic counts, integer check and
+  probation numbers are in.
+* Your facts are in §3–§5.
+
+The page-writes result is reported as a negative result in the intro, §5.3, §5.7 and §7.
+Still open from your side: S1, S2, S3, N1, N2, and D2. Also, if you can, run the full
+regression matrix on the final build; otherwise the paper cites only data invariance.
+
+*(Added by GawwyG's side after merging the paragraph above: its "still open" list was written before the work below. Now: S1, S2 and N1 are done, N2 is dropped, D2 is decided, S3 was not asked for. The full-regression-matrix request is answered at the end of this section.)*
+
 *(item — result — file)*  Worked through on 2026-10-12. S1 and S2 done (below). S3 not started ("should have"; waiting for GawwyG's decision). N2 dropped (below). **N1 is DONE (2026-10-12): 23 more streams at 5% and 20% memory, eight policies each (FIFO, Clock, Aging, LFU, ARC, LHD, S3-FIFO, linear global); 368 runs, all ok (256 on this PC, 112 on Kaggle, self tests matched). All three memory sizes now cover the same 74 streams; `kernel_eval_all.csv` has 2,743 runs and every table and interval was regenerated. The five heavier models were not rerun, so their tables keep the ten streams. What changed in the quoted numbers (equal-weight over 14 workloads, 95% interval): ARC against Clock 0.947 [0.92, 0.98] at 5% (was 0.946) and 0.984 [0.95, 1.02] at 20% (was 0.986); LHD 1.005 and 0.949 [0.87, 1.01]; S3-FIFO 1.086 and 1.086 [0.98, 1.20]; linear against Clock 0.976 [0.90, 1.09] and 0.882 [0.77, 1.00] (upper end 1.001, so "includes 1" only just); linear against ARC 1.031 [0.97, 1.13] and 0.896 [0.77, 1.02]; linear against LHD 0.972 and 0.929 [0.79, 1.08]. Conclusions unchanged; graph with the global weights at 20% is now 1.40 (was 1.60); sort at 5% 1.03 (was 1.06). Please re-check every number you typed for 5% and 20%.**
 
 **DROPPED by GawwyG, in full: N2 (the guard in the kernel) and the guard everywhere else.** It is not needed for the research question. Please remove it from the paper and do not work on it: it appears in `report/paper/outline.md` (rows 3 and 5.5), `paper-state.md` (lines about C4, the ablation and fallback rows, the guard numbers 1.86 to 1.36, step 6), `sections/1-introduction.tex` (line 104), `2-background.tex` (line 125), `3-design.tex` (the "fallback guard" item and its plan and todo, lines 168-180), `5-evaluation.tex` (line 275 and the robustness text) and `7-discussion.tex` (the "No guard in the kernel" item). Keep the plain statement that the learned policy can be worse than Clock and where. Anything else GawwyG marks "not required" is dropped the same way.
 
 **D2 decided (2026-10-12).**
 1. **The claim.** Use this, and do not write "beats ARC": *A small linear score over signals a kernel can already see, computed with whole numbers, makes fewer page faults than Clock in xv6 (0.914 [0.85, 0.98] of Clock's faults at 10% memory; 0.976 and 0.882 at 5% and 20%, where the intervals include 1) and is level with, or better than, ARC, the best classical policy we could run in the kernel (1.031, 0.970 and 0.896 of ARC's faults at 5, 10 and 20%; no interval excludes 1). Bigger models (CNN, deeper MLP, set-attention, trees) are level with the linear score and cost 20 to 150 times more per decision. Whether a saving in faults pays for the extra work depends on the device and the core: with the device and core we measured, the linear score pays on a hard disk and, with a fast core, on an SSD; the bigger models pay on neither an SSD nor a slow core.* ARC and S3-FIFO and LHD are the accessed-bit forms; say so wherever they are named.
-2. **Title and system name.** Drop "Glimpse" (the language rule: no invented terms). Title: "Learned Page Replacement from What the Kernel Already Sees". Do not name the system; say "the learned policy" or "the linear score". Change the `\sys` macro in `report/paper/macros.tex` accordingly.
+2. **Title and system name.** Drop "Glimpse" (the language rule: no invented terms). Title: "Learned Page Replacement from What the Kernel Already Sees". Do not name the system; say "the learned policy" or "the linear score". Change the `\sys` macro near the top of `report/paper/main.tex` accordingly.
 3. **Venue.** MLSys 2027, research track, deadline 30 Oct 2026, 19:00 UTC (the stricter of the two times on the site).
 4. **Authors and credits.** Two authors, GawwyG and AU5TRA, with an equal-contribution note; GawwyG supplies the legal names, affiliations and emails for OpenReview (the handles in this repository are not legal names, and Claude does not know them). Whether the supervisor is also an author is GawwyG's call and has not been made; the author list cannot change after the deadline, so settle it before 19 Oct. In the acknowledgments: the authors of cache_ext (for the archive of Twitter traces), the Twitter trace release (below), and Kaggle for compute. Programs by AU5TRA (LZW, pointer chase, hash join, Bloom filter, sparse matrix-vector, heap churn) are credited as hers in the text. An AI assistant is not an author; disclose its use as the venue requires.
 5. **Cut-off.** No new runs after 25 Oct: agreed.
