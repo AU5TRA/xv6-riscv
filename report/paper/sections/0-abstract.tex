@@ -1,24 +1,26 @@
 % Abstract: 150-220 words (median 180). Sentence roles, in order: context; problem
-% and stakes; why current approaches fail; "we present"; key idea; techniques
-% paired with challenges; evaluation basis; headline numbers WITH baseline; code.
+% and stakes; why current approaches fail; "we present"; key idea; techniques;
+% evaluation basis; headline numbers WITH baseline; code.
 % Every number below must appear identically in the body (paper-state.md, "Numbers").
-% Draft status: first draft, written early so the paper has a target. Rewrite in
-% Step 5.6, after the evaluation is final.
-Learned policies now beat hand-written heuristics in CPU caches, content-delivery
-networks and storage caches, but an operating system's page-replacement policy works
-under constraints those settings lack: the kernel never sees individual memory
-accesses, cannot use floating point on the eviction path, and every eviction changes
-all later faults.
+%
+% CLAIM STATUS: PENDING decision D2 (AUSTRA_HANDOFF.md, START HERE section 1). The
+% claim below is the one the handoff proposes; confirm it with the collaborator before
+% submission. Rule from the handoff: never write "beats ARC".
+% Numbers: week-16 kernel results (report/week_16_update), all tagged FINAL there.
+Learned policies beat hand-written heuristics in CPU caches and content-delivery
+networks, but an operating system's page-replacement policy works under constraints
+those settings lack: the kernel never sees individual memory accesses, cannot use
+floating point on the eviction path, and every eviction changes all later faults.
 We ask whether a learned page-replacement policy is implementable under these
-constraints, and answer with \sys, built in the xv6 teaching kernel.
-\sys scores resident pages with an integer linear model over signals the kernel
-already keeps (accessed- and dirty-bit scan history and refault bookkeeping), is
-trained offline to imitate \belady's optimal policy on recorded eviction decisions,
-and shields newly loaded pages with a probation rule.
-On 89 verified reference streams (123M references) from five workload families,
-these kernel-observable features match oracle features to within 1.5\% on three
-families, and 8-bit integer weights change fault counts by at most 0.002 of \clock's.
-Running inside the kernel on workload variants never seen in training, \sys incurs
-3--46\% fewer page faults than \clock and up to 96\% fewer page writes.
-The price is decision time: choosing a victim costs 11--13$\times$ as much as \clock.
-\todo{anonymized code link; update dataset size if the 7 new families enter the study}
+constraints, and build one in the xv6 teaching kernel. It scores resident pages with a
+small linear model over signals the kernel already keeps (accessed- and dirty-bit
+history and refault bookkeeping), computed in whole-number arithmetic and trained
+offline to imitate \belady's optimal policy.
+Across 14 workloads, eight of them never used in training, and 2,375 kernel runs at
+three memory sizes, the linear score incurs 8.6\% fewer page faults than \clock at 10\%
+memory (95\% interval 2--15\%) and is level with ARC, the strongest classical policy we
+could run in the kernel. Five heavier models, including a CNN and an MLP, are not
+clearly better and cost 20--150$\times$ as much per eviction.
+Decision time is the price: 22,803 instructions per eviction, 55$\times$ \clock;
+sampling 32 candidates halves it for at most one point of faults.
+\todo{claim pending D2; anonymized code link}

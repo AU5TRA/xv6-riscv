@@ -1,27 +1,70 @@
 % =============================================================================
-% APPENDIX -- uploaded as a SEPARATE file at submission. The main text must stand
-% alone: never rely on the appendix for a core claim, and check that every
-% "Appendix X" reference in the body points to something that exists here.
+% APPENDIX -- uploaded as a SEPARATE file at submission ("The appendix is due at the
+% same time as the main paper"; reviewers are not required to read it). The main text
+% must stand alone; check every "Appendix X" reference in the body.
 % =============================================================================
 
 \section{Dataset}
 \label{app:data}
-\plan{Per-variant table: streams, splits, references, distinct pages, write share
-(ML\_REPORT \S3). Trace format; integrity checks; how held-out variants were chosen.
-Why lzw entered late (its original trace exceeded the maximum file size).}
+\plan{Per-workload table: variants, streams, references, held-out streams (generated:
+report/week\_15\_update/tables/dataset.tex). Trace format; integrity checks; independent
+program models; how held-out variants were chosen; Twitter replay sampling (1,024 keys).}
 
 \section{Simulator Validation}
 \label{app:sim}
-\plan{All checks of ML\_REPORT \S5.1, with counts. Accessed/dirty-bit semantics follow
-the kernel (a faulted-in page starts with A set).}
+\plan{All checks: 534 cells against an independent implementation; kernel logic re-implemented
+naively; features on 11,792 evictions; 570 traces for ARC/LHD/S3-FIFO; filled-memory start.}
 
 \section{Full Results}
 \label{app:results}
-\plan{Classical policies per split; all 15 oracle subsets; the distribution of the 255
-kernel subsets; the chosen model per scope and tier; integer precision; neural models
-(global and per-family); by-capacity results; per-stream kernel counters;
-kernel-vs-simulator ratios per policy.}
+
+\begin{table*}[h]
+\caption{5\% memory (51 streams), same layout as Table~\ref{tab:kernel}.}
+\vskip 0.05in
+\begin{center}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_A_005}}
+\end{center}
+\end{table*}
+
+\begin{table*}[h]
+\caption{20\% memory (51 streams), same layout as Table~\ref{tab:kernel}.}
+\vskip 0.05in
+\begin{center}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_A_02}}
+\end{center}
+\end{table*}
+
+\begin{table*}[h]
+\caption{The heavier models in the kernel at 10\% memory, on the ten streams they ran on
+(5\% and 20\%: report/week\_16\_update/tables/kmain\_B\_005, kmain\_B\_02).}
+\vskip 0.05in
+\begin{center}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_B_01}}
+\end{center}
+\end{table*}
+
+\begin{table}[h]
+\caption{Trained on one workload against trained on all six (simulator, 24 cells, faults
+relative to \clock).}
+\vskip 0.05in
+\begin{center}
+\resizebox{\linewidth}{!}{\input{\wsixteen/trainedall}}
+\end{center}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\figbox{1.4in}{Median change in faults from adding each kernel feature to a subset that
+lacks it, per workload.}{report/figures2/marginal.pdf is pre-refit; regenerate, re-plot
+for one column}
+\caption{\plan{Takeaway: \feat{idle} is worth 20--71\% fewer faults; most other features
+are worth a few percent.}}
+\label{fig:marginal}
+\end{figure}
+
+\plan{Also: transfer to unseen streams in simulation (tables/transfer.tex); the break-even
+table (week-15 report); intervals per workload; kernel/simulator ratios per policy.}
 
 \section{Reproducing the Results}
 \label{app:repro}
-\plan{Command sequence and run times (ML\_REPORT \S11), anonymized.}
+\plan{Command sequence and run times (week-16 report appendix), anonymized.}

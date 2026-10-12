@@ -13,13 +13,15 @@ model~\citep{denning1968working}; stack distance~\citep{mattson1970evaluation};
 \clock~\citep{corbato1968paging} and WSClock~\citep{carr1981wsclock};
 LRU-K~\citep{oneil1993lruk}, 2Q~\citep{johnson1994twoq}, LIRS~\citep{jiang2002lirs},
 ARC~\citep{megiddo2003arc}, CAR~\citep{bansal2004car},
-CLOCK-Pro~\citep{jiang2005clockpro}; recent simple policies
-SIEVE~\citep{zhang2024sieve} and S3-FIFO~\citep{yang2023s3fifo}; in Linux,
+CLOCK-Pro~\citep{jiang2005clockpro}; LHD~\citep{beckmann2018lhd}; recent simple
+policies SIEVE~\citep{zhang2024sieve} and S3-FIFO~\citep{yang2023s3fifo}; in Linux,
 MGLRU~\citep{linux_mglru}, refault distance~\citep{linux_workingset} and
 DAMON~\citep{linux_damon}.}
 \emph{Difference:} each fixes one rule for combining recency, frequency and
-dirtiness; \sys learns the combination from the same kernel signals, and its features are
-the ones these mechanisms already maintain.
+dirtiness, and most assume they see every hit; we run ARC, LHD and S3-FIFO in the form a
+kernel can run and compare against them there. The learned score learns the combination
+from the same kernel signals, and its features are the ones the Linux mechanisms already
+maintain.
 
 \finding{Learned cache replacement.}
 \plan{CPU caches: Hawkeye~\citep{jain2016hawkeye} and Glider~\citep{shi2019glider} learn

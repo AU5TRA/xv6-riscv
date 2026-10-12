@@ -39,15 +39,17 @@ seeing only accessed/dirty bits.}}
 \label{sec:bg-headroom}
 
 \obs{1}{\clock is as good as exact LRU, and both are far from optimal.}
-Across five workload families (\S\ref{sec:eval-setup}), \clock is within 1--2\% of
-exact LRU on four, xv6's Aging is barely better than FIFO, and the only classical
+On the six workloads used for training (\S\ref{sec:eval-setup}), \clock is within 2\%
+of exact LRU on five, xv6's Aging is barely better than FIFO, and the only classical
 policy that beats \clock anywhere, exact LFU, is catastrophic elsewhere
 ($\geq3\times$ \clock on graph, sort and matmul). \belady needs 43--54\% fewer faults
-than \clock on the B-tree, key-value and graph workloads, 38\% on matmul, and only
-10--17\% on sort (Figure~\ref{fig:headroom}).
+than \clock on the B-tree, key-value and graph workloads, 53--59\% on LZW, 38\% on
+matmul, and only 10--17\% on sort (Figure~\ref{fig:headroom}).
 $\rightarrow$ \emph{Recency and frequency both carry signal, but every fixed combination
 fails on some workload; a policy should learn the combination.}
-% src: ML_REPORT 6.1 classical_test / classical_heldout (simulator, geo-mean 5/10/20%)
+% src: ML_REPORT 6.1 classical_test / classical_heldout (simulator, geo-mean 5/10/20%);
+% classical results unchanged by the week-15 refit (AUSTRA_HANDOFF.md, week-15 addendum).
+% src: lzw Belady 0.466 (test) / 0.409 (held-out), week_16 tables/model_comparison.tex
 
 \begin{figure}[t]
 \centering
@@ -74,6 +76,8 @@ $\rightarrow$ \emph{Use kernel-observable features, and train and judge them on 
 decisions, not on individual references} (\S\ref{sec:design-features},
 \S\ref{sec:design-train}).
 % src: ML_REPORT 6.2, report/results2/feature_diagnostics.csv
+% Note: computed on the decision datasets before the week-15 seed fix (datasets were
+% rebuilt with a CRC32 seed). \todo{regenerate feature_diagnostics.csv on the current datasets}
 
 \begin{figure}[t]
 \centering
@@ -112,10 +116,11 @@ answered in \S\ref{sec:eval}:
 \begin{description}
 \item[RQ1 Information.] Do kernel-observable signals suffice, or does a learned policy
   need information only a full trace has? (\S\ref{sec:eval-info})
-\item[RQ2 Effect in the kernel.] Does the policy beat the kernel's best heuristic inside
-  a real kernel, on unseen runs and unseen behaviours? (\S\ref{sec:eval-kernel})
-\item[RQ3 Cost.] Can it be computed without floating point, and what does a decision
-  cost on the eviction path? (\S\ref{sec:eval-cost})
-\item[RQ4 Robustness.] What happens when the model is wrong, or meets a workload family
-  it never saw? (\S\ref{sec:eval-robust})
+\item[RQ2 Effect in the kernel.] Inside a real kernel, does the policy beat \clock and
+  the strongest classical policies a kernel can run, across memory sizes?
+  (\S\ref{sec:eval-kernel})
+\item[RQ3 Cost.] Can it be computed without floating point, what does a decision cost
+  on the eviction path, and when does a saved fault pay for it? (\S\ref{sec:eval-cost})
+\item[RQ4 Robustness.] What happens on workloads it never saw, where does it fail, and
+  can a guard limit the damage? (\S\ref{sec:eval-robust})
 \end{description}

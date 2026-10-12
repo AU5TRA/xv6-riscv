@@ -2,13 +2,14 @@
 \section{Conclusion}
 \label{sec:conclusion}
 % One paragraph. Restate the insight sentence, the main result with its baseline, and
-% code status. No new claims. Draft NINTH (Step 5.9).
+% code status. No new claims. Draft NINTH (Step 5.9). Claim PENDING D2.
 % =============================================================================
 
 We asked whether a learned page-replacement policy is implementable inside an operating
-system kernel. For the workloads we studied, it is: \textbf{the kernel already sees
-enough}. Features computed from accessed-bit scans and refault bookkeeping match oracle
-features, an integer linear score over them loses nothing to floating point, and inside
-the kernel \sys incurs 3--46\% fewer page faults than \clock on workload variants it
-never saw in training. What remains is decision time, 11--13$\times$ \clock's per
-eviction. \todo{one line on sampling result if built; anonymized code link}
+system kernel. In xv6, it is: \textbf{the kernel already sees enough}. A small linear
+score over accessed-bit history and refault bookkeeping, computed in whole numbers,
+incurs 8.6\% fewer page faults than \clock at 10\% memory across 14 workloads and is level
+with ARC, the strongest classical policy we could run in the kernel; heavier models are
+not clearly better and cost 20--150$\times$ as much. What remains is decision time,
+55$\times$ \clock's per eviction, which sampling halves. \todo{claim pending D2;
+anonymized code link}
