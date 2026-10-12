@@ -138,7 +138,7 @@ A Kaggle machine is about 3.1 times slower than the thesis PC (use this for any 
 ### 8. Transfer checklist (for GawwyG)
 1. All work is committed on `GawwyDev`; nothing is pushed by Claude. Push and merge with the commands in `github.md` (fast-forward into `riscv`).
 2. Give AU5TRA: the repository (this branch), this file, `report/week_16_update/week_16_update_report.pdf`, and, outside git, the `traces2/` data if she needs to rebuild anything (4 GB; the result CSVs in git are enough to regenerate every table).
-3. D2 is decided (section 1) and the Twitter licence is checked. Still GawwyG's: OpenReview profiles (about 16 Oct), the author quota check, legal names and affiliations, whether the supervisor is an author, and pushing.
+3. D2 is decided (section 1) and the Twitter licence is checked. Still GawwyG's: the author quota check, legal names and affiliations, whether the supervisor is an author, committing or sending `cache_ext_notes.md`, and pushing. (GawwyG's OpenReview profile exists.)
 
 
 ---
