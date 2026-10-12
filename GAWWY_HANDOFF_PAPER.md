@@ -13,6 +13,22 @@ paper. Rough effort estimates are guesses; replace them with yours.
 **Read first**: `report/paper/paper-state.md`. Its "Numbers" table lists every number
 the paper quotes and its source file.
 
+**Picking this up.** `riscv`, `Austra-dev` and `GawwyDev` all point to the same
+commit on GitHub. Your branch only moves forward from your last push (`f83fa21`).
+The new commits add `report/paper/` and this file, and touch none of your files.
+
+```
+git fetch origin
+git checkout GawwyDev
+git pull --ff-only origin GawwyDev
+```
+
+* If you have local commits you never pushed, use `git pull origin GawwyDev` (a merge)
+  instead. Nothing you wrote was changed, so it should not conflict.
+* To build the paper: `cd report/paper && latexmk -pdf main.tex` (TeX Live or MiKTeX).
+  It reads your tables from `report/week_16_update/tables/`, so regenerate those first
+  if you want the PDF to show new numbers.
+
 ---
 
 ## 1. Dates (official; checked 2026-10-12)
