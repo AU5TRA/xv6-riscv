@@ -1,0 +1,203 @@
+% =============================================================================
+\section{\sys: Learning From What the Kernel Already Sees}
+\label{sec:design}
+% Budget: 3.0 pages. Draft SECOND (Step 5.2). One subsection per challenge, each
+% "Observation. -> Solution." Misprediction handling is its own subsection.
+% Self-check: a reader can follow ONE eviction step by step; the worst case under a
+% bad model is stated; every named component appears in the evaluation.
+% =============================================================================
+
+\subsection{Overview and Formulation}
+\label{sec:design-overview}
+
+\plan{Walk Figure~\ref{fig:overview} in decision order.
+\emph{Offline}: complete reference strings $\rightarrow$ replay under LRU at 5/10/20\%
+memory $\rightarrow$ record eviction decisions (candidates, features, label)
+$\rightarrow$ fit a linear scorer $\rightarrow$ select feature subset and probation on
+validation only $\rightarrow$ export integer weights.
+\emph{Online}: at each eviction the kernel scans the eligible resident pages, updates
+their counters, scores each with an integer dot product, protects pages in probation,
+and evicts the highest score (oldest load on a tie).}
+
+\plan{Formulation, and why this kind of ML. The policy imitates \belady: for each
+candidate it regresses $\log(1+d)$, where $d$ is the distance in references to the
+page's next use (capped at $2^{20}$), and evicts the candidate with the largest
+prediction. Supervised imitation fits because complete reference strings give exact
+labels offline and \belady is optimal for faults; reinforcement learning would need
+exploration inside a running kernel. Decisions compound, so every policy is judged by
+replaying complete streams, never by per-reference accuracy; on-policy data (DAgger)
+was tried and did not help (\S\ref{sec:eval-ablate}). Why linear: larger models did not
+pay (\S\ref{sec:eval-ablate}).}
+
+\begin{figure*}[t]
+\centering
+\figboxwide{1.7in}{Overview. Left (offline, host): traced workload $\rightarrow$
+reference string with R/W marks $\rightarrow$ LRU replay $\rightarrow$
+decision-point dataset (\belady label, recency-stratified candidates) $\rightarrow$
+ridge regression $\rightarrow$ nested selection on validation (subset $\times$
+probation) $\rightarrow$ integer weights (\texttt{mlweights.h} / \texttt{vmctl}).
+Right (online, kernel): fault $\rightarrow$ scan candidates (read/clear A, update
+counters) $\rightarrow$ features in Q8 $\rightarrow$ $\sum_j q_j X_j$ $\rightarrow$
+probation $\rightarrow$ victim $\rightarrow$ \todo{refault guard / \clock fallback}.}
+{to draw; single vector figure, the paper's mechanism figure}
+\caption{\plan{Takeaway: training is offline and uses the future; the kernel side is a
+scan it already performs plus a few integer multiply-adds per page.}}
+\label{fig:overview}
+\end{figure*}
+
+% -----------------------------------------------------------------------------
+\subsection{Features the Kernel Already Keeps}
+\label{sec:design-features}
+% Challenge C1 -> technique T1 -> ablation A1 (tier comparison, Table tab:tiers)
+
+\finding{Observation.} A kernel never sees individual accesses
+(\S\ref{sec:bg-mechanism}), so a model trained on per-access recency or frequency cannot
+be deployed as trained.
+
+\finding{Solution.} \sys uses only features a kernel can compute when it scans the
+resident pages at an eviction (tier \tierK), plus refault bookkeeping that Linux already
+keeps in its workingset shadow entries (tier \tierKp) (Table~\ref{tab:features}). Time is
+counted in scans, one per eviction. Counts enter as $\log(1+x)$ and are standardised.
+Oracle features (tier \tierF: exact recency, frequency, stack distance, write ratio)
+serve only as an ablation that bounds what extra information is worth.
+
+\begin{table}[t]
+\caption{Kernel-observable features. All are small per-page integers; the last column
+names the Linux state that already holds an equivalent.}
+\label{tab:features}
+\vskip 0.1in
+\begin{center}
+\begin{footnotesize}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{1.2in}>{\raggedright\arraybackslash}p{1.15in}@{}}
+\toprule
+Feature & Definition & Linux analogue \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{\tierK: from accessed/dirty-bit scans}}\\
+\feat{ref}      & A bit at this scan                     & young bit, PG\_referenced \\
+\feat{aging}    & 8-bit aging counter                    & -- \\
+\feat{sfreq}    & scans that found it accessed           & DAMON access count; MGLRU tiers \\
+\feat{idle}     & scans since last found accessed        & MGLRU generation age; DAMON age \\
+\feat{age}      & scans since it was loaded              & -- \\
+\feat{dirty}    & D bit                                  & PG\_dirty \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{\tierKp: refault bookkeeping}}\\
+\feat{refaults} & times evicted and faulted back         & workingset shadow entry \\
+\feat{rdist}    & evictions between its eviction and refault & workingset refault distance \\
+\bottomrule
+\end{tabular}
+\end{footnotesize}
+\end{center}
+\vskip -0.1in
+\end{table}
+% src: ML_REPORT section 4 and 9. \verify{Linux version numbers for MGLRU (merged 6.1?) and DAMON (5.15?)}
+
+% -----------------------------------------------------------------------------
+\subsection{Training on Decisions, Not References}
+\label{sec:design-train}
+% Challenge C3 -> technique T3 -> ablations A3 (v1 vs v2; probation sweep; DAgger)
+
+\finding{Observation.} A policy acts at an eviction, over the pages resident at that
+moment, and a naive sample of those pages almost never contains the page just used
+(\S\ref{sec:bg-naive}).
+
+\finding{Solution.} \sys trains on recorded eviction decisions. Every training and
+validation stream is replayed under LRU at 5, 10 and 20\% of its distinct pages; at a
+sample of evictions we record up to 32 resident candidates with their features and
+labels: always \belady's victim, always the four most recently accessed candidates
+(recency-stratified recording), and the rest uniformly. This raises the share of
+just-accessed rows from 0.6\% to 3.1\%. Second, a \emph{probation} rule: a page loaded
+fewer than $p$ scans ago is not evicted while an older candidate exists, which is
+\clock's second chance applied to a learned score. $p\in\{0,1,2,4\}$ is chosen per
+scope on validation. The result is 4.73M training rows over 357K decisions.
+\todo{recount if the 7 new families are added}
+% src: ML_REPORT 5.2, 7.2
+
+% -----------------------------------------------------------------------------
+\subsection{Integer-Only Scoring}
+\label{sec:design-int}
+% Challenge C2 -> technique T2 -> ablations A2 (float vs 4/8/12-bit; linear vs MLP)
+
+\finding{Observation.} xv6 saves no floating-point registers on a context switch, and a
+production kernel avoids floating point on the fault path.
+\verify{cite the Linux policy on kernel FPU use and its cost}
+
+\finding{Solution.} The score of a candidate page is
+\begin{equation}
+s(\text{page}) = \sum_{j\in S} q_j\, X_j(\text{page}), \qquad
+q_j = \operatorname{round}\!\left(\frac{w_j}{\sigma_j}\, 2^{b}\right),
+\label{eq:score}
+\end{equation}
+where $X_j$ is feature $j$ in Q8 fixed point, $S$ is the selected subset (1--5
+features), and the standardisation is folded into the weight. Means and the bias are the
+same for every candidate and drop out of the arg-max. $\log(1+x)$ comes from a 256-entry
+table plus a most-significant-bit search and a 1,024-entry mantissa table, within 1.04
+Q8 units of exact. The same header computes features in the kernel and in the
+simulator, so a model scores a page identically in both.
+% src: ML_REPORT 8, 8b
+
+% -----------------------------------------------------------------------------
+\subsection{When the Model Is Wrong}
+\label{sec:design-wrong}
+% Challenge C4 -> technique T4 -> ablation A4 (deliberately wrong models). NON-NEGOTIABLE.
+% Every accepted ML-for-OS paper has a design element here, not a sentence.
+
+\plan{State the worst case first, then the layers that bound it.}
+\begin{enumerate}
+\item \textbf{Correctness never depends on the model.} The score only orders eligible
+  candidates (the faulting process's own evictable frames). The kernel checks every
+  returned victim against that set and falls back to \clock if it is not in it (counted
+  as \texttt{policy\_fallbacks}). The same workload produces byte-identical output under
+  every policy (data-invariance suite, \S\ref{sec:impl}). A bad model costs
+  performance, not data. \todo{report policy\_fallbacks over the 231 runs (expected 0)}
+\item \textbf{Probation} keeps the newest pages out of the choice, removing the failure
+  of \S\ref{sec:bg-naive}.
+\item \textbf{Validation-only selection.} Many feature subsets are catastrophic
+  ($\geq3\times$ \clock on graph for 98--126 of 255 kernel subsets); feature subset and
+  probation are chosen jointly on validation, never on test or held-out streams.
+\item \textbf{Refault guard (to build).} \todo{design + implement: track the share of
+  victims that refault within $W$ evictions (\feat{rdist} is already computed); above a
+  threshold $\tau$, switch the process to \clock for $T$ evictions. Evaluate with
+  deliberately wrong models (negated weights, random weights, the catastrophic subsets)
+  and report how often it fires and what it costs.}
+\end{enumerate}
+\plan{If the guard is not built in time: say plainly that the only protection is
+selection and probation, show the worst case measured, and move the guard to
+\S\ref{sec:discussion}. Reviewers cap quality at 3 without a misprediction story.}
+
+% -----------------------------------------------------------------------------
+\subsection{Bounding the Decision Cost}
+\label{sec:design-cost}
+% Challenge C5 -> technique T5 -> ablation A5 (sample size k vs faults and ticks). OPTIONAL.
+
+\plan{The current \sys scores every eligible resident page (about 106) on every eviction,
+11--13$\times$ \clock's selection time (\S\ref{sec:eval-cost}). Scoring a random sample of
+$k$ candidates, or a batch from the oldest generation as MGLRU does, bounds the cost
+independently of the resident-set size.} \todo{build sampled scoring; sweep
+$k\in\{8,16,32,64,\text{all}\}$ in the simulator, then one kernel run per family.
+If not done: move to \S\ref{sec:discussion} as the main limitation.}
+
+% -----------------------------------------------------------------------------
+\begin{algorithm}[t]
+\caption{\sys victim selection (\texttt{choose\_ml}), one eviction}
+\label{alg:choose}
+\begin{algorithmic}
+\STATE {\bfseries Input:} eligible resident pages $C$, weights $q$, subset $S$, probation $p$, scan counter $t$
+\STATE $old \leftarrow$ false; \ $best \leftarrow \bot$
+\FOR{each page $c \in C$}
+  \STATE read and clear $A(c)$; update \feat{aging}, \feat{sfreq}, last-seen scan
+  \STATE {\bfseries if} $t - \mathrm{load}(c) \ge p$ {\bfseries then} $old \leftarrow$ true
+\ENDFOR
+\STATE flush the TLB once if any A bit was cleared
+\FOR{each page $c \in C$}
+  \IF{$old$ {\bfseries and} $t - \mathrm{load}(c) < p$}
+    \STATE skip $c$ \hfill (probation)
+  \ENDIF
+  \STATE $s_c \leftarrow \sum_{j\in S} q_j X_j(c)$ \hfill (integers, Q8)
+  \STATE keep $c$ if $s_c > s_{best}$, or equal and loaded earlier
+\ENDFOR
+\STATE \todo{refault guard: if tripped, return \clock's victim}
+\STATE {\bfseries return} $best$ \hfill (kernel validates it; \clock if invalid)
+\end{algorithmic}
+\end{algorithm}
+% src: kernel/vmpage.c choose_ml() (39 lines) and choose_policy_victim(); kernel/mlfeat.h (63 lines)

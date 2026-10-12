@@ -1,0 +1,27 @@
+% =============================================================================
+% APPENDIX -- uploaded as a SEPARATE file at submission. The main text must stand
+% alone: never rely on the appendix for a core claim, and check that every
+% "Appendix X" reference in the body points to something that exists here.
+% =============================================================================
+
+\section{Dataset}
+\label{app:data}
+\plan{Per-variant table: streams, splits, references, distinct pages, write share
+(ML\_REPORT \S3). Trace format; integrity checks; how held-out variants were chosen.
+Why lzw entered late (its original trace exceeded the maximum file size).}
+
+\section{Simulator Validation}
+\label{app:sim}
+\plan{All checks of ML\_REPORT \S5.1, with counts. Accessed/dirty-bit semantics follow
+the kernel (a faulted-in page starts with A set).}
+
+\section{Full Results}
+\label{app:results}
+\plan{Classical policies per split; all 15 oracle subsets; the distribution of the 255
+kernel subsets; the chosen model per scope and tier; integer precision; neural models
+(global and per-family); by-capacity results; per-stream kernel counters;
+kernel-vs-simulator ratios per policy.}
+
+\section{Reproducing the Results}
+\label{app:repro}
+\plan{Command sequence and run times (ML\_REPORT \S11), anonymized.}

@@ -1,0 +1,44 @@
+% =============================================================================
+\section{Discussion and Limitations}
+\label{sec:discussion}
+% Budget: 0.5 page. Draft EIGHTH (Step 5.8). FAQ form works well (uncertainty paper).
+% At least three honest limitations, each with a mitigation or future-work line.
+% =============================================================================
+
+\finding{Does this transfer to Linux?} Linux has the same limit for anonymous memory:
+the MMU sets accessed and dirty bits and the kernel samples them. It already keeps
+richer versions of the features that won here: \feat{idle} corresponds to a folio's
+MGLRU generation age, \feat{sfreq} to MGLRU tiers and DAMON's access counts,
+\feat{dirty} to \texttt{PG\_dirty}, and \feat{refaults}/\feat{rdist} to workingset
+shadow entries. A learned score would rank the folios of an MGLRU eviction batch with
+the same integer dot product. \todo{transfer evidence, smallest first: (a) replay the
+Redis and SQLite traces recorded on Linux with Valgrind~\citep{nethercote2007valgrind}
+through the simulator; (b) a Linux prototype on MGLRU. Without either, say plainly that
+Linux is a plan.}
+
+\finding{Why a teaching kernel?} \plan{The whole fault path is small and visible, runs
+are deterministic, and every decision can be traced and replayed, which is what made
+the simulator-to-kernel comparison possible. What differs from Linux: per-process
+(local) replacement rather than global or cgroup reclaim; one hart, so no lock
+contention on the eviction path; no page cache competing for memory; timing in QEMU.}
+
+\finding{Are the workloads realistic?} \plan{They are native stand-ins written after
+SQLite, Redis, graph analytics, sorting and dense linear algebra, calibrated against
+real traces of SQLite and Redis. They are not the applications themselves.}
+\todo{cite the calibration if it goes in the appendix}
+
+\finding{Limitations.}
+\begin{itemize}
+\item \textbf{Emulated time.} Selection cost is measured in emulated timer ticks, not
+  cycles on hardware. \todo{mitigation}
+\item \textbf{One memory level in the kernel.} Kernel runs use 10\% memory only;
+  simulation covers 5/10/20\%. \todo{run 5\%/20\% or keep as limitation}
+\item \textbf{Full scan.} \sys scores every eligible page on every eviction; sampling is
+  the obvious fix (\S\ref{sec:design-cost}).
+\item \textbf{Weight choice.} One global model loses on matmul; per-program weights exist,
+  but choosing them automatically, per program or per phase, is open.
+\item \textbf{Fragile selection.} Many feature subsets are worse than \clock and some are
+  catastrophic; any deployment needs validation on held-out behaviour, as here.
+\item \textbf{Traced data only.} Reference strings cover each workload's data arena, not
+  its code and stack pages (3--9 always-hot frames).
+\end{itemize}

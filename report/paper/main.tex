@@ -1,0 +1,95 @@
+%%%%%%%% Paper skeleton -- MLSys research track (2025 style file) %%%%%%%%%%%%%%
+%
+% STATUS: skeleton. Section headings, the claim each subsection makes, planned
+% figures/tables and visible TODOs. Numbers that already exist come from
+% report/ML_REPORT.md and report/results2/*.csv; each carries a "% src:" comment.
+% Nothing here is a new measurement. See paper-state.md and outline.md.
+%
+% Build:  latexmk -pdf main.tex      (MiKTeX or TeX Live)
+% Check:  python <skill>/scripts/check_draft.py main.tex
+%
+% Colour key in the PDF:
+%   red    [TODO: ...]  a missing number, experiment or decision
+%   blue   [Plan: ...]  what the paragraph must say; delete when drafted
+%   boxed  figure placeholders, with the data source and status
+%
+\documentclass{article}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+
+% Initial blind version for review:
+\usepackage{mlsys2025}
+% Camera-ready (only after acceptance):
+% \usepackage[accepted]{mlsys2025}
+
+\usepackage{xcolor}
+\usepackage{xspace}
+\input{macros}
+
+% Draft toggle: the appendix is a SEPARATE upload at submission time.
+% Keep true while drafting; set false for the submission PDF and build the
+% supplement from sections/appendix.tex.
+\newif\ifwithappendix
+\withappendixtrue
+
+\graphicspath{{figures/}{../figures2/}}
+
+\mlsystitlerunning{\sys: Learned Page Replacement from What the Kernel Already Sees}
+
+\begin{document}
+
+\twocolumn[
+% Working title (Step 5.10 of the skill drafts the title LAST; alternatives in paper-state.md)
+\mlsystitle{\sys: Learned Page Replacement from What the Kernel Already Sees}
+
+% Double-blind: the style hides authors unless [accepted]. Keep placeholders
+% here anyway so a stray build never leaks names.
+\begin{mlsysauthorlist}
+\mlsysauthor{Anonymous Author 1}{anon}
+\mlsysauthor{Anonymous Author 2}{anon}
+\end{mlsysauthorlist}
+\mlsysaffiliation{anon}{Anonymous Institution}
+% Corresponding author + e-mail: add only for camera-ready ([accepted]).
+% \mlsyscorrespondingauthor{Name}{email}
+
+\mlsyskeywords{Machine Learning for Systems, Operating Systems, Page Replacement, Learned Policies}
+
+\vskip 0.3in
+
+\begin{abstract}
+\input{sections/0-abstract}
+\end{abstract}
+]
+
+\printAffiliationsAndNotice{}
+
+\input{sections/1-introduction}
+\input{sections/2-background}
+\input{sections/3-design}
+\input{sections/4-implementation}
+\input{sections/5-evaluation}
+\input{sections/6-related}
+\input{sections/7-discussion}
+\input{sections/8-conclusion}
+
+% No acknowledgements in the blind version.
+
+\bibliography{references}
+\bibliographystyle{mlsys2025}
+
+\ifwithappendix
+\clearpage
+\appendix
+\input{sections/appendix}
+\fi
+
+\end{document}

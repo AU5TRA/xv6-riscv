@@ -1,0 +1,14 @@
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% One paragraph. Restate the insight sentence, the main result with its baseline, and
+% code status. No new claims. Draft NINTH (Step 5.9).
+% =============================================================================
+
+We asked whether a learned page-replacement policy is implementable inside an operating
+system kernel. For the workloads we studied, it is: \textbf{the kernel already sees
+enough}. Features computed from accessed-bit scans and refault bookkeeping match oracle
+features, an integer linear score over them loses nothing to floating point, and inside
+the kernel \sys incurs 3--46\% fewer page faults than \clock on workload variants it
+never saw in training. What remains is decision time, 11--13$\times$ \clock's per
+eviction. \todo{one line on sampling result if built; anonymized code link}

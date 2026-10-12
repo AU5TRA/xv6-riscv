@@ -1,0 +1,63 @@
+% =============================================================================
+\section{Implementation}
+\label{sec:impl}
+% Budget: 0.5-0.75 page. Draft THIRD (Step 5.3). Self-check: a reviewer can estimate
+% the overhead from this section alone; the simulator/real-kernel boundary is stated.
+% DOUBLE-BLIND: no names, lab URLs, or repository paths that identify the authors.
+% =============================================================================
+
+\finding{A paging layer for xv6.} Stock \xv~\citep{xv6} allocates every page eagerly and
+never evicts; it has no page-fault path for memory, no backing store and no
+replacement policy. We added demand paging, a raw swap area outside the file system
+(8,192 slots, 32\,MB), a frame table with per-process resident limits, FIFO, \clock,
+Aging and a decayed LFU, synchronous and asynchronous prefetch, an event tracer, and a
+control call (\texttt{vmctl}) that sets a process's limit, policy and weights:
+\todo{recount: about 3,400 kernel lines added across 34 files}. A 74-step regression
+matrix (stock usertests, randomised soaks, two CPU configurations, every policy and
+prefetch mode) passes, and the same workload produces byte-identical output under every
+policy.
+% src: docs/CHANGES-VS-STOCK-XV6.txt (3,050 lines at platform freeze); git diff --stat 7d01506..HEAD -- kernel = 3,416 insertions (includes VM_POLICY_ML)
+\plan{Say why xv6: the whole fault path is visible and small, experiments are
+deterministic and repeatable, and every decision can be traced. Say what is the same as
+Linux (A/D bits sampled by scans; refault bookkeeping) and what differs (per-process
+local replacement, one hart, no page cache pressure) (\S\ref{sec:discussion}).}
+
+\finding{\sys in the kernel.} \texttt{choose\_ml} (39 lines) scans the candidates as
+Aging already does and scores them with Equation~\ref{eq:score}; a 63-line header
+computes the Q8 features and is compiled into both the kernel and the simulator. Each
+resident page carries five extra fields (load scan, last-seen scan, sampled count,
+refault count, refault distance), and each swap slot keeps the owner's scan count at
+write-out and the page's refault count, the information Linux keeps in a workingset
+shadow entry. Weights are per process: the default is the global \tierKKp model
+(\feat{idle}, \feat{dirty}, \feat{refaults}, \feat{rdist}; probation 4), and
+\texttt{vmctl} loads another set, inherited across \texttt{fork} and \texttt{exec}.
+A model is \todo{N} bytes of weights plus \todo{N}\,KB of tables.
+\todo{bytes per resident page and per swap slot}
+% src: kernel/vmpage.c, kernel/mlfeat.h, kernel/mlweights.h (4 features, 16-bit qa)
+
+\finding{Complete reference strings.} Each workload routes every access to its data
+through one accessor that records \texttt{R} or \texttt{W} and the page number, hit or
+miss, so the stream is a complete reference string, which \belady labels require. A
+stream counts only if the run passes, the kernel reports the number of references and
+bytes written, the extracted file matches both exactly, repeats are byte-identical, and
+a host re-execution of the workload produces the same string.
+\todo{raise MAXFILE to 64\,MB via doubly-indirect blocks: mention only if space}
+% src: ML_REPORT 2.2-2.3; memory notes on trace integrity (TRACEEND, host models)
+
+\finding{A validated simulator.} Feature selection needs tens of thousands of full
+replays, so it runs in a C simulator. FIFO, LRU and \belady match an independent
+implementation on all 534 stream--capacity cells; FIFO, \clock, Aging and LFU match a
+naive re-implementation of the kernel logic in faults and write-backs; every \tierK and
+\tierKp feature matches it on 11,792 evictions $\times$ 53 candidates; and the C scorer
+reproduces each trained model's predictions (maximum error $3\times10^{-6}$ for linear
+models). \S\ref{sec:eval-kernel} compares it with the kernel run for run.
+% src: ML_REPORT 5.1
+
+\finding{Availability.} The kernel, workloads, traces, simulator and training pipeline
+will be released as open source and submitted for artifact evaluation. \todo{anonymized code and data link for review (e.g.\ an anonymous
+mirror); the repository history and names must not identify the authors}
+
+\finding{Training cost.} On one desktop (6-core CPU, one consumer GPU): building the
+decision datasets takes 3 minutes, the full linear sweep 75 minutes, neural training 25
+minutes. The 231 kernel runs take 5.5 hours of emulator time across six lanes.
+% src: ML_REPORT 11
