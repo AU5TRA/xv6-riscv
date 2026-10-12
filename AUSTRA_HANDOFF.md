@@ -104,7 +104,7 @@ Exact counts from `report/results2/cost_grid.csv` (`tools/ml2/cost_grid.py --siz
 ### 4. What is not done
 * The cost of a real xv6 page fault on real hardware (the whole path, not only the device read). Device read latency and the speed of the scoring code are now measured (see the break-even row); xv6 on QEMU cannot give the rest.
 * More than one stream per variant at 5% and 20% memory; more seeds for the heavier models (only ten streams). Deferred.
-* Related work (a proper literature search; only notes in `cache_ext_notes.md`, which is not in git), paper-quality figures in the venue's style, venue and format, one clean README for the repository (this repo has many handoff files), author list and credits.
+* Related work (a proper literature search; only notes in `cache_ext_notes.md`, now in git), paper-quality figures in the venue's style, venue and format, one clean README for the repository (this repo has many handoff files), author list and credits.
 * The three classical policies were run only in the accessed-bit form. A per-hit form is impossible in a kernel that does not see hits; this is a limit to state, not a task.
 
 ### 5. Suggested outline and where the material is
@@ -136,7 +136,7 @@ Kaggle (CPU only, no GPU, Internet on, 4 cores): one folder per round, `kaggle_p
 A Kaggle machine is about 3.1 times slower than the thesis PC (use this for any ETA). Lessons: Kaggle datasets drop the executable bit (never ship a compiled host tool in the package); a result file is only trustworthy if the notebook's self test printed "faults 10511, expected 10511".
 
 ### 8. Transfer checklist (for GawwyG)
-1. All work is committed on `GawwyDev`; nothing is pushed by Claude. Push and merge with the commands in `github.md` (fast-forward into `riscv`).
+1. All work is committed on `riscv` (and `GawwyDev` was kept at the same commit up to 2026-10-12); nothing is pushed by Claude. Push and merge with the commands in `github.md` (fast-forward into `riscv`).
 2. Give AU5TRA: the repository (this branch), this file, `report/week_16_update/week_16_update_report.pdf`, and, outside git, the `traces2/` data if she needs to rebuild anything (4 GB; the result CSVs in git are enough to regenerate every table).
 3. D2 is decided (section 1) and the Twitter licence is checked. Still GawwyG's: the author quota check, legal names and affiliations, whether the supervisor is an author, committing or sending `cache_ext_notes.md`, and pushing. (GawwyG's OpenReview profile exists.)
 
