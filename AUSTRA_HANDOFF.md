@@ -59,11 +59,13 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 * The learned policy has specific failures that repeat: matmul at 5% (1.72, with only 2 frames), SpMV at 5 and 10% (1.10, 1.12), graph with the global weights at 5 and 20% (1.01, 1.40; graph weights of its own: 0.60 at 10%).
   It is very good on btree, kv, heap programs (0.56 to 0.9), and the hash join at 20% (0.55).
 
-### 1. Open decision D2 (GawwyG has not decided): the claim, the venue, the authors
-* **Settled, write it now**: background, the workloads, the method (held-out streams, validation-only selection, exact reference models, filled-memory start, intervals), the results above, cost, the limits.
-* **Leave as marked placeholders**: title, abstract, framing of the introduction and conclusion, venue and format, author list and credits (AU5TRA's programs and Kaggle work).
-* **Proposed claim to confirm with GawwyG before it goes into the abstract**: *a small linear score over kernel-visible signals computed with whole numbers beats Clock in xv6, and is level with or better than the best classical policy we could run in the kernel (ARC); bigger models are not clearly better and cost 20 to 150 times more per eviction.* Do not write "beats ARC".
-* **Things a reviewer will ask** (the text should already say them): the fault cost was assumed, not measured; one operating system (xv6 on QEMU); fourteen workloads, some close variants, 5% and 20% use one stream per variant (51 streams); the three classical policies are adapted forms (accessed bits read at evictions), not the published algorithms; "trained on all workloads" means the six original ones.
+### 1. D2 decided (2026-10-12): the claim, the venue, the authors
+Full text and the Twitter licence check: `GAWWY_HANDOFF_PAPER.md` ("D2 decided", "Twitter licence"). Summary:
+* **Claim**: a small linear score over kernel-visible signals, computed with whole numbers, makes fewer faults than Clock in xv6 (0.914 [0.85, 0.98] at 10% memory; 0.976 and 0.882 at 5% and 20%, intervals include 1) and is level with or better than ARC (1.031, 0.970, 0.896; no interval excludes 1); bigger models are level with it and cost 20 to 150 times more per decision; whether the saving pays depends on the device and core (measured). Never write "beats ARC".
+* **Title**: "Learned Page Replacement from What the Kernel Already Sees"; no system name ("Glimpse" dropped). **Venue**: MLSys 2027, research track, 30 Oct 2026 19:00 UTC. **Cut-off for new runs**: 25 Oct (agreed).
+* **Authors**: GawwyG and AU5TRA, equal contribution; legal names and affiliations to be supplied by GawwyG; whether the supervisor is an author is not decided and must be before 19 Oct. AI assistant: not an author, disclose as the venue requires.
+* **Twitter traces**: CC BY 4.0 (verified); cite Yang et al. OSDI 2020 and cache_ext, say the replays are sampled and cut, release only derived streams under CC BY with the change note.
+* **Things a reviewer will ask** (the text should already say them): the three classical policies are adapted forms (accessed bits read at evictions), not the published algorithms; one operating system (xv6 on QEMU); "trained on all workloads" means the six original ones; the heavier models ran on ten streams; the device latency was measured on one SSD and one hard disk (a device read, not an xv6 fault) and the native speed on one desktop core.
 
 ### 2. Everything measured, with its status
 | Result | Status | Where |
@@ -102,7 +104,7 @@ Exact counts from `report/results2/cost_grid.csv` (`tools/ml2/cost_grid.py --siz
 ### 4. What is not done
 * The cost of a real xv6 page fault on real hardware (the whole path, not only the device read). Device read latency and the speed of the scoring code are now measured (see the break-even row); xv6 on QEMU cannot give the rest.
 * More than one stream per variant at 5% and 20% memory; more seeds for the heavier models (only ten streams). Deferred.
-* Related work (a proper literature search; only notes in `cache_ext_notes.md`, which is not in git), paper-quality figures in the venue's style, venue and format, licence check of the Twitter data before releasing derived streams, one clean README for the repository (this repo has many handoff files), author list and credits.
+* Related work (a proper literature search; only notes in `cache_ext_notes.md`, which is not in git), paper-quality figures in the venue's style, venue and format, one clean README for the repository (this repo has many handoff files), author list and credits.
 * The three classical policies were run only in the accessed-bit form. A per-hit form is impossible in a kernel that does not see hits; this is a limit to state, not a task.
 
 ### 5. Suggested outline and where the material is
@@ -136,7 +138,7 @@ A Kaggle machine is about 3.1 times slower than the thesis PC (use this for any 
 ### 8. Transfer checklist (for GawwyG)
 1. All work is committed on `GawwyDev`; nothing is pushed by Claude. Push and merge with the commands in `github.md` (fast-forward into `riscv`).
 2. Give AU5TRA: the repository (this branch), this file, `report/week_16_update/week_16_update_report.pdf`, and, outside git, the `traces2/` data if she needs to rebuild anything (4 GB; the result CSVs in git are enough to regenerate every table).
-3. D2 (claim, venue, authors) and the licence check of the Twitter data are GawwyG's to settle before submission.
+3. D2 is decided (section 1) and the Twitter licence is checked. Still GawwyG's: OpenReview profiles (about 16 Oct), the author quota check, legal names and affiliations, whether the supervisor is an author, and pushing.
 
 
 ---
