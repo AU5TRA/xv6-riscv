@@ -287,7 +287,84 @@ def main_more():
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the extra 5% / 20% streams")
 
 
+MODEL_RATIO = {"global@32": 1.0, "global@16": 1.1, "cnn-all": 1.71, "mlp-all": 2.17, "attention-all": 1.71, "trees-all": 1.13, "ranktrees-all": 1.17}
+# kernel wall time of a run relative to the Clock run of the same stream at 10% memory (median over the ten streams the heavier models ran on;
+# global@32 / global@16 over the streams they ran on). Used only to balance the work.
+
+
+def costs_models(skip=()):
+    """R1 + R2 of the paper handoff: the sampled linear scores and the five heavier models on every stream at 10% memory that does not have them yet.
+    One item = one stream with the models it still lacks."""
+    loc, short, have = {}, set(), set()
+    for r in csv.DictReader(open(R / "kernel_eval_all.csv")):
+        if r["status"] != "ok":
+            continue
+        if r["policy"] == "clock" and r["fraction"] == "0.1":
+            loc[r["stem"]] = float(r["wall_s"]) if r["wall_s"] else 600.0
+            if r["accesses"]:
+                short.add(r["stem"])
+        if r["policy"] == "ml" and r["fraction"] == "0.1":
+            have.add((r["stem"], r["model"]))
+    for f in R.glob("kaggle_*_models.csv"):
+        for r in csv.DictReader(open(f)):
+            if r["status"] == "ok":
+                have.add((r["stem"], r["model"]))
+    items = {}
+    for st, w in loc.items():
+        if st in skip:
+            continue
+        miss = [m for m in MODEL_RATIO if (st, m) not in have]
+        if miss:
+            items[st] = (sum(w * MODEL_RATIO[m] for m in miss) * KAGGLE_SLOWDOWN / 3600, miss)
+    return items, short
+
+
+def main_models():
+    argv = __import__("sys").argv
+    skip = tuple(argv[argv.index("--skip") + 1].split(",")) if "--skip" in argv else ()
+    items, short = costs_models(skip)
+    bins = {n: {"lanes": 4, "work": 0.0, "models": []} for n in ("k1", "k2", "k3", "k4")}
+    bins["local"] = {"lanes": 6 * KAGGLE_SLOWDOWN, "work": 0.0, "models": []}
+    for st, (h, miss) in sorted(items.items(), key=lambda kv: -kv[1][0]):
+        b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
+        b["work"] += h
+        b["models"].append([st, miss])
+    for n, b in bins.items():
+        print(f"{n} {b['lanes']:.1f} lanes, {b['work']:5.1f} lane-h at Kaggle speed -> at least {b['work'] / b['lanes']:.1f} h; {len(b['models'])} streams, {sum(len(m) for _, m in b['models'])} runs")
+    def groups(lst):
+        g = collections.defaultdict(list)
+        for st, miss in lst:
+            g[(tuple(miss), st in short)].append(st)
+        return g
+    sh = ["#!/bin/bash", "# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_models.csv", "cd \"$(dirname \"$0\")/../../tools/ml2\"",
+          "export KERNEL_EVAL_OUT=kernel_eval_models.csv KERNEL_EVAL_LANES=/tmp/xv6models", "PY=${PY:-python3}"]
+    for (miss, is_short), sts in sorted(groups(bins["local"]["models"]).items()):
+        sh.append(f'$PY -u kernel_eval.py --lanes 6 --fracs 0.1 {"--accesses 50000 " if is_short else ""}--only "{",".join(x + "$" for x in sts)}" --splits test,heldout --models {",".join(miss)} --timeout 40000')
+    (PK / "local_run.sh").write_text("\n".join(sh) + "\n")
+    out = PK / "xv6_package.tar.gz"
+    skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
+    def keep(ti):
+        n = ti.name
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img") or n.endswith("/mkfs/mkfs"):
+            return None
+        return ti
+    with tarfile.open(out, "w:gz") as t:
+        for p in ("Makefile", "kernel", "user", "mkfs", "tools/ml2/kernel_eval.py", "tools/run_xv6_tests.py", "tools/extract_file.py",
+                  "tools/streams_manifest.tsv", "README", "corpus.txt", "corpus1.txt", "corpus2.txt", "corpus3.txt", "corpus4.txt", "corpus5.txt"):
+            if (ROOT / p).exists():
+                t.add(ROOT / p, arcname=f"xv6/{p}", filter=keep)
+        t.add(ROOT / "traces2/ML/index.json", arcname="xv6/traces2/ML/index.json")
+    exp = json.load(open(PK / "plan.json"))["selftest"]
+    tpl = (Path(__file__).parent / "notebook_template.py").read_text()
+    for i in (1, 2, 3, 4):
+        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "models": bins[f"k{i}"]["models"], "short": sorted(short), "selftest": exp}, indent=1)
+        (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
+    print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the sampled linear scores and the heavier models")
+
+
 def main():
+    if "--models-all" in __import__("sys").argv:
+        return main_models()
     if "--more-streams" in __import__("sys").argv:
         return main_more()
     if "--classic" in __import__("sys").argv:
