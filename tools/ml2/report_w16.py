@@ -14,7 +14,7 @@ R = ps.ROOT / "report" / "results2"
 OUT = ps.ROOT / "report" / "week_16_update" / "tables"
 W15 = ps.ROOT / "report" / "week_15_update" / "tables"
 NAME = {"arck": "ARC", "lhd": "LHD", "s3fifo": "S3-FIFO", "ml:global": "linear, global", "ml:cnn-all": "CNN", "ml:mlp-all": "deeper MLP",
-        "ml:attention-all": "set-attention", "ml:trees-all": "boosted trees", "ml:ranktrees-all": "ranking trees", "clock": "Clock"}
+        "ml:attention-all": "set-attention", "ml:trees-all": "boosted trees", "ml:ranktrees-all": "ranking trees", "clock": "Clock", "ml:global@32": "linear, 32 sampled", "ml:global@16": "linear, 16 sampled"}
 
 
 def tab(rows, head):
@@ -28,8 +28,11 @@ def ci_table():
     rows = list(csv.DictReader(open(R / "kernel_ci_classic.csv")))
     d = {(r["policy"], r["against"], r["fraction"]): r for r in rows}
     pairs = [("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"), ("ml:global", "arck"), ("ml:global", "lhd"),
+             ("ml:global@32", "clock"), ("ml:global@16", "clock"), ("ml:global@32", "ml:global"), ("ml:global@16", "ml:global"),
+             ("ml:cnn-all", "clock"), ("ml:mlp-all", "clock"),
              ("ml:cnn-all", "arck"), ("ml:mlp-all", "arck"), ("ml:attention-all", "arck"), ("ml:trees-all", "arck"),
-             ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global")]
+             ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global"), ("ml:attention-all", "ml:global"),
+             ("ml:trees-all", "ml:global"), ("ml:ranktrees-all", "ml:global")]
     body = []
     for a, b in pairs:
         line = [f"{NAME[a]} against {NAME[b]}"]

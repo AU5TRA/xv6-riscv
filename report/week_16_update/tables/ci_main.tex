@@ -8,11 +8,20 @@ S3-FIFO against Clock & 1.086 [1.00, 1.22] & 1.016 [0.96, 1.07] & 1.086 [0.98, 1
 linear, global against Clock & 0.976 [0.90, 1.09] & \best{0.914 [0.85, 0.98]} & \best{0.882 [0.77, 1.00]} \\
 linear, global against ARC & 1.031 [0.97, 1.13] & 0.970 [0.92, 1.01] & 0.896 [0.77, 1.03] \\
 linear, global against LHD & 0.972 [0.91, 1.06] & 0.961 [0.89, 1.04] & 0.929 [0.80, 1.09] \\
+linear, 32 sampled against Clock & -- & \best{0.912 [0.86, 0.96]} & -- \\
+linear, 16 sampled against Clock & -- & \best{0.926 [0.88, 0.97]} & -- \\
+linear, 32 sampled against linear, global & -- & 0.998 [0.97, 1.02] & -- \\
+linear, 16 sampled against linear, global & -- & 1.013 [0.98, 1.04] & -- \\
+CNN against Clock & 0.932 [0.86, 1.00] & \best{0.914 [0.84, 0.97]} & \best{0.829 [0.68, 0.95]} \\
+deeper MLP against Clock & 0.954 [0.87, 1.06] & \best{0.912 [0.84, 0.97]} & \best{0.838 [0.70, 0.94]} \\
 CNN against ARC & 0.999 [0.96, 1.04] & 0.969 [0.90, 1.02] & 0.864 [0.70, 1.02] \\
 deeper MLP against ARC & 1.024 [0.96, 1.10] & 0.968 [0.90, 1.02] & 0.873 [0.71, 1.01] \\
 set-attention against ARC & \best{0.965 [0.94, 0.98]} & 0.962 [0.88, 1.02] & 0.879 [0.72, 1.02] \\
 boosted trees against ARC & 0.997 [0.97, 1.02] & 1.029 [0.97, 1.09] & 0.901 [0.72, 1.05] \\
 CNN against linear, global & 0.981 [0.90, 1.05] & 1.000 [0.94, 1.06] & 1.028 [0.93, 1.13] \\
 deeper MLP against linear, global & 1.006 [0.97, 1.04] & 0.998 [0.94, 1.06] & 1.039 [0.96, 1.13] \\
+set-attention against linear, global & 0.948 [0.87, 1.01] & 0.992 [0.93, 1.05] & 1.046 [0.95, 1.14] \\
+boosted trees against linear, global & 0.979 [0.89, 1.05] & 1.061 [1.01, 1.12] & 1.073 [0.98, 1.17] \\
+ranking trees against linear, global & 1.149 [0.96, 1.44] & 1.476 [1.05, 2.42] & 1.092 [0.99, 1.21] \\
 \bottomrule
 \end{tabular}

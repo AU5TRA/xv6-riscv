@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  12 OCT 2026 18:00
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  13 OCT 2026 23:17
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -572,8 +572,8 @@ LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 4
 (/usr/share/texmf/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 6
-8.
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 7
+3.
 
 (/usr/share/texmf/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
@@ -592,17 +592,35 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <5> on input line 1.
 )
-(./tables/kmain_A_01.tex) (./tables/kmain_A_02.tex) [2] (./tables/ci_main.tex)
-(./tables/kmain_B_005.tex) (./tables/kmain_B_01.tex) (./tables/kmain_B_02.tex)
+(./tables/kmain_A_01.tex) (./tables/kmain_A_02.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[2] (./tables/ci_main.tex) (./tables/kmain_B_005.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/kmain_B_01.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/kmain_B_02.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 [3] (./tables/trainedall.tex
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <9> on input line 1.
-) (./tables/cost.tex) [4]
-(./tables/model_comparison.tex) [5] (./tables/transfer.tex) (./tables/lecar.tex
-) [6{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}] [7]
+) (./tables/cost.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[4] [5] (./tables/model_comparison.tex) (./tables/transfer.tex)
+(./tables/lecar.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[6{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}] [7]
 (./week_16_update_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
@@ -612,11 +630,11 @@ Package rerunfilecheck Info: File `week_16_update_report.out' has not changed.
 (rerunfilecheck)             Checksum: 5EBF1FE6E4B57856549994BF6DCDD95E;1826.
  ) 
 Here is how much of TeX's memory you used:
- 14409 strings out of 476182
- 231444 string characters out of 5795595
- 1969975 words of memory out of 5000000
+ 14417 strings out of 476182
+ 231520 string characters out of 5795595
+ 1975975 words of memory out of 5000000
  35970 multiletter control sequences out of 15000+600000
- 631254 words of font info for 165 fonts, out of 8000000 for 9000
+ 631599 words of font info for 169 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  75i,10n,79p,1406b,576s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
@@ -627,7 +645,7 @@ texmf/fonts/type1/public/lm/lmr5.pfb></usr/share/texmf/fonts/type1/public/lm/lm
 r7.pfb></usr/share/texmf/fonts/type1/public/lm/lmr8.pfb></usr/share/texmf/fonts
 /type1/public/lm/lmr9.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy5.pfb></u
 sr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
-Output written on week_16_update_report.pdf (7 pages, 356170 bytes).
+Output written on week_16_update_report.pdf (7 pages, 358264 bytes).
 PDF statistics:
  163 PDF objects out of 1000 (max. 8388607)
  127 compressed objects within 2 object streams

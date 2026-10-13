@@ -52,9 +52,14 @@ program's pages. Intervals are 95\% intervals from resampling the workloads, the
 \item \textbf{Learned against the best classical policy.} The linear model against ARC: 1.031, 0.970 and 0.896 at 5, 10 and 20\% memory; no interval excludes 1. The gap
   moves in the learned model's favour as memory grows. \textbf{We have not shown that a learned policy beats ARC on average}; we have shown that it beats Clock at 10\%, and
   that it is at least level with ARC.
-\item \textbf{Heavier models.} The five kinds trained on all workloads (CNN, deeper MLP, set-attention, boosted trees, ranking trees) are level with the linear model at 5 and 10\%,
-  and (on ten streams) 10 to 14\% better than ARC at 20\% memory, but with intervals that include 1. They cost 20 to 150 times the linear model per eviction
-  (Section~\ref{sec:cost}). Ranking trees are worse than Clock at 5 and 10\% (1.09, 1.40) and 0.88 at 20\%.
+\item \textbf{Heavier models.} The five kinds trained on all workloads (CNN, deeper MLP, set-attention, boosted trees, ranking trees) were run on all 74 streams at 10\% memory
+  (and on ten streams at 5 and 20\%). At 10\% the CNN, the MLP and set-attention are level with the linear model (1.000, 0.998 and 0.992; every interval contains 1), and the CNN and the MLP
+  are better than Clock (0.914 and 0.912, intervals below 1). Boosted trees are slightly worse than the linear model (1.061, interval 1.01 to 1.12) and ranking trees clearly worse (1.476, 1.05 to 2.42).
+  On ten streams at 20\% memory the first three are 12 to 14\% better than ARC, but with intervals that include 1. They cost 20 to 150 times the linear model per eviction
+  (Section~\ref{sec:cost}), so we found no reason to prefer them.
+\item \textbf{Looking at fewer candidates costs little.} The linear score scanning only 32 randomly chosen candidates per eviction is level with scanning all of them
+  (0.998 of the full score, interval 0.975 to 1.017) and still beats Clock (0.912, interval 0.86 to 0.97) at about half the cost (11\,300 instead of 22\,800 instructions at 68 candidates). With 16 candidates it is 1.3\% worse than the full score (1.013, 0.98 to 1.04) and still beats Clock
+  (0.926, 0.88 to 0.98) at a quarter of the cost (5\,700 instructions). All 74 streams, 10\% memory.
 \item \textbf{Training on all workloads is the fair test.} Trained on one workload, the five kinds are mostly worse than when trained on all (set-attention 1.48 against 0.90 in the simulator);
   models trained on one workload answer a different question and are kept only as a side result.
 \item \textbf{The kernel agrees with the simulator.} For the three new policies, kernel faults divided by simulator faults are 0.995 (ARC), 1.014 (S3-FIFO) and 0.984 (LHD), geometric mean over 74 streams at 10\% memory; the median stream is within 1.5\%.
@@ -116,39 +121,40 @@ a result for this adapted form, not for the original algorithm.
 \begin{table}[h]
 \centering\footnotesize
 \input{tables/ci_main}
-\caption{The comparisons that matter, with 95\% intervals (resampling workloads, then streams). Bold: the whole interval is below 1. The first four rows use all streams; the rows with CNN, MLP, set-attention and trees use the ten streams those models were run on.}
+\caption{The comparisons that matter, with 95\% intervals (resampling workloads, then streams). Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the rows for the heavier models (CNN, MLP, set-attention, trees) use only the ten streams they were run on there, and the sampled linear scores were run at 10\% only.}
 \label{tab:ci}
 \end{table}
 
 \textbf{Reading the intervals.} The intervals are wide because the workloads differ a lot, and only 14 workloads are resampled. Bold entries are the ones we would write down as ``better'': ARC against Clock at 5 and 10\%, the linear model against Clock at 10\%,
-and set-attention against ARC at 5\% (on ten streams; it is worse than Clock at 10\%, so we do not rely on it). Everything else is ``level, or too uncertain''.
+the 32- and 16-candidate linear scores against Clock at 10\%, the CNN and MLP against Clock at 10\% (and at 20\% on ten streams), and set-attention against ARC at 5\% (ten streams; it is not better than ARC at 10\%, so we do not rely on it).
+Two comparisons go the other way: boosted trees and ranking trees are worse than the linear model at 10\% (the intervals lie above 1). Everything else is ``level, or too uncertain''.
 
 \section{The models trained on all workloads}
 \label{sec:nets}
 
-Five kinds of heavier model were trained on all workloads and put in the kernel: a CNN over the aging bits, a deeper MLP, set-attention, boosted trees and ranking boosted trees. They were run on ten streams (one per variant of ten workloads) at all three sizes.
+Five kinds of heavier model were trained on all workloads and put in the kernel: a CNN over the aging bits, a deeper MLP, set-attention, boosted trees and ranking boosted trees. They were run on all 74 streams at 10\% memory, and on ten streams (one per variant of ten workloads) at 5 and 20\%.
 
 \begin{table}[h]
 \centering\scriptsize
 \resizebox{\linewidth}{!}{\input{tables/kmain_B_005}}
-\caption{5\% memory, the ten streams the heavier models were run on. Columns as in the main tables; some workloads are missing because they have no stream here.}
+\caption{5\% memory, the ten streams the heavier models were run on there. Columns as in the main tables; some workloads are missing because they have no stream here.}
 \end{table}
 \begin{table}[h]
 \centering\scriptsize
 \resizebox{\linewidth}{!}{\input{tables/kmain_B_01}}
-\caption{10\% memory, same layout.}
+\caption{10\% memory, all 74 streams, same layout. The mean is over the 14 workloads.}
 \end{table}
 \begin{table}[h]
 \centering\scriptsize
 \resizebox{\linewidth}{!}{\input{tables/kmain_B_02}}
-\caption{20\% memory, same layout.}
+\caption{20\% memory, same layout as 5\% (ten streams).}
 \end{table}
 
 \begin{itemize}
-\item At 5\% the CNN, boosted trees and set-attention are within a few points of ARC (0.93, 0.93, 0.90 against 0.93); at 10\% the CNN and the MLP match the global linear model (ratios 1.003 and 1.000, intervals 0.93 to 1.07);
+\item At 5\% the CNN, boosted trees and set-attention are within a few points of ARC (0.93, 0.93, 0.90 against 0.93); at 10\% (74 streams) the CNN, the MLP and set-attention match the global linear model (ratios 1.000, 0.998 and 0.992, intervals 0.93 to 1.06);
   at 20\% every kind except ranking trees is about 10 to 14\% better than ARC on these streams, but the intervals include 1.
-\item \textbf{Ranking trees are the one kind that loses} (1.09 and 1.40 against Clock at 5 and 10\%; 32 times Clock's faults on SpMV at 10\%).
-\item Set-attention is the least stable: 0.90, 0.96 and 0.84 against the others' steadier numbers; earlier work found its result depends strongly on what is in memory at the start.
+\item \textbf{Ranking trees are the one kind that loses} (1.09 against Clock at 5\% on ten streams; 1.35 at 10\% on all 74, with graph at 10.5 times Clock's faults and SpMV at 5.8 times).
+\item Set-attention is the least stable: 0.90, 0.91 and 0.84 against the others' steadier numbers; earlier work found its result depends strongly on what is in memory at the start.
 \item \textbf{Trained on one workload instead} (the five were first built that way) the picture is worse for four of the five kinds (simulator, 24 cells, faults against Clock):
 \end{itemize}
 
@@ -212,9 +218,9 @@ and capacity cliffs explain most of the remaining differences. Earlier work foun
 \begin{itemize}
 \item \textbf{One operating system.} xv6 on QEMU, a teaching kernel with a single-threaded benchmark process at a time. Nothing here says what happens in Linux.
 \item \textbf{Time is measured only in parts.} Instruction counts are exact. Device read latency was measured on one SSD and one hard disk (a device read, not a full xv6 fault, and for the hard disk over a 1\,GB file), and the speed of the scoring code on one desktop core, without the kernel's page-table walk, so it is a lower bound. How long a real xv6 fault takes on real hardware was not measured.
-\item \textbf{Fourteen workloads.} Some are close variants of each other, and the five heavier models were run on only ten streams. The intervals show the resulting uncertainty; most differences between the best policies are inside it.
+\item \textbf{Fourteen workloads.} Some are close variants of each other, and the five heavier models were run on only ten streams at 5 and 20\% memory (all 74 at 10\%). The intervals show the resulting uncertainty; most differences between the best policies are inside it.
 \item \textbf{Adapted forms.} ARC, LHD and S3-FIFO ran in the form a kernel can run (accessed bits read at evictions), not as published; S3-FIFO's result in particular should not be quoted as the algorithm's.
-\item \textbf{``All workloads'' means the six original ones} (btree, graph, kv, LZW, matmul, sort), for the global linear model and the five heavier kinds alike; the heap, hash join, SpMV, pointer chase, Bloom filter, pattern and application programs were not in training. The heavier models were run on only ten streams, so their intervals are the widest.
+\item \textbf{``All workloads'' means the six original ones} (btree, graph, kv, LZW, matmul, sort), for the global linear model and the five heavier kinds alike; the heap, hash join, SpMV, pointer chase, Bloom filter, pattern and application programs were not in training. At 5 and 20\% memory the heavier models were run on only ten streams, so their intervals there are the widest.
 \item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph with the global weights at 20\%); the tables show where.
 \end{itemize}
 
