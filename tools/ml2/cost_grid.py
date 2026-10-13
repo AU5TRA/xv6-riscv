@@ -26,7 +26,7 @@ ROOT = ke.ROOT
 OUT = ROOT / "report" / "results2" / "cost_grid.csv"
 POLICIES = [("fifo", ""), ("clock", ""), ("aging", ""), ("lfu", ""), ("ml", "global"), ("ml", "global@32"), ("ml", "global@16"),
             ("ml", "cnn-kv"), ("ml", "mlp-kv"), ("ml", "trees-kv"), ("ml", "attention-graph"), ("ml", "ranktrees-graph"),
-            ("arck", ""), ("s3fifo", ""), ("lhd", ""), ("ml", "cnn-all"), ("ml", "mlp-all"), ("ml", "trees-all"), ("ml", "attention-all"),
+            ("arck", ""), ("s3fifo", ""), ("lhd", ""), ("lecar", ""), ("ml", "cnn-all"), ("ml", "mlp-all"), ("ml", "trees-all"), ("ml", "attention-all"),
             ("ml", "ranktrees-all"), ("ml", "cnn-kv@32"), ("ml", "mlp-kv@32"), ("ml", "trees-kv@32"), ("ml", "attention-graph@32"), ("ml", "ranktrees-graph@32")]
 HEADER = ["frames", "policy", "model", "evictions", "candidates_per_eviction", "collect_ticks_per_eviction",
           "select_ticks_per_eviction", "path_ticks_per_eviction", "select_instructions_per_eviction",

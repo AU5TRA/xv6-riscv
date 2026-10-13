@@ -17,7 +17,7 @@ import numpy as np
 import pagesim as ps
 
 R = ps.ROOT / "report" / "results2"
-PAIRS = [("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"),
+PAIRS = [("lecar", "clock"), ("ml:global", "lecar"), ("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"),
          ("ml:global", "arck"), ("ml:global", "lhd"),
          ("ml:cnn-all", "arck"), ("ml:mlp-all", "arck"), ("ml:attention-all", "arck"), ("ml:trees-all", "arck"),
          ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global"),

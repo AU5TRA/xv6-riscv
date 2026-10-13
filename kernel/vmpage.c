@@ -397,6 +397,9 @@ static int cp_lshift;
 static struct proc *cp_owner;
 static int cp_pid = -1, cp_policy = -1;
 static int cp_arc_p, cp_cap, cp_small_cap, cp_main_cap;
+static long long cp_lc_w0;                     // LeCaR: weight of the Clock expert, 2^30 = 1
+static int cp_lc_h;                            // LeCaR: history size per expert
+static uint64 cp_lc_rng;
 // the fault being served (set by reclaim_frame) and what to do when it commits
 static int cp_new_slot;                        // swap slot the faulting page is in, -1 if none
 static uint64 cp_new_va;
@@ -471,6 +474,9 @@ cp_reset(struct proc *p, int policy)
   cp_small_cap = cp_cap / 10 > 0 ? cp_cap / 10 : 1;
   cp_main_cap = cp_cap - cp_small_cap;
   cp_lnev = 0;
+  cp_lc_w0 = 1LL << 29;
+  cp_lc_h = cp_cap / 2 > 0 ? cp_cap / 2 : 1;
+  cp_lc_rng = 0x9E3779B97F4A7C15ULL;
   cp_lshift = 0;
   while(((long long)LHD_AGES << cp_lshift) < 4LL * cp_cap)
     cp_lshift++;
@@ -767,10 +773,76 @@ choose_lhd(struct proc *p, struct vm_page **candidates, int count)
   return best;
 }
 
+// LeCaR (Vietri et al., HotStorage 2018) in the form of tools/ml2/pagesim.c P_LECAR: two experts, learned weights. Each eviction picks
+// one expert at random in proportion to the weights and evicts its victim, which goes to that expert's history (a ghost list, as in
+// ARC). A fault on a page in an expert's history is that expert's regret: its weight is multiplied by exp(-0.45 * d^age), d =
+// 0.005^(1/cap), age in evictions since it was evicted, and the weights are renormalised. Experts: Clock and the decayed frequency
+// count of choose_lfu, both reading the accessed bits of one scan of all the candidates. Integers only: weights in 2^30 units, the
+// factor from a 64-entry table of exp(-0.45 * 0.005^(age/cap)) in 2^16 units (age/cap < 1; beyond that it is 0.9977).
+static const uint32 lc_factor[64] = {42557, 44042, 45455, 46796, 48065, 49264, 50394, 51457, 52455, 53391, 54268, 55087, 55853, 56567, 57232, 57852, 58428, 58963, 59460, 59922, 60350, 60746, 61114, 61454, 61769, 62060, 62329, 62578, 62808, 63021, 63217, 63398, 63565, 63720, 63862, 63994, 64115, 64227, 64330, 64425, 64512, 64593, 64667, 64736, 64799, 64858, 64911, 64961, 65006, 65048, 65087, 65122, 65155, 65185, 65213, 65239, 65262, 65284, 65304, 65322, 65339, 65355, 65369, 65382};
+
+static struct vm_page *
+choose_lecar(struct proc *p, struct vm_page **candidates, int count)
+{
+  int w = cp_ghost_hit();
+  if(w == CL_B1 || w == CL_B2){
+    int slot = cp_new_slot;
+    uint64 age = p->vm.ml_scans - slot_evict_scan[slot];
+    uint64 b = cp_cap > 0 ? age * 64 / cp_cap : 63;
+    long long f = lc_factor[b > 63 ? 63 : b];
+    long long a = cp_lc_w0, o = (1LL << 30) - cp_lc_w0;
+    if(w == CL_B1)
+      a = a * f >> 16;
+    else
+      o = o * f >> 16;
+    cp_lc_w0 = (a << 30) / (a + o);
+    if(cp_lc_w0 < 1024)
+      cp_lc_w0 = 1024;
+    if(cp_lc_w0 > (1LL << 30) - 1024)
+      cp_lc_w0 = (1LL << 30) - 1024;
+    cp_remove(NPHYS_PAGES + slot);
+  }
+  int cleared = 0;
+  struct vm_page *vf = 0;
+  for(int i = 0; i < count; i++){
+    struct vm_page *page = candidates[i];
+    int accessed = sample_page(page, 1);
+    cleared |= accessed;
+    page->frequency = (page->frequency >> 1) + (accessed ? 1 : 0);
+    if(vf == 0 || page->frequency < vf->frequency ||
+       (page->frequency == vf->frequency && page->load_sequence < vf->load_sequence))
+      vf = page;
+  }
+  if(cleared)
+    sfence_vma();
+  // Clock expert on the snapshot of the accessed bits (referenced_sample); its hand moves only if it is the expert chosen
+  uint64 hand = p->vm.clock_hand;
+  struct vm_page *vc = 0;
+  for(int scanned = 0; scanned < 2 * count; scanned++){
+    struct vm_page *page = candidates[hand++ % count];
+    if(!page->referenced_sample){
+      vc = page;
+      break;
+    }
+    page->referenced_sample = 0;
+  }
+  if(vc == 0)
+    vc = candidates[hand++ % count];
+  cp_lc_rng ^= cp_lc_rng << 13;
+  cp_lc_rng ^= cp_lc_rng >> 7;
+  cp_lc_rng ^= cp_lc_rng << 17;
+  int e = (long long)((cp_lc_rng >> 20) & ((1ULL << 30) - 1)) < cp_lc_w0 ? 0 : 1;
+  if(e == 0)
+    p->vm.clock_hand = hand;
+  struct vm_page *v = e == 0 ? vc : vf;
+  cp_evict_list = vc != vf ? (e == 0 ? CL_B1 : CL_B2) : -1;
+  return v;
+}
+
 static int
 cp_policy_is_classic(int policy)
 {
-  return policy == VM_POLICY_ARCK || policy == VM_POLICY_S3FIFO || policy == VM_POLICY_LHD;
+  return policy == VM_POLICY_ARCK || policy == VM_POLICY_S3FIFO || policy == VM_POLICY_LHD || policy == VM_POLICY_LECAR;
 }
 
 // The victim is committed (its slot is known): remember it as a ghost.
@@ -790,6 +862,8 @@ cp_on_evict(struct vm_page *victim, int slot, struct proc *p)
   cp_push_head(cp_evict_list, g);
   if(p->vm.policy == VM_POLICY_S3FIFO && cp_len[CL_B1] > cp_main_cap)
     cp_remove(cp_tail[CL_B1]);
+  if(p->vm.policy == VM_POLICY_LECAR && cp_len[cp_evict_list] > cp_lc_h)
+    cp_remove(cp_tail[cp_evict_list]);
   cp_evict_list = -1;
 }
 
@@ -823,6 +897,8 @@ choose_policy_victim(struct proc *p, int count, int *fallback)
       victim = choose_arck(frame_table.candidates, count);
     else if(p->vm.policy == VM_POLICY_S3FIFO)
       victim = choose_s3fifo(frame_table.candidates, count);
+    else if(p->vm.policy == VM_POLICY_LECAR)
+      victim = choose_lecar(p, frame_table.candidates, count);
     else
       victim = choose_lhd(p, frame_table.candidates, count);
   } else

@@ -28,7 +28,8 @@
 #define VM_POLICY_ARCK 5        // ARC, kernel-observable form (accessed-bit promotion)
 #define VM_POLICY_S3FIFO 6      // S3-FIFO, accessed-bit form
 #define VM_POLICY_LHD 7         // least hit density, accessed-bit form
-#define VM_POLICY_COUNT 8
+#define VM_POLICY_LECAR 8       // LeCaR (Clock and decayed-frequency experts), accessed-bit form
+#define VM_POLICY_COUNT 9
 
 // VM_POLICY_ML features (kernel/mlfeat.h computes them), in the order of
 // tools/ml2/pagesim.py FEATURES[4:].

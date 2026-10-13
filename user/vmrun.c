@@ -13,7 +13,7 @@
 #include "user/mlmodels.h"
 #include "user/mlnet_names.h"
 
-static const char *names[] = { "fifo", "clock", "aging", "lfu", "ml", "arck", "s3fifo", "lhd" };
+static const char *names[] = { "fifo", "clock", "aging", "lfu", "ml", "arck", "s3fifo", "lhd", "lecar" };
 
 static void
 usage(void)
