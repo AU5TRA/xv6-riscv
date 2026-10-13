@@ -211,6 +211,15 @@ have), N1–N2 (nice to have). D2 is needed by 14 Oct; the proposed cut-off for 
   the appendix anyway.
 - 2026-10-12: Trimmed to fit 10 pages: merged the duplicated failures list into §5.7, moved the controls to
   the appendix, shortened the conclusion and limitations.
+- 2026-10-12: The related-work search is done; see `related-work-notes.md`.
+  - **Finding:** no archival OS-venue paper puts a learned policy for process (VM) memory in a real kernel.
+  - **Closest:** LearnedCache (arXiv 2605.26168, May 2026) learns page-cache eviction inside Linux via
+    cache_ext, with every access visible.
+  - **Consequence: no "first" claim.**
+  - Twenty-one search-verified entries were added to `references.bib`. The Move 3 and §6 `[verify]` notes are
+    now plans naming that work.
+  - Added `\usepackage[T1]{fontenc}` so author names with an ogonek compile. All fonts are still Type 1, and
+    the page limit holds.
 - 2026-10-12 (author question): MLSys does not require the source to be split by section; only PDFs are
   submitted (paper, plus a separate appendix PDF). At the author's request the paper is now **one file**,
   `main.tex` (sections marked `% ----- N TITLE -----`). The PDF text is identical to the split version. The
