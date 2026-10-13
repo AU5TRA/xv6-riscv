@@ -5,6 +5,8 @@ btree,test,belady,0.5501,12
 btree,test,arc,0.95,12
 btree,test,s3fifo,0.862,12
 btree,test,lhd,0.9483,12
+btree,test,lecar,1.122,12
+btree,test,lecar_exact,0.9056,12
 btree,test,lin-F,0.8619,12
 btree,test,lin-K,0.8349,12
 btree,test,lin-K+K+,0.8349,12
@@ -26,6 +28,8 @@ btree,held-out,belady,0.615,15
 btree,held-out,arc,0.9753,15
 btree,held-out,s3fifo,0.9084,15
 btree,held-out,lhd,0.9736,15
+btree,held-out,lecar,1.0649,15
+btree,held-out,lecar_exact,0.9099,15
 btree,held-out,lin-F,0.8613,15
 btree,held-out,lin-K,0.8749,15
 btree,held-out,lin-K+K+,0.8749,15
@@ -45,6 +49,8 @@ graph,test,belady,0.4556,9
 graph,test,arc,0.9914,9
 graph,test,s3fifo,1.1615,9
 graph,test,lhd,0.8652,9
+graph,test,lecar,1.3275,9
+graph,test,lecar_exact,0.9814,9
 graph,test,lin-F,0.8554,9
 graph,test,lin-K,0.8719,9
 graph,test,lin-K+K+,0.8471,9
@@ -64,6 +70,8 @@ graph,held-out,belady,0.4822,9
 graph,held-out,arc,0.9925,9
 graph,held-out,s3fifo,1.2559,9
 graph,held-out,lhd,0.8161,9
+graph,held-out,lecar,1.3213,9
+graph,held-out,lecar_exact,0.9682,9
 graph,held-out,lin-F,0.7863,9
 graph,held-out,lin-K,0.8034,9
 graph,held-out,lin-K+K+,0.7985,9
@@ -83,6 +91,8 @@ kv,test,belady,0.5591,15
 kv,test,arc,0.9857,15
 kv,test,s3fifo,1.0471,15
 kv,test,lhd,0.9063,15
+kv,test,lecar,1.1274,15
+kv,test,lecar_exact,0.9044,15
 kv,test,lin-F,0.9013,15
 kv,test,lin-K,0.91,15
 kv,test,lin-K+K+,0.897,15
@@ -104,6 +114,8 @@ kv,held-out,belady,0.5772,15
 kv,held-out,arc,0.9816,15
 kv,held-out,s3fifo,1.0131,15
 kv,held-out,lhd,0.9006,15
+kv,held-out,lecar,1.149,15
+kv,held-out,lecar_exact,0.9182,15
 kv,held-out,lin-F,0.8905,15
 kv,held-out,lin-K,0.9163,15
 kv,held-out,lin-K+K+,0.9025,15
@@ -146,6 +158,8 @@ lzw,test,belady,0.4655,3
 lzw,test,arc,0.9683,3
 lzw,test,s3fifo,0.8894,3
 lzw,test,lhd,0.8925,3
+lzw,test,lecar,1.0564,3
+lzw,test,lecar_exact,1.0433,3
 lzw,test,lin-F,0.9571,3
 lzw,test,lin-K,1.0004,3
 lzw,test,lin-K+K+,0.8208,3
@@ -167,6 +181,8 @@ lzw,held-out,belady,0.4094,18
 lzw,held-out,arc,0.9569,18
 lzw,held-out,s3fifo,0.8658,18
 lzw,held-out,lhd,0.8874,18
+lzw,held-out,lecar,1.1897,18
+lzw,held-out,lecar_exact,1.0422,18
 lzw,held-out,lin-F,0.9432,18
 lzw,held-out,lin-K,1.1786,18
 lzw,held-out,lin-K+K+,0.8133,18
@@ -188,6 +204,8 @@ matmul,held-out,belady,0.6172,6
 matmul,held-out,arc,0.8755,6
 matmul,held-out,s3fifo,1.5076,6
 matmul,held-out,lhd,1.0357,6
+matmul,held-out,lecar,0.8821,6
+matmul,held-out,lecar_exact,0.8513,6
 matmul,held-out,lin-F,0.8229,6
 matmul,held-out,lin-K,0.7895,6
 matmul,held-out,lin-K+K+,0.6709,6
@@ -211,6 +229,8 @@ sort,test,belady,0.8304,6
 sort,test,arc,1.0134,6
 sort,test,s3fifo,1.3205,6
 sort,test,lhd,1.0075,6
+sort,test,lecar,1.0159,6
+sort,test,lecar_exact,0.9804,6
 sort,test,lin-F,1.0114,6
 sort,test,lin-K,1.0111,6
 sort,test,lin-K+K+,0.9834,6
@@ -232,6 +252,8 @@ sort,held-out,belady,0.8964,9
 sort,held-out,arc,0.9993,9
 sort,held-out,s3fifo,1.0843,9
 sort,held-out,lhd,1.0191,9
+sort,held-out,lecar,1.0001,9
+sort,held-out,lecar_exact,1.0125,9
 sort,held-out,lin-F,0.9985,9
 sort,held-out,lin-K,0.9985,9
 sort,held-out,lin-K+K+,0.9327,9
@@ -270,6 +292,8 @@ global,test (short streams),belady,0.5551,27
 global,test (short streams),arc,0.9697,27
 global,test (short streams),s3fifo,0.9604,27
 global,test (short streams),lhd,0.9247,27
+global,test (short streams),lecar,1.125,27
+global,test (short streams),lecar_exact,0.905,27
 global,test (short streams),lin-F,0.9122,27
 global,test (short streams),lin-K,0.9161,27
 global,test (short streams),lin-K+K+,0.8701,27
@@ -291,6 +315,8 @@ global,held-out,belady,0.5576,72
 global,held-out,arc,0.9683,72
 global,held-out,s3fifo,1.0197,72
 global,held-out,lhd,0.9256,72
+global,held-out,lecar,1.1161,72
+global,held-out,lecar_exact,0.9579,72
 global,held-out,lin-F,0.9248,72
 global,held-out,lin-K,0.9074,72
 global,held-out,lin-K+K+,0.896,72
@@ -308,6 +334,8 @@ global,held-out (short streams),belady,0.5772,15
 global,held-out (short streams),arc,0.9816,15
 global,held-out (short streams),s3fifo,1.0131,15
 global,held-out (short streams),lhd,0.9006,15
+global,held-out (short streams),lecar,1.149,15
+global,held-out (short streams),lecar_exact,0.9182,15
 global,held-out (short streams),lin-F,0.9083,15
 global,held-out (short streams),lin-K,0.9301,15
 global,held-out (short streams),lin-K+K+,0.8914,15

@@ -28,7 +28,7 @@ LIB = HERE / os.environ.get("PAGESIM_LIB", "libpagesim.so")
 POLICIES = ["fifo", "clock", "aging", "lru", "lfu_exact", "lfu_kernel",
             "belady", "learned", "sd_old", "gru", "embed",
             # list-based / reference policies (same order as the C enum)
-            "mru", "arc", "s3fifo", "s3scan", "mglru", "lhd", "arck"]
+            "mru", "arc", "s3fifo", "s3scan", "mglru", "lhd", "arck", "lecar", "lecar_exact"]
 FEATURES = ["rec", "freq", "sd", "wr",                       # F: full-stream
             "ref", "aging", "sfreq", "idle", "age", "dirty",  # K: kernel-observable
             "refaults", "rdist"]                              # K+: refault bookkeeping

@@ -131,6 +131,135 @@ def arck_ref(trace, c):
     return faults, st["ev"]
 
 
+def lecar_ref(trace, c):
+    """LeCaR as a kernel that only reads accessed bits at evictions runs it: expert 0 = Clock, expert 1 = decayed frequency, both on the same
+    accessed-bit snapshot; time = evictions; original parameters (lambda 0.45, d = 0.005**(1/N), history N/2 per expert)."""
+    import math
+    M = (1 << 64) - 1
+    rng = [0x9E3779B97F4A7C15]
+
+    def xs():
+        x = rng[0]
+        x ^= (x << 13) & M; x ^= x >> 7; x ^= (x << 17) & M
+        rng[0] = x
+        return x
+
+    w = [0.5, 0.5]
+    d = math.pow(0.005, 1.0 / c)
+    H = max(c // 2, 1)
+    abit, kfreq, seq, who, when = {}, {}, {}, {}, {}
+    res, order = [], []
+    q = [[], []]; qh = [0, 0]; live = [0, 0]
+    st = {"hand": 0, "scans": 0, "seq": 0, "ev": 0}
+    faults = 0
+    for x in trace:
+        if x in abit:
+            abit[x] = 1
+            continue
+        faults += 1
+        if who.get(x, 0):                                   # regret of the expert that evicted it
+            e = who[x] - 1
+            r = math.pow(d, float(st["scans"] - when[x]))
+            w[e] *= math.exp(-0.45 * r)
+            sm = w[0] + w[1]
+            w[0] /= sm; w[1] /= sm
+            who[x] = 0; live[e] -= 1
+        if len(res) >= c:
+            snap = {p: abit[p] for p in res}
+            for p in res:                                   # the kernel's scan: frequency + decay, clear A
+                a = abit[p]
+                if a:
+                    kfreq[p] += 1
+                kfreq[p] = (kfreq[p] >> 1) + (1 if a else 0)
+                abit[p] = 0
+            n = len(order); hand = st["hand"]; vc = -1
+            for _ in range(2 * n):
+                idx = hand % n; hand += 1
+                if not snap[order[idx]]:
+                    vc = idx; break
+                snap[order[idx]] = 0
+            if vc < 0:
+                vc = hand % n; hand += 1
+            pc = order[vc]
+            best = res[0]
+            for p in res[1:]:
+                if kfreq[p] < kfreq[best] or (kfreq[p] == kfreq[best] and seq[p] < seq[best]):
+                    best = p
+            pf = best
+            u = (xs() >> 11) / 9007199254740992.0
+            e = 0 if u < w[0] else 1
+            v = pc if e == 0 else pf
+            if e == 0:
+                st["hand"] = hand
+            if pc != pf:
+                q[e].append((v, st["scans"])); who[v] = e + 1; when[v] = st["scans"]; live[e] += 1
+                while live[e] > H:
+                    pq, tq = q[e][qh[e]]; qh[e] += 1
+                    if who.get(pq, 0) == e + 1 and when[pq] == tq:
+                        who[pq] = 0; live[e] -= 1
+            res.remove(v); order.remove(v)
+            del abit[v]
+            st["scans"] += 1; st["ev"] += 1
+        res.append(x); order.append(x)
+        abit[x] = 1; kfreq[x] = 1
+        st["seq"] += 1; seq[x] = st["seq"]
+    return faults, st["ev"]
+
+
+def lecarx_ref(trace, c):
+    """LeCaR as published: experts exact LRU and exact LFU (frequency since the start of the stream, ties to the least recent), time = request index."""
+    import math
+    M = (1 << 64) - 1
+    rng = [0x9E3779B97F4A7C15]
+
+    def xs():
+        x = rng[0]
+        x ^= (x << 13) & M; x ^= x >> 7; x ^= (x << 17) & M
+        rng[0] = x
+        return x
+
+    w = [0.5, 0.5]
+    d = math.pow(0.005, 1.0 / c)
+    H = max(c // 2, 1)
+    res, last, freq, who, when = [], {}, {}, {}, {}
+    q = [[], []]; qh = [0, 0]; live = [0, 0]
+    faults = ev = 0
+    for t, x in enumerate(trace):
+        if x not in res:
+            faults += 1
+            if who.get(x, 0):
+                e = who[x] - 1
+                r = math.pow(d, float(t - when[x]))
+                w[e] *= math.exp(-0.45 * r)
+                sm = w[0] + w[1]
+                w[0] /= sm; w[1] /= sm
+                who[x] = 0; live[e] -= 1
+            if len(res) >= c:
+                pl = res[0]
+                for p in res[1:]:
+                    if last[p] < last[pl]:
+                        pl = p
+                pf = res[0]
+                for p in res[1:]:
+                    if freq[p] < freq[pf] or (freq[p] == freq[pf] and last[p] < last[pf]):
+                        pf = p
+                u = (xs() >> 11) / 9007199254740992.0
+                e = 0 if u < w[0] else 1
+                v = pl if e == 0 else pf
+                if pl != pf:
+                    q[e].append((v, t)); who[v] = e + 1; when[v] = t; live[e] += 1
+                    while live[e] > H:
+                        pq, tq = q[e][qh[e]]; qh[e] += 1
+                        if who.get(pq, 0) == e + 1 and when[pq] == tq:
+                            who[pq] = 0; live[e] -= 1
+                res.remove(v)
+                ev += 1
+            res.append(x)
+        last[x] = t
+        freq[x] = freq.get(x, 0) + 1
+    return faults, ev
+
+
 def s3_ref(trace, c, scan):
     small_cap = max(1, c // 10)
     main_cap = c - small_cap
@@ -345,6 +474,8 @@ def main():
                 continue
             for name, ref in (("arc", lambda: arc_ref(tr, c)),
                               ("arck", lambda: arck_ref(tr, c)),
+                              ("lecar", lambda: lecar_ref(tr, c)),
+                              ("lecar_exact", lambda: lecarx_ref(tr, c)),
                               ("s3fifo", lambda: s3_ref(tr, c, False)),
                               ("s3scan", lambda: s3_ref(tr, c, True)),
                               ("mglru", lambda: mglru_ref(tr, c)),
@@ -357,7 +488,7 @@ def main():
                     bad += 1
                     if bad <= 5:
                         print(f"MISMATCH {name} {kind} pages={n_pages} c={c}: C {got} aborted={r['aborted']} ref {want}")
-    print(f"ARC / ARC-kernel / S3-FIFO / S3-scan / MGLRU / LHD vs references: {checked - bad}/{checked} identical")
+    print(f"ARC / ARC-kernel / LeCaR-kernel / S3-FIFO / S3-scan / MGLRU / LHD vs references: {checked - bad}/{checked} identical")
 
     # MRU: exact, equals Belady on a pure cyclic loop (the textbook result)
     ok = 0
@@ -377,7 +508,7 @@ def main():
     # determinism and writeback accounting
     w = np.array([random.Random(3).random() < .2 for _ in range(4000)])
     s = Fake(traces(random.Random(9))[0][1], w[:4000])
-    for pol in ("arc", "arck", "s3fifo", "s3scan", "mru", "mglru", "lhd"):
+    for pol in ("arc", "arck", "lecar", "lecar_exact", "s3fifo", "s3scan", "mru", "mglru", "lhd"):
         a, b = ps.run(s, 5, pol), ps.run(s, 5, pol)
         assert a == b, pol
         assert 0 <= a["writebacks"] <= a["evictions"], pol

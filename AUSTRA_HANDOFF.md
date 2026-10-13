@@ -42,12 +42,12 @@ resample the workloads, then the streams (`tools/ml2/kernel_ci_classic.py`, `rep
 
 | Comparison | 5% memory | 10% memory | 20% memory | Status |
 |---|---|---|---|---|
-| ARC (kernel form) against Clock | **0.946 [0.92, 0.98]** | **0.943 [0.90, 0.98]** | 0.986 [0.96, 1.02] | FINAL |
-| LHD against Clock | 1.009 [0.98, 1.05] | 0.951 [0.88, 1.00] | 0.944 [0.86, 1.00] | FINAL |
-| S3-FIFO against Clock | 1.091 [1.00, 1.23] | 1.016 [0.96, 1.07] | 1.073 [0.98, 1.17] | FINAL (adapted form, see below) |
-| FIFO / Aging / LFU against Clock (mean over workloads) | 1.23 / 1.04 / 1.07 | 1.25 / 1.07 / 1.13 | 1.34 / 1.15 / 1.26 | FINAL |
-| Linear score (global weights) against Clock | 0.979 [0.90, 1.09] | **0.914 [0.85, 0.98]** | 0.887 [0.77, 1.03] | FINAL |
-| Linear score against ARC | 1.035 [0.97, 1.14] | 0.970 [0.92, 1.01] | 0.899 [0.77, 1.05] | FINAL: no interval excludes 1 |
+| ARC (kernel form) against Clock | **0.947 [0.92, 0.98]** | **0.943 [0.90, 0.98]** | 0.984 [0.95, 1.02] | FINAL |
+| LHD against Clock | 1.005 [0.98, 1.05] | 0.951 [0.88, 1.00] | 0.949 [0.87, 1.01] | FINAL |
+| S3-FIFO against Clock | 1.086 [1.00, 1.22] | 1.016 [0.96, 1.07] | 1.086 [0.98, 1.20] | FINAL (adapted form, see below) |
+| FIFO / Aging / LFU against Clock (mean over workloads) | 1.23 / 1.04 / 1.07 | 1.25 / 1.07 / 1.13 | 1.35 / 1.17 / 1.27 | FINAL |
+| Linear score (global weights) against Clock | 0.976 [0.90, 1.09] | **0.914 [0.85, 0.98]** | 0.882 [0.77, 1.00] (upper end 1.001) | FINAL |
+| Linear score against ARC | 1.031 [0.97, 1.13] | 0.970 [0.92, 1.01] | 0.896 [0.77, 1.02] | FINAL: no interval excludes 1 |
 | CNN / deeper MLP against ARC (ten streams) | 0.999 / 1.024 | 0.987 / 0.985 | 0.864 / 0.873 (intervals include 1) | FINAL |
 | CNN / deeper MLP against the linear score (ten streams) | 0.981 / 1.006 | 1.003 / 1.000 | 1.028 / 1.039 | FINAL |
 
@@ -56,28 +56,33 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 * ARC, in the form a kernel can run, beats Clock at 5 and 10% memory. **We have not shown that a learned policy beats ARC on average**; the linear score moves from 1.035 to 0.899 of ARC's faults as memory grows, no interval excludes 1.
 * The heavier models (CNN, deeper MLP, set-attention, boosted trees, ranking trees; trained on all six original workloads, run on ten streams) are level with the linear score at 5 and 10%, 10 to 14% better than ARC at 20% with intervals that
   include 1, and cost 20 to 150 times as much per eviction (table below). Ranking trees lose to Clock at 5 and 10%.
-* The learned policy has specific failures that repeat: matmul at 5% (1.72, with only 2 frames), SpMV at 5 and 10% (1.10, 1.12), graph with the global weights at 5 and 20% (1.01, 1.60; graph weights of its own: 0.60 at 10%).
+* The learned policy has specific failures that repeat: matmul at 5% (1.72, with only 2 frames), SpMV at 5 and 10% (1.10, 1.12), graph with the global weights at 5 and 20% (1.01, 1.40; graph weights of its own: 0.60 at 10%).
   It is very good on btree, kv, heap programs (0.56 to 0.9), and the hash join at 20% (0.55).
 
-### 1. Open decision D2 (GawwyG has not decided): the claim, the venue, the authors
-* **Settled, write it now**: background, the workloads, the method (held-out streams, validation-only selection, exact reference models, filled-memory start, intervals), the results above, cost, the limits.
-* **Leave as marked placeholders**: title, abstract, framing of the introduction and conclusion, venue and format, author list and credits (AU5TRA's programs and Kaggle work).
-* **Proposed claim to confirm with GawwyG before it goes into the abstract**: *a small linear score over kernel-visible signals computed with whole numbers beats Clock in xv6, and is level with or better than the best classical policy we could run in the kernel (ARC); bigger models are not clearly better and cost 20 to 150 times more per eviction.* Do not write "beats ARC".
-* **Things a reviewer will ask** (the text should already say them): the fault cost was assumed, not measured; one operating system (xv6 on QEMU); fourteen workloads, some close variants, 5% and 20% use one stream per variant (51 streams); the three classical policies are adapted forms (accessed bits read at evictions), not the published algorithms; "trained on all workloads" means the six original ones.
+### 1. D2 decided (2026-10-12): the claim, the venue, the authors
+Full text and the Twitter licence check: `GAWWY_HANDOFF_PAPER.md` ("D2 decided", "Twitter licence"). Summary:
+* **Claim**: a small linear score over kernel-visible signals, computed with whole numbers, makes fewer faults than Clock in xv6 (0.914 [0.85, 0.98] at 10% memory; 0.976 and 0.882 at 5% and 20%, intervals include 1) and is level with or better than ARC (1.031, 0.970, 0.896; no interval excludes 1); bigger models are level with it and cost 20 to 150 times more per decision; whether the saving pays depends on the device and core (measured). Never write "beats ARC".
+* **Title**: "Learned Page Replacement from What the Kernel Already Sees"; no system name ("Glimpse" dropped). **Venue**: MLSys 2027, research track, 30 Oct 2026 19:00 UTC. **Cut-off for new runs**: 25 Oct (agreed).
+* **Authors**: GawwyG and AU5TRA, equal contribution; legal names and affiliations to be supplied by GawwyG; whether the supervisor is an author is not decided and must be before 19 Oct. AI assistant: not an author, disclose as the venue requires.
+* **Twitter traces**: CC BY 4.0 (verified); cite Yang et al. OSDI 2020 and cache_ext, say the replays are sampled and cut, release only derived streams under CC BY with the change note.
+* **Things a reviewer will ask** (the text should already say them): the three classical policies are adapted forms (accessed bits read at evictions), not the published algorithms; one operating system (xv6 on QEMU); "trained on all workloads" means the six original ones; the heavier models ran on ten streams; the device latency was measured on one SSD and one hard disk (a device read, not an xv6 fault) and the native speed on one desktop core.
 
 ### 2. Everything measured, with its status
 | Result | Status | Where |
 |---|---|---|
-| Kernel runs: 2,375 merged (all policies, all workloads, three memory sizes); Kaggle machines give identical faults to the thesis PC (180 repeats) | FINAL | `report/results2/kernel_eval_all.csv` (only read this file); `xcheck_local.csv` |
+| Kernel runs: 2,743 merged (all policies, all workloads, three memory sizes); Kaggle machines give identical faults to the thesis PC (180 repeats) | FINAL | `report/results2/kernel_eval_all.csv` (only read this file); `xcheck_local.csv` |
 | ARC, LHD, S3-FIFO in the kernel (`VM_POLICY_ARCK/S3FIFO/LHD` = 5/6/7, `vmrun arck|s3fifo|lhd`): kernel faults / simulator faults at 10%: 0.995, 1.014, 0.984 (74 streams; median within 1.5%) | FINAL | `kernel_vs_sim_classic.csv`, `kernel/vmpage.c` |
 | The simulator versions of the three match independent reference implementations on 570 traces (identical faults and evictions) | FINAL | `tools/ml2/test_baselines.py` |
 | Five heavier models trained on all (original six) workloads, in the kernel at 5, 10, 20% on ten streams | FINAL | `kmain_B_*` tables |
 | Trained on one workload against trained on all workloads (simulator 24 cells): CNN 0.939 -> 0.878, MLP 0.926 -> 0.886, trees 0.981 -> 0.963, set-attention 1.478 -> 0.895, ranking trees 1.109 -> 1.186 (worse) | FINAL | `trained_on_all.csv`, `tables/trainedall.tex` |
 | Cost of choosing a victim, exact instruction counts (QEMU instruction-counting mode, repeatable to 0.3%) at 68 candidates: see section 3 | FINAL | `cost_grid.csv` |
-| Break-even against the real fault cost: the linear model of its own workload pays on a hard disk (8 ms per fault), about breaks even on fast flash; CNN and MLP never pay | FINAL given two assumptions (1 instruction = 1 ns; the fault costs were never measured) | `cost_benefit.csv`, week 15 report |
+| Break-even with measured values (2026-10-12): device read latency 63 us (NVMe SSD) and 8.9 ms (hard disk); scoring code 0.06 ns per kernel instruction on a desktop core. Time vs Clock, linear score: 0.945 SSD / 0.917 hard disk at 0.06 ns; 1.34 / 0.92 at 1 ns. CNN, MLP, set-attention: lose on the SSD (2.6 to 3.8 times Clock at 0.06 ns), win 3 to 5% on the hard disk at 0.06 ns | FINAL for these devices and this CPU; a device read, not a full xv6 fault | `device_latency.csv`, `native_timing.csv`, `cost_benefit_*.csv`, week 16 report section "What choosing a victim costs" |
 | Sampling 32 candidates costs 0 to 1 point of faults and makes the linear cost independent of memory size | FINAL | week 15 report section "In the xv6 kernel" |
 | Literature baselines in the simulator (ARC, S3-FIFO, MGLRU analogue, LHD, MRU); LHD best untrained there (0.90 to 0.95) | FINAL (simulator) | `baselines_ext.csv`; report appendix |
-| Safety guard (fall back to Clock when worse): simulator prototype only; halves the worst case (1.86 -> 1.36), costs about 2 points on average | FINAL as a prototype; optional extra, not in the kernel | `exp_guard.py`, week 15 report |
+
+### 2b. DROPPED by GawwyG: do not work on these, do not write about them
+* **The safety guard** (fall back to Clock when the learned policy does worse): not needed for the research question (which learned policy works best against Clock and the other classical policies). Not in the kernel, not to be built, not to be presented as future work or a recommendation. Where it still appears in `report/paper/` (outline.md, paper-state.md, sections 1, 2, 3, 5, 7) it should be removed. The week 15 report section "A safety guard" and `tools/ml2/exp_guard.py` are kept only as history; do not cite them.
+* If GawwyG marks anything else "not required", it goes in this list and is dropped in full: no work, no text.
 
 ### 3. Cost of choosing one victim (68 candidates per eviction)
 | Policy | Instructions to choose one victim | Times the linear score |
@@ -97,9 +102,9 @@ What this supports (proposal; **GawwyG decides the claim, D2 below**):
 Exact counts from `report/results2/cost_grid.csv` (`tools/ml2/cost_grid.py --sizes 64`; QEMU instruction-counting mode; repeatable to 0.3%). FINAL.
 
 ### 4. What is not done
-* The cost of a real page fault (reading a page from a disk and writing one back). Needs real hardware; xv6 on QEMU cannot give it. All time estimates rest on an assumed fault cost.
+* The cost of a real xv6 page fault on real hardware (the whole path, not only the device read). Device read latency and the speed of the scoring code are now measured (see the break-even row); xv6 on QEMU cannot give the rest.
 * More than one stream per variant at 5% and 20% memory; more seeds for the heavier models (only ten streams). Deferred.
-* Related work (a proper literature search; only notes in `cache_ext_notes.md`, which is not in git), paper-quality figures in the venue's style, venue and format, licence check of the Twitter data before releasing derived streams, one clean README for the repository (this repo has many handoff files), author list and credits.
+* Related work (a proper literature search; only notes in `cache_ext_notes.md`, now in git), paper-quality figures in the venue's style, venue and format, one clean README for the repository (this repo has many handoff files), author list and credits.
 * The three classical policies were run only in the accessed-bit form. A per-hit form is impossible in a kernel that does not see hits; this is a limit to state, not a task.
 
 ### 5. Suggested outline and where the material is
@@ -111,7 +116,7 @@ Exact counts from `report/results2/cost_grid.csv` (`tools/ml2/cost_grid.py --siz
 ### 6. How to read the numbers (traps)
 * **One file for kernel results**: `report/results2/kernel_eval_all.csv`, built by `tools/ml2/merge_kernel_results.py` from all `kernel_eval*.csv` and `kaggle_*.csv`. Never read the others directly.
 * **Two builds**: runs from the week-14 build and the current build differ by about 1% for every policy; the merge keeps current-build rows. Never compare across builds.
-* **Memory sizes**: 5, 10, 20% of a program's pages. 10% covers 74 streams; 5% and 20% cover 51. The heavier models cover ten streams at every size.
+* **Memory sizes**: 5, 10, 20% of a program's pages. All three memory sizes now cover the same 74 streams (round 5 added 23 streams at 5% and 20%). The heavier models cover ten streams at every size.
 * **Averages**: the report averages the streams of a workload (geometric mean), then the 14 workloads with equal weight. A plain average over all streams gives different numbers (linear score at 10%: 0.887 over all 74 streams, 0.914 equal-weight over workloads).
 * **Streams**: patbench and appbench kernel runs use 50,000 accesses, not the full strings.
 * **Time** is counted in instructions with QEMU in instruction-count mode (`QEMU_ICOUNT=1`; 1 timer tick = 100 instructions); the `select_ticks` in `kernel_eval_all.csv` were NOT taken in that mode (noisy), so use `cost_grid.csv` for costs.
@@ -131,9 +136,9 @@ Kaggle (CPU only, no GPU, Internet on, 4 cores): one folder per round, `kaggle_p
 A Kaggle machine is about 3.1 times slower than the thesis PC (use this for any ETA). Lessons: Kaggle datasets drop the executable bit (never ship a compiled host tool in the package); a result file is only trustworthy if the notebook's self test printed "faults 10511, expected 10511".
 
 ### 8. Transfer checklist (for GawwyG)
-1. All work is committed on `GawwyDev`; nothing is pushed by Claude. Push and merge with the commands in `github.md` (fast-forward into `riscv`).
+1. All work is committed on `riscv` (and `GawwyDev` was kept at the same commit up to 2026-10-12); nothing is pushed by Claude. Push and merge with the commands in `github.md` (fast-forward into `riscv`).
 2. Give AU5TRA: the repository (this branch), this file, `report/week_16_update/week_16_update_report.pdf`, and, outside git, the `traces2/` data if she needs to rebuild anything (4 GB; the result CSVs in git are enough to regenerate every table).
-3. D2 (claim, venue, authors) and the licence check of the Twitter data are GawwyG's to settle before submission.
+3. D2 is decided (section 1) and the Twitter licence is checked. Still GawwyG's: the author quota check, legal names and affiliations, whether the supervisor is an author, committing or sending `cache_ext_notes.md`, and pushing. (GawwyG's OpenReview profile exists.)
 
 
 ---

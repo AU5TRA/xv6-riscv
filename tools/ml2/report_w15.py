@@ -77,6 +77,16 @@ def extra():
             out.append([sc, g] + ["--" if c is None else f"{c:.3f}" for c in cells])
     hdr = ["scope", "split", "LRU", "ARC", "S3F", "LHD", "linear K", "tree K", "NN K", "NN K$^{\\dagger}$", "tree FK", "NN FK", "Belady"]
     write("model_comparison.tex", tab(out, hdr, "ll" + "r" * 11))
+    # LeCaR (a learned-cache baseline from the literature): as published (needs every access) and in the form a kernel can run
+    lec = []
+    for sc in scopes:
+        for g in ("test", "held-out"):
+            d = val.get((sc, g))
+            if not d or "lecar" not in d:
+                continue
+            cells = [d.get(k) for k in ("lru", "arc", "lhd", "lecar_exact", "lecar")] + [pick(d, "lin-K+K+")]
+            lec.append([sc, g] + ["--" if c is None else f"{c:.3f}" for c in cells])
+    write("lecar.tex", tab(lec, ["scope", "split", "LRU", "ARC", "LHD", "LeCaR, as published", "LeCaR, kernel form", "linear K"], "ll" + "r" * 6))
     # forest plot: ratio vs the matching linear model with 95% CI
     pts = []
     for r in rows:
