@@ -56,3 +56,6 @@ report/week_14_update/*.log
 report/week_14_update/*.out
 !report/week_14_update_report.pdf
 !report/week_14_update/figs/*.pdf
+# Windows "downloaded from the internet" markers (alternate data streams); a ":" in a
+# file name cannot be checked out on Windows.
+*Zone.Identifier
