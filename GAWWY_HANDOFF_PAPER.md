@@ -31,6 +31,84 @@ git pull --ff-only origin GawwyDev
 
 ---
 
+## NEW 2026-10-13: what the paper still needs from you (read this first)
+
+The paper (`report/paper/main.tex`, commit `b321b8e` or later) now uses every result you
+handed back: D2, N1 (74 streams at every size, 2,743 runs), S1/S2 (measured device latency
+and native timing), S3 (LeCaR, §5.2 and appendix table `lecar.tex`), the Twitter licence
+statement. The guard is gone everywhere. All six figures are drawn; their data comes from
+`report/paper/make_figdata.py`, which reads `report/results2/*.csv`. The body is 10 pages.
+`git pull --ff-only` is enough: all three branches point to the same commit.
+
+**Rules that still hold:** same frozen evaluation build as `kernel_eval_all.csv` (never
+compare across builds); runs stop on **25 Oct**; tables are regenerated, never typed. After
+any new run: add its output file to `SOURCES` in `tools/ml2/merge_kernel_results.py` (the
+list is fixed; an unlisted file is silently ignored), then
+`python3 merge_kernel_results.py && python3 kernel_ci_classic.py && python3 report_w15.py && python3 report_w16.py && python3 tradeoff.py`,
+then `cd report/paper && python3 make_figdata.py && latexmk -pdf main.tex`. Reply below
+with: item, result, files, and which typed numbers in the paper moved.
+
+### R1 (high). Sampled linear score on all 74 streams at 10%
+* *Why:* the abstract, §3.6, §5.6 and Fig. 5 say "sampling 32 candidates halves the cost
+  for at most one point of faults". Today that rests on 3 workloads (32 candidates) and 2
+  (16), and §5.6's numbers (LZW 0.837 → 0.842 → 0.858; Twitter 0.876 → 0.875 → 0.884)
+  use **per-workload** weights, not the global ones the paper headlines.
+* *Run:* `cd tools/ml2 && KERNEL_EVAL_OUT=kernel_eval_sampled.csv python -u kernel_eval.py --lanes 6 --fracs 0.1 --models global@32,global@16`
+  (pattern and application streams with `--accesses 50000` as before, via `--only`).
+  5% and 20% only if time allows.
+* *Produce:* the rows in `kernel_eval_all.csv`; in `kernel_ci_classic.py` add the
+  comparisons `ml:global@32` and `ml:global@16` against `clock` and against `ml:global`
+  (faults and writes); a row per sample size in `tradeoff.csv` covering 14 workloads.
+* *Paper:* abstract, §1 Move 7, §3.6, §5.4, §5.6 (A5), Fig. 5 (the open blue markers
+  become filled).
+* *Cost:* the same as the linear runs at 10% (sampling makes each decision cheaper).
+
+### R2 (medium). The five heavier models on all 74 streams, at least at 10%
+* *Why:* "level with the linear score at 20–150× the cost" (abstract, §1, §5.6, Fig. 5)
+  rests on 10 streams; their intervals are the widest in Table `ci_main`.
+* *Run:* `KERNEL_EVAL_OUT=kernel_eval_nets74.csv python -u kernel_eval.py --lanes 6 --fracs 0.1 --models cnn-all,mlp-all,attention-all,trees-all,ranktrees-all`
+  (names from `user/mlnet_names.h`). These are slow (CNN about 2.0M instructions and MLP
+  3.4M per decision, against 22.8K for the linear score): estimate the time from
+  `kernel_eval_w16*.csv` before starting, and if it does not fit before 25 Oct, run
+  CNN and MLP only (the two the text names), or skip and keep "ten streams" in the text.
+* *Produce:* `kmain_B_*` and the `ci_main` rows recomputed on the larger set; `tradeoff.csv`
+  coverage updated.
+* *Paper:* abstract, §1, §5.6, Fig. 5, appendix table of the heavier models.
+
+### R3 (medium). The two first-version results, rerun or relabel
+* *Why:* §2.4 (the naive learned policy fails: almost every linear model ≥ 3× Clock on
+  PageRank with uniformly sampled candidates, 97% of its victims loaded at the previous
+  fault, needed again a median of 16 references later; Belady's choice last used about
+  300 references earlier; 167 resident pages; three DAgger rounds did not help) and
+  §5.6 ("one round of DAgger did not help") come from the first version of the study
+  (`ML_REPORT` 7.1, 7.3), before the deterministic-seed refit.
+* *Run:* rebuild the v1-style data (no recency stratum: `N_RECENT = 0` in
+  `build_datasets.py`, separate `ML2_CACHE`), refit, replay `graph-pr2000x2-s2`
+  (validation) and recount the victim ages; and `python3 extras.py dagger` on the current
+  datasets.
+* *Produce:* the five §2.4 numbers and the DAgger table in `tables.md`.
+* *Paper:* §2.4, §5.6. *If not done:* tell AU5TRA and the text will say "first version of
+  the study" in both places.
+
+### Optional (only if R1–R3 are done)
+* **R4.** LeCaR in the kernel (today simulator only; its accessed-bit form is 1.116 of
+  Clock there, so a kernel run mainly confirms a loss).
+* **R5.** Native timing that includes the accessed-bit page-table walk
+  (`native_timing.c` leaves it out, so 1.35 µs is a lower bound).
+* **R6.** A generated table of the measured break-even per workload
+  (`cost_benefit_measured_all.csv` and `_devices.csv`) for the appendix, written by
+  `report_w16.py` like the other tables.
+* **R7.** Fix the Limits bullet of the week-16 report ("the fault cost is assumed"),
+  which S1/S2 made stale.
+
+### Not runs, but yours
+* Legal names, affiliations, e-mails of both authors; the supervisor decision (before
+  **19 Oct**, when submissions open); the author-quota check.
+* The full 74-step regression matrix is still not needed: the paper cites only the
+  data-invariance check.
+
+---
+
 ## State of everything (2026-10-12, evening): read this first
 
 * **`cache_ext_notes.md` is now in git** (project root), for your related-work search.
