@@ -26,11 +26,14 @@
 \newlabel{sec:gap}{{5}{5}{Does the simulator predict the kernel?}{section.5}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {6}Limits and what is not claimed}{6}{section.6}\protected@file@percent }
 \newlabel{sec:limits}{{6}{6}{Limits and what is not claimed}{section.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Simulator results}{6}{appendix.A}\protected@file@percent }
-\newlabel{app:sim}{{A}{6}{Simulator results}{appendix.A}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Faults relative to Clock in the simulator on the original workloads, per scope and split: the classical policies, the linear model over kernel signals (K), trees and nets over the same signals, and the same with oracle information (FK), and Belady (the best possible).}}{6}{table.caption.10}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Faults relative to Clock per stream group on workloads no model was trained on (simulator, geometric mean over streams and the three memory sizes).}}{6}{table.caption.11}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces A learned-cache baseline from the literature, LeCaR, in the simulator (faults relative to Clock; same cells as the table above). ``As published'' has experts exact LRU and exact LFU and needs every access, so a kernel cannot run it; ``kernel form'' uses Clock and the kernel's decayed frequency count as the two experts, reads the accessed bits at evictions, and counts time in evictions. Both use LeCaR's original parameters (learning rate 0.45, history of half the cache per expert).}}{7}{table.caption.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {B}How to reproduce}{7}{appendix.B}\protected@file@percent }
-\newlabel{app:repro}{{B}{7}{How to reproduce}{appendix.B}{}}
-\gdef \@abspage@last{7}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Break-even by workload}{6}{appendix.A}\protected@file@percent }
+\newlabel{app:breakeven}{{A}{6}{Break-even by workload}{appendix.A}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Faults against Clock and break-even fault cost, per workload (kernel runs at 10\% memory).}}{6}{table.caption.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}Simulator results}{7}{appendix.B}\protected@file@percent }
+\newlabel{app:sim}{{B}{7}{Simulator results}{appendix.B}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Faults relative to Clock in the simulator on the original workloads, per scope and split: the classical policies, the linear model over kernel signals (K), trees and nets over the same signals, and the same with oracle information (FK), and Belady (the best possible).}}{7}{table.caption.11}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Faults relative to Clock per stream group on workloads no model was trained on (simulator, geometric mean over streams and the three memory sizes).}}{7}{table.caption.12}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces A learned-cache baseline from the literature, LeCaR, in the simulator (faults relative to Clock; same cells as the table above). ``As published'' has experts exact LRU and exact LFU and needs every access, so a kernel cannot run it; ``kernel form'' uses Clock and the kernel's decayed frequency count as the two experts, reads the accessed bits at evictions, and counts time in evictions. Both use LeCaR's original parameters (learning rate 0.45, history of half the cache per expert).}}{7}{table.caption.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {C}How to reproduce}{8}{appendix.C}\protected@file@percent }
+\newlabel{app:repro}{{C}{8}{How to reproduce}{appendix.C}{}}
+\gdef \@abspage@last{8}

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  13 OCT 2026 23:17
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  13 OCT 2026 23:27
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -615,40 +615,38 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[4] [5] (./tables/model_comparison.tex) (./tables/transfer.tex)
-(./tables/lecar.tex)
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-[6{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}] [7]
-(./week_16_update_report.aux)
+(./tables/breakeven_summary.tex) [4] [5] (./tables/breakeven_by_workload.tex)
+(./tables/model_comparison.tex) [6{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathi
+t.enc}] (./tables/transfer.tex) (./tables/lecar.tex) [7{/usr/share/texmf/fonts/
+enc/dvips/lm/lm-mathsy.enc}] [8] (./week_16_update_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
 Package rerunfilecheck Info: File `week_16_update_report.out' has not changed.
-(rerunfilecheck)             Checksum: 5EBF1FE6E4B57856549994BF6DCDD95E;1826.
+(rerunfilecheck)             Checksum: 23B0515B64A9959F927FF92C95918E29;1987.
  ) 
 Here is how much of TeX's memory you used:
- 14417 strings out of 476182
- 231520 string characters out of 5795595
+ 14463 strings out of 476182
+ 232478 string characters out of 5795595
  1975975 words of memory out of 5000000
- 35970 multiletter control sequences out of 15000+600000
- 631599 words of font info for 169 fonts, out of 8000000 for 9000
+ 35988 multiletter control sequences out of 15000+600000
+ 637256 words of font info for 179 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  75i,10n,79p,1406b,576s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
 pe1/public/lm/lmbx12.pfb></usr/share/texmf/fonts/type1/public/lm/lmbx8.pfb></us
 r/share/texmf/fonts/type1/public/lm/lmbx9.pfb></usr/share/texmf/fonts/type1/pub
-lic/lm/lmr10.pfb></usr/share/texmf/fonts/type1/public/lm/lmr12.pfb></usr/share/
-texmf/fonts/type1/public/lm/lmr5.pfb></usr/share/texmf/fonts/type1/public/lm/lm
-r7.pfb></usr/share/texmf/fonts/type1/public/lm/lmr8.pfb></usr/share/texmf/fonts
-/type1/public/lm/lmr9.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy5.pfb></u
-sr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
-Output written on week_16_update_report.pdf (7 pages, 358264 bytes).
+lic/lm/lmmi7.pfb></usr/share/texmf/fonts/type1/public/lm/lmr10.pfb></usr/share/
+texmf/fonts/type1/public/lm/lmr12.pfb></usr/share/texmf/fonts/type1/public/lm/l
+mr5.pfb></usr/share/texmf/fonts/type1/public/lm/lmr7.pfb></usr/share/texmf/font
+s/type1/public/lm/lmr8.pfb></usr/share/texmf/fonts/type1/public/lm/lmr9.pfb></u
+sr/share/texmf/fonts/type1/public/lm/lmri10.pfb></usr/share/texmf/fonts/type1/p
+ublic/lm/lmsy5.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
+Output written on week_16_update_report.pdf (8 pages, 387803 bytes).
 PDF statistics:
- 163 PDF objects out of 1000 (max. 8388607)
- 127 compressed objects within 2 object streams
- 29 named destinations out of 1000 (max. 500000)
- 43593 words of extra memory for PDF output out of 51595 (max. 10000000)
+ 187 PDF objects out of 1000 (max. 8388607)
+ 145 compressed objects within 2 object streams
+ 32 named destinations out of 1000 (max. 500000)
+ 47697 words of extra memory for PDF output out of 51595 (max. 10000000)
 

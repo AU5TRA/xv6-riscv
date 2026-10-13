@@ -1,0 +1,20 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+workload & linear score faults & linear score break-even $\mu$s & ARC faults & ARC break-even $\mu$s & CNN faults & CNN break-even $\mu$s \\
+\midrule
+app & 1.004 & 60.3 & 0.991 & 77.6 & 1.016 & 7\,531 \\
+bloom & 0.999 & 1\,256 & 1.0 & never & 1.0 & 548\,698 \\
+btree & 0.841 & 33.7 & 0.894 & 29.8 & 0.831 & 2\,710 \\
+chase & 0.864 & 11.5 & 0.922 & 10.3 & 0.921 & 1\,621 \\
+graph & 0.736 & 8.2 & 0.858 & 3.7 & 0.59 & 611 \\
+heap & 0.735 & 5.1 & 0.853 & 3.8 & 0.955 & 3\,251 \\
+join & 0.987 & 32.1 & 0.996 & 61.2 & 0.972 & 15\,367 \\
+kv & 0.879 & 9.5 & 0.892 & 4.8 & 0.932 & 1\,832 \\
+kv-T & 0.846 & 6.6 & 0.9 & 4.5 & 0.851 & 606 \\
+lzw & 0.941 & 15.9 & 0.982 & 26.9 & 0.93 & 1\,148 \\
+matmul & 1.104 & never & 0.968 & 0.6 & 0.936 & 170 \\
+pat & 0.873 & 14.8 & 0.877 & 8.7 & 0.895 & 1\,190 \\
+sort & 0.967 & 6.2 & 1.014 & never & 1.072 & 467 \\
+spmv & 1.124 & never & 1.086 & never & 1.007 & never \\
+\bottomrule
+\end{tabular}

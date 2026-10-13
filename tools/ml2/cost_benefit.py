@@ -66,7 +66,7 @@ def cost_model():
 def main():
     cm = cost_model()
     rows = []
-    for f in sorted(glob.glob(str(R / "kernel_eval_w16*.csv"))) + [str(R / "kernel_eval.csv")]:
+    for f in [str(R / "kernel_eval_all.csv")]:       # the merged file: every distinct kernel run, all streams
         rows += [r for r in csv.DictReader(open(f)) if r["status"] == "ok" and r["fraction"] == "0.1"]
     seen = {}
     for r in rows:
