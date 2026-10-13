@@ -14,7 +14,7 @@ R = ps.ROOT / "report" / "results2"
 OUT = ps.ROOT / "report" / "week_16_update" / "tables"
 W15 = ps.ROOT / "report" / "week_15_update" / "tables"
 NAME = {"arck": "ARC", "lhd": "LHD", "s3fifo": "S3-FIFO", "ml:global": "linear, global", "ml:cnn-all": "CNN", "ml:mlp-all": "deeper MLP",
-        "ml:attention-all": "set-attention", "ml:trees-all": "boosted trees", "ml:ranktrees-all": "ranking trees", "clock": "Clock", "ml:global@32": "linear, 32 sampled", "ml:global@16": "linear, 16 sampled"}
+        "ml:attention-all": "set-attention", "ml:trees-all": "boosted trees", "ml:ranktrees-all": "ranking trees", "clock": "Clock", "lecar": "LeCaR", "ml:global@32": "linear, 32 sampled", "ml:global@16": "linear, 16 sampled"}
 
 
 def tab(rows, head):
@@ -27,7 +27,7 @@ def tab(rows, head):
 def ci_table():
     rows = list(csv.DictReader(open(R / "kernel_ci_classic.csv")))
     d = {(r["policy"], r["against"], r["fraction"]): r for r in rows}
-    pairs = [("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"), ("ml:global", "arck"), ("ml:global", "lhd"),
+    pairs = [("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"), ("ml:global", "arck"), ("ml:global", "lhd"), ("lecar", "clock"), ("ml:global", "lecar"),
              ("ml:global@32", "clock"), ("ml:global@16", "clock"), ("ml:global@32", "ml:global"), ("ml:global@16", "ml:global"),
              ("ml:cnn-all", "clock"), ("ml:mlp-all", "clock"),
              ("ml:cnn-all", "arck"), ("ml:mlp-all", "arck"), ("ml:attention-all", "arck"), ("ml:trees-all", "arck"),
@@ -57,7 +57,7 @@ def cost_table():
     lin = d[("ml", "global")]
     body = []
     for k, n in [(("fifo", ""), "FIFO"), (("clock", ""), "Clock"), (("aging", ""), "Aging"), (("lfu", ""), "LFU"), (("s3fifo", ""), "S3-FIFO"),
-                 (("arck", ""), "ARC"), (("lhd", ""), "LHD"), (("ml", "global"), "linear, global"), (("ml", "trees-all"), "boosted trees"),
+                 (("arck", ""), "ARC"), (("lhd", ""), "LHD"), (("lecar", ""), "LeCaR"), (("ml", "global"), "linear, global"), (("ml", "trees-all"), "boosted trees"),
                  (("ml", "ranktrees-all"), "ranking trees"), (("ml", "attention-all"), "set-attention"), (("ml", "cnn-all"), "CNN"),
                  (("ml", "mlp-all"), "deeper MLP")]:
         if k not in d:
@@ -73,7 +73,7 @@ def breakeven_tables():
     gm = lambda rows, k: st.geometric_mean([float(r[k]) for r in rows])
     body = []
     for pol, n in [("ml:global", "linear score, all candidates"), ("ml:global@32", "linear score, 32 sampled"), ("ml:global@16", "linear score, 16 sampled"),
-                   ("arck", "ARC"), ("lhd", "LHD"), ("s3fifo", "S3-FIFO"), ("ml:cnn-all", "CNN"), ("ml:mlp-all", "deeper MLP"),
+                   ("arck", "ARC"), ("lhd", "LHD"), ("lecar", "LeCaR"), ("s3fifo", "S3-FIFO"), ("ml:cnn-all", "CNN"), ("ml:mlp-all", "deeper MLP"),
                    ("ml:attention-all", "set-attention"), ("ml:trees-all", "boosted trees"), ("ml:ranktrees-all", "ranking trees")]:
         a = [r for r in dev if r["policy"] == pol]
         b = [r for r in allm if r["policy"] == pol]

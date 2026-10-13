@@ -52,6 +52,7 @@ resample the workloads, then the streams (`tools/ml2/kernel_ci_classic.py`, `rep
 | CNN / deeper MLP against the linear score (5%, 20%: ten streams; **10%: 74 streams**) | 0.981 / 1.006 | 1.000 / 0.998 [0.94, 1.06] both | 1.028 / 1.039 | FINAL |
 | set-attention / boosted trees / ranking trees against the linear score (10%, 74 streams) | | 0.992 [0.93, 1.05] / 1.061 [1.01, 1.12] / 1.476 [1.05, 2.42] | | FINAL (R2) |
 | CNN / deeper MLP against Clock (10%, 74 streams) | | **0.914 [0.84, 0.97] / 0.912 [0.84, 0.97]** | | FINAL (R2) |
+| LeCaR (kernel form) against Clock / linear score against LeCaR (10%, 74 streams) | | 1.113 [1.04, 1.23] / **0.822 [0.73, 0.91]** | | FINAL (R4; only 10% run) |
 | linear score scanning 32 / 16 random candidates, against Clock (10%, 74 streams) | | **0.912 [0.86, 0.97] / 0.926 [0.88, 0.98]** | | FINAL (R1) |
 | the same against the full linear score | | 0.998 [0.97, 1.02] / 1.013 [0.98, 1.04] | | FINAL (R1) |
 

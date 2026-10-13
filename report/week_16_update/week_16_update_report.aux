@@ -11,29 +11,29 @@
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces 5\% memory. Faults relative to Clock in xv6; one column per workload (geometric mean over its streams); last column: mean over the 14 workloads.}}{2}{table.caption.2}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces 10\% memory, same layout (74 streams).}}{2}{table.caption.3}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces 20\% memory, same layout.}}{3}{table.caption.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces The comparisons that matter, with 95\% intervals (resampling workloads, then streams). Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the rows for the heavier models (CNN, MLP, set-attention, trees) use only the ten streams they were run on there, and the sampled linear scores were run at 10\% only.}}{3}{table.caption.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces The comparisons that matter, with 95\% intervals (resampling workloads, then streams). Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams (LeCaR was run at 10\% only). At 5 and 20\% the rows for the heavier models (CNN, MLP, set-attention, trees) use only the ten streams they were run on there, and the sampled linear scores were run at 10\% only.}}{3}{table.caption.5}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{tab:ci}{{4}{3}{The comparisons that matter, with 95\% intervals (resampling workloads, then streams). Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the rows for the heavier models (CNN, MLP, set-attention, trees) use only the ten streams they were run on there, and the sampled linear scores were run at 10\% only}{table.caption.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3}The models trained on all workloads}{3}{section.3}\protected@file@percent }
-\newlabel{sec:nets}{{3}{3}{The models trained on all workloads}{section.3}{}}
+\newlabel{tab:ci}{{4}{3}{The comparisons that matter, with 95\% intervals (resampling workloads, then streams). Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams (LeCaR was run at 10\% only). At 5 and 20\% the rows for the heavier models (CNN, MLP, set-attention, trees) use only the ten streams they were run on there, and the sampled linear scores were run at 10\% only}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}The models trained on all workloads}{4}{section.3}\protected@file@percent }
+\newlabel{sec:nets}{{3}{4}{The models trained on all workloads}{section.3}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces 5\% memory, the ten streams the heavier models were run on there. Columns as in the main tables; some workloads are missing because they have no stream here.}}{4}{table.caption.6}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces 10\% memory, all 74 streams, same layout. The mean is over the 14 workloads.}}{4}{table.caption.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}What choosing a victim costs}{4}{section.4}\protected@file@percent }
-\newlabel{sec:cost}{{4}{4}{What choosing a victim costs}{section.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces 20\% memory, same layout as 5\% (ten streams).}}{5}{table.caption.8}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces 20\% memory, same layout as 5\% (ten streams).}}{4}{table.caption.8}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Instructions the kernel spends choosing one victim, with 68 candidates (a 64-frame limit), counted exactly in QEMU's instruction-counting mode (repeatable to under 0.3\%), and the same as a multiple of the linear model.}}{5}{table.caption.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}What choosing a victim costs}{5}{section.4}\protected@file@percent }
+\newlabel{sec:cost}{{4}{5}{What choosing a victim costs}{section.4}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Does the simulator predict the kernel?}{6}{section.5}\protected@file@percent }
 \newlabel{sec:gap}{{5}{6}{Does the simulator predict the kernel?}{section.5}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {6}Limits and what is not claimed}{6}{section.6}\protected@file@percent }
 \newlabel{sec:limits}{{6}{6}{Limits and what is not claimed}{section.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {A}Break-even by workload}{6}{appendix.A}\protected@file@percent }
 \newlabel{app:breakeven}{{A}{6}{Break-even by workload}{appendix.A}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {B}Simulator results}{6}{appendix.B}\protected@file@percent }
-\newlabel{app:sim}{{B}{6}{Simulator results}{appendix.B}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Faults against Clock and break-even fault cost, per workload (kernel runs at 10\% memory).}}{7}{table.caption.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}Simulator results}{7}{appendix.B}\protected@file@percent }
+\newlabel{app:sim}{{B}{7}{Simulator results}{appendix.B}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Faults relative to Clock in the simulator on the original workloads, per scope and split: the classical policies, the linear model over kernel signals (K), trees and nets over the same signals, and the same with oracle information (FK), and Belady (the best possible).}}{7}{table.caption.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {C}How to reproduce}{7}{appendix.C}\protected@file@percent }
-\newlabel{app:repro}{{C}{7}{How to reproduce}{appendix.C}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Faults relative to Clock per stream group on workloads no model was trained on (simulator, geometric mean over streams and the three memory sizes).}}{8}{table.caption.12}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Faults relative to Clock per stream group on workloads no model was trained on (simulator, geometric mean over streams and the three memory sizes).}}{7}{table.caption.12}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces A learned-cache baseline from the literature, LeCaR, in the simulator (faults relative to Clock; same cells as the table above). ``As published'' has experts exact LRU and exact LFU and needs every access, so a kernel cannot run it; ``kernel form'' uses Clock and the kernel's decayed frequency count as the two experts, reads the accessed bits at evictions, and counts time in evictions. Both use LeCaR's original parameters (learning rate 0.45, history of half the cache per expert).}}{8}{table.caption.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {C}How to reproduce}{8}{appendix.C}\protected@file@percent }
+\newlabel{app:repro}{{C}{8}{How to reproduce}{appendix.C}{}}
 \gdef \@abspage@last{8}
