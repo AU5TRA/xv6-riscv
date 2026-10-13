@@ -1,0 +1,17 @@
+policy,candidates,decisions_timed,ns_per_decision_median,ns_per_decision_min,ns_per_candidate_median
+linear score (global) + page-table walk,68,500000,1520,1492,22.4
+linear score (global) 32 sampled + page-table walk,68,500000,892,870,27.9
+linear score (global) 16 sampled + page-table walk,68,500000,448,439,28.0
+boosted trees + page-table walk,68,50000,31779,30810,467.3
+ranking trees + page-table walk,68,50000,27928,26620,410.7
+set-attention + page-table walk,68,7500,107942,106673,1587.4
+CNN + page-table walk,68,7500,106472,104861,1565.8
+deeper MLP + page-table walk,68,7500,200910,197518,2954.6
+linear score (global) + page-table walk,256,500000,5989,5856,23.4
+linear score (global) 32 sampled + page-table walk,256,500000,905,898,28.3
+linear score (global) 16 sampled + page-table walk,256,500000,457,449,28.6
+boosted trees + page-table walk,256,50000,121909,119419,476.2
+ranking trees + page-table walk,256,50000,106179,103653,414.8
+set-attention + page-table walk,256,7500,389696,383108,1522.2
+CNN + page-table walk,256,7500,388921,383902,1519.2
+deeper MLP + page-table walk,256,7500,736672,723774,2877.6

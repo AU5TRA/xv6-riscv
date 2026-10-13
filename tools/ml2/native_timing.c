@@ -5,9 +5,11 @@
 // kernel-only parts: the page-table walk that reads and clears the accessed bits, the locks, the swap I/O). So it is a lower bound for the
 // whole decision. For the sampled variant it includes the partial Fisher-Yates draw of k candidates.
 //
-//   gcc -O2 -I kernel -o /tmp/native_timing tools/ml2/native_timing.c && taskset -c 2 /tmp/native_timing > report/results2/native_timing.csv
+//   gcc -O2 -I . -I kernel -o /tmp/native_timing tools/ml2/native_timing.c
+//   taskset -c 2 /tmp/native_timing > report/results2/native_timing.csv ; taskset -c 2 /tmp/native_timing walk > report/results2/native_timing_walk.csv
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include "kernel/types.h"
@@ -52,11 +54,68 @@ static void sample(int count, int k) {            // partial Fisher-Yates, as ml
   rng = x;
 }
 
+// Page table: the same three-level layout and the same walk() as kernel/vm.c (a PTE holds the next table's address in its upper bits;
+// here a host pointer, which is 4096-aligned). Leaf PTEs carry PTE_V, PTE_A and PTE_D. Scattered virtual pages, as a resident set is.
+#define PTE_V 1ULL
+#define PTE_A (1ULL << 6)
+#define PTE_D (1ULL << 7)
+#define PX(level, va) (((va) >> (12 + 9 * (level))) & 0x1FF)
+static uint64 *root;
+static int use_walk;
+static uint64 va_of[MAXC];
+
+static uint64 *new_table(void) { uint64 *t; if (posix_memalign((void **)&t, 4096, 4096)) exit(1); memset(t, 0, 4096); return t; }
+
+static uint64 *walk(uint64 *pt, uint64 va) {
+  for (int level = 2; level > 0; level--) {
+    uint64 *pte = &pt[PX(level, va)];
+    if (*pte & PTE_V) pt = (uint64 *)(*pte & ~0xFFFULL);
+    else { uint64 *n = new_table(); *pte = (uint64)n | PTE_V; pt = n; }
+  }
+  return &pt[PX(0, va)];
+}
+
+static void build_page_table(void) {
+  root = new_table();
+  for (int i = 0; i < MAXC; i++) {
+    va_of[i] = (0x4000000ULL + (xs() % (4 * MAXC))) << 12;
+    uint64 *pte = walk(root, va_of[i]);
+    *pte = ((uint64)(i + 1) << 12) | PTE_V | PTE_D;   // frame number = i + 1, never dereferenced
+    if (cs[i].seen) *pte |= PTE_A;
+  }
+}
+
+// What sample_page + the bookkeeping of choose_ml do for each candidate (kernel/vmpage.c): walk, read A and D, update the page's
+// counters, clear A.  The page-table walk is the part native_timing.c used to leave out.  Not included: the sfence.vma after the scan.
+static void scan_candidates(int count) {
+  for (int i = 0; i < count; i++) {
+    struct cand *c = cp[i];
+    uint64 *pte = walk(root, va_of[c - cs]);
+    if (!(*pte & PTE_V) || (*pte & ~0xFFFULL) == 0) continue;
+    int accessed = (*pte & PTE_A) != 0;
+    c->dirty = (*pte & PTE_D) != 0;
+    c->seen = accessed;
+    c->aging = ((c->aging & 0xff) >> 1) | (accessed ? 0x80 : 0);
+    if (accessed) { c->sfreq++; c->last_seen = now_scan; *pte &= ~PTE_A; }
+    *pte |= PTE_A;      // the program touches the page again before the next scan (keeps every timed decision alike)
+    c->sfreq &= 0xff; c->last_seen = now_scan - (c->last_seen & 0x7ff);
+  }
+}
+
 static volatile long sink;
+static int cold;
+static char *junk;
+#define JUNK (16 << 20)
+static void churn(void) {            // the program runs between two evictions and pushes the page table and page structs out of the caches
+  long t = 0;
+  for (long i = 0; i < JUNK; i += 64) { junk[i]++; t += junk[i]; }
+  sink += t;
+}
 
 static struct cand *decide(int model, int count, int k) {
   const struct vm_ml_weights *w = &ml_default_weights;
   if (k > 0 && count > k) { sample(count, k); count = k; }
+  if (use_walk) scan_candidates(count);
   struct cand *victim = 0; long best = 0;
   if (model > 0) {
     for (int i = 0; i < count; i++) {
@@ -79,7 +138,10 @@ static struct cand *decide(int model, int count, int k) {
 static double now_ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e9 + t.tv_nsec; }
 static int cmpd(const void *a, const void *b) { double x = *(double *)a, y = *(double *)b; return (x > y) - (x < y); }
 
-int main(void) {
+int main(int argc, char **argv) {
+  use_walk = argc > 1;
+  cold = argc > 1 && argv[1][0] == 'c';
+  if (cold) { junk = calloc(JUNK, 1); }      // ./native_timing walk : also walk the page table and update the counters for each candidate
   for (int i = 0; i < MAXC; i++) {
     cs[i].load_scan = now_scan - (xs() % 5000); cs[i].last_seen = now_scan - (xs() % 3000); cs[i].rdist = xs() % 400;
     cs[i].load_seq = i; cs[i].sfreq = xs() % 50; cs[i].refaults = xs() % 6; cs[i].aging = xs() & 0xff; cs[i].seen = xs() & 1; cs[i].dirty = (xs() % 3) == 0;
@@ -87,25 +149,28 @@ int main(void) {
   struct { const char *name; int model; int k; } cfg[] = {
     {"linear score (global)", 0, 0}, {"linear score (global) 32 sampled", 0, 32}, {"linear score (global) 16 sampled", 0, 16},
     {"boosted trees", 10, 0}, {"ranking trees", 9, 0}, {"set-attention", 7, 0}, {"CNN", 6, 0}, {"deeper MLP", 8, 0}};
+  build_page_table();
   printf("policy,candidates,decisions_timed,ns_per_decision_median,ns_per_decision_min,ns_per_candidate_median\n");
   int sizes[] = {68, 256};
   for (int s = 0; s < 2; s++)
     for (unsigned c = 0; c < sizeof cfg / sizeof cfg[0]; c++) {
       int n = sizes[s];
-      int reps = cfg[c].model ? (cfg[c].model == 8 || cfg[c].model == 6 || cfg[c].model == 7 ? 300 : 2000) : 20000;
+      int reps = cold ? (cfg[c].model == 8 || cfg[c].model == 6 || cfg[c].model == 7 ? 20 : 60) : cfg[c].model ? (cfg[c].model == 8 || cfg[c].model == 6 || cfg[c].model == 7 ? 300 : 2000) : 20000;
       double batch[25];
       for (int b = 0; b < 25; b++) {
         for (int i = 0; i < n; i++) cp[i] = &cs[i];
-        double t0 = now_ns();
+        double t0 = now_ns(), spent = 0;
         for (int r = 0; r < reps; r++) {
+          if (cold) { churn(); t0 = now_ns(); }
           struct cand *v = decide(cfg[c].model, n, cfg[c].k);
           sink += (long)v->load_seq;
+          if (cold) spent += now_ns() - t0;
         }
-        batch[b] = (now_ns() - t0) / reps;
+        batch[b] = cold ? spent / reps : (now_ns() - t0) / reps;
       }
       qsort(batch, 25, sizeof(double), cmpd);
       int scored = cfg[c].k && cfg[c].k < n ? cfg[c].k : n;
-      printf("%s,%d,%d,%.0f,%.0f,%.1f\n", cfg[c].name, n, 25 * reps, batch[12], batch[0], batch[12] / scored);
+      printf("%s%s,%d,%d,%.0f,%.0f,%.1f\n", cfg[c].name, cold ? " + page-table walk (cold caches)" : use_walk ? " + page-table walk" : "", n, 25 * reps, batch[12], batch[0], batch[12] / scored);
     }
   return 0;
 }
