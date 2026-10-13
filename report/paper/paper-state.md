@@ -6,8 +6,55 @@ Running memory of the writing process (skill: `mlsys-ml-for-os-paper`). Update a
   `AUSTRA_HANDOFF.md` "START HERE" section with FINAL / PLACEHOLDER / WIP tags. The venue is now
   confirmed from the official MLSys 2027 call.
 
-Next step in the skill's order: **settle D2 with the collaborator** (claim, title, authors). Then
-Step 5.1–5.4 prose, and the Step 6 review simulation.
+- 2026-10-13: placeholders filled from the frozen results. D2 applied (title, claim, no system name);
+  the guard removed everywhere (dropped by the collaborator); N1 numbers at 5%/20% (74 streams, 2,743
+  runs); S1/S2 measured device latency and native timing replace the assumed fault cost; S3 LeCaR in
+  §5.2 + appendix table; Twitter data statement (D2b). Literature review folded into Move 3 and §6.
+  All cited bib entries checked on publisher pages (tags `[checked]` in references.bib). Figures 1–5
+  and the appendix marginal figure drawn (TikZ/pgfplots); plot data from `make_figdata.py`.
+  Corrected two wrong claims found on the way: "the only classical policy that beats Clock" (LRU
+  beats it on matmul) and "≥3× on sort" (censored at 3×). Body ends on page 10.
+  **The sections below this log predate 2026-10-13; the Numbers table's 5%/20% values and the guard
+  rows are superseded by main.tex.**
+
+## Open work (2026-10-13)
+
+**A. TODO markers left in main.tex:** only the anonymized code/data link (abstract, §4, conclusion).
+
+**B. Runs that would make the paper consistent or stronger** (cut-off for new runs: 25 Oct)
+1. *(high)* Linear score with 32 and 16 sampled candidates, global weights, on all 74 streams at
+   10%. Today the "sampling halves the cost for ≤1 point of faults" claim (abstract, §3.6, §5.6,
+   Fig. 5) rests on 3 and 2 workloads, and the §5.6 numbers use per-workload weights (lzw, kv-T).
+2. *(medium)* The five heavier models on all 74 streams, at least at 10%. "Level with the linear
+   score at 20–150× the cost" rests on 10 streams; their intervals are the widest.
+3. *(medium)* Rerun the naive-training failure (§2.4: ≥3× Clock on PageRank, 97% of victims loaded
+   at the previous fault, three DAgger rounds) and the one-round DAgger ablation (§5.6) on the
+   current datasets, or label both "first version of the study" in the text.
+4. *(optional)* LeCaR in the kernel (simulator only today; its kernel form loses to Clock there).
+5. *(optional)* Time a decision natively including the accessed-bit page-table walk (the 1.35 µs
+   leaves it out); a whole xv6 fault on real hardware is not possible on QEMU, so it stays a limit.
+6. *(optional, not a run)* Generate a .tex for the measured break-even table (cost_benefit_measured_*
+   .csv) so the appendix can show it per workload; regenerate model_comparison/lecar if 3 changes data.
+
+**C. Edits still to make in the paper**
+1. Both authors rewrite the text in their own words (MLSys: no AI-only content); this includes the
+   new related work, captions and the two drawn diagrams (Fig. 1, 4).
+2. Anonymized code and data mirror; put the link in the three TODOs.
+3. Fold in B1–B3 when they exist (abstract, §1 Move 7, §3.6, §5.4, §5.6, Fig. 5, Table 4 if any).
+4. Skill Step 6: three mock reviews (OS, ML, generalist) and fixes. Expected attacks: no Linux
+   experiment; no end-to-end application metric (only faults and a time model); "level with ARC" is
+   modest; adapted classical policies.
+5. Optional tightening: 18 subsections against a median of 13.
+6. Submission build: paper with `\withappendixfalse`, appendix as a separate PDF, `check_draft.py`
+   on the PDF; AI-use disclosure as the venue asks.
+7. Bookkeeping: outline.md and the "Numbers" table below are stale (guard rows, 51 streams, 5%/20%
+   values); main.tex is the source of truth. The week-16 report's Limits bullet still says the fault
+   cost is assumed.
+8. Camera-ready only: names, equal-contribution note, acknowledgments (cache_ext authors for the
+   Twitter archive, the Twitter trace release, Kaggle), credit for AU5TRA's programs.
+
+**D. People:** author names/affiliations/e-mails and the supervisor decision (GawwyG, before 19 Oct);
+author-quota check; OpenReview profiles complete (~16 Oct).
 
 ## Basics
 - **Working title:** Glimpse: Learned Page Replacement from What the Kernel Already Sees.

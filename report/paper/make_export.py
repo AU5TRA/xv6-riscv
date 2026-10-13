@@ -35,6 +35,10 @@ assert old_tables in src, "the \\wsixteen definition changed; update make_export
 assert old_gpath in src, "the \\graphicspath line changed; update make_export.py"
 tex = src.replace(old_tables, BS + "newcommand{" + BS + "wsixteen}{tables}")
 tex = tex.replace(old_gpath, BS + "graphicspath{{figures/}}")
+T15 = HERE.parent / "week_15_update" / "tables"
+old_t15 = BS + "newcommand{" + BS + "wfifteen}{../week_15_update/tables}"
+tex = tex.replace(old_t15, BS + "newcommand{" + BS + "wfifteen}{tables15}")
+tables15 = sorted(set(re.findall(re.escape(BS + "input{" + BS + "wfifteen/") + r"([A-Za-z0-9_]+)\}", src)))
 
 tables = sorted(set(re.findall(re.escape(BS + "input{" + BS + "wsixteen/") + r"([A-Za-z0-9_]+)\}", src)))
 missing = [t for t in tables if not (TABLES / (t + ".tex")).exists()]
@@ -75,6 +79,8 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(HERE / name, name)
     for t in tables:
         z.write(TABLES / (t + ".tex"), f"tables/{t}.tex")
+    for t in tables15:
+        z.write(T15 / (t + ".tex"), f"tables15/{t}.tex")
     if bbl.exists():
         z.write(bbl, "main.bbl")
     figs = HERE / "figures"

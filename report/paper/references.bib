@@ -1,18 +1,20 @@
-% references.bib -- skeleton bibliography
+% references.bib
 %
 % Provenance key (the skill's rule: never cite from memory without checking):
-%   [skill]   listed with full authors in the mlsys-ml-for-os-paper skill's papers.md
-%             (hand-checked against proceedings.mlsys.org by the skill's study)
-%   [VERIFY]  added from memory while building the skeleton. Check title, ALL authors
-%             (MLSys requires every author listed), venue, year and pages against the
-%             publisher page before submission, then delete the VERIFY line.
+%   [skill]    listed with full authors in the mlsys-ml-for-os-paper skill's papers.md
+%              (hand-checked against proceedings.mlsys.org by the skill's study)
+%   [checked]  checked on 2026-10-13 against the publisher page or its deposited metadata
+%              (USENIX, PMLR, Crossref for ACM/IEEE/SIAM, LIPIcs, nature.com, arXiv,
+%              docs.kernel.org); full author lists, titles, venues and pages as printed.
+%   [search]   found on a publisher/USENIX/PMLR/arXiv page by the 2026-10-12 search
+%              (related-work-notes.md); re-check the ones you cite before submission.
 %
-% Not included yet (find and add): the closest in-kernel learned eviction work at OS
-% venues (e.g. eBPF page-cache policies), Kleio (hybrid-memory page scheduling, HPDC'19),
-% HALP (YouTube CDN, NSDI'23), Linux kernel_fpu_begin cost, a stakes citation.
+% Uncited entries do not appear in the PDF.
+% Not cited on purpose: chledowski2021robust needs \usepackage[T1]{fontenc} (the ogonek in
+% the first author's name), which main.tex no longer loads.
 
 % ---------------------------------------------------------------- classical ----
-% VERIFY
+% [checked] Crossref 10.1147/sj.52.0078
 @article{belady1966study,
   author  = {Belady, L. A.},
   title   = {A Study of Replacement Algorithms for a Virtual-Storage Computer},
@@ -23,16 +25,21 @@
   year    = {1966}
 }
 
-% VERIFY (report number; also reprinted in "In Honor of Philip M. Morse", MIT Press, 1969)
-@techreport{corbato1968paging,
-  author      = {Corbat{\'o}, Fernando J.},
-  title       = {A Paging Experiment with the {M}ultics System},
-  institution = {MIT Project MAC},
-  number      = {MAC-M-384},
-  year        = {1968}
+% [checked] the festschrift chapter (scan at multicians.org, pp. 217-228). The report number
+% MAC-M-384 (May 1968) appears only in later papers' reference lists, so it is a note.
+@incollection{corbato1968paging,
+  author    = {Corbat{\'o}, Fernando J.},
+  title     = {A Paging Experiment with the {M}ultics System},
+  booktitle = {In Honor of {P}hilip {M}. {M}orse},
+  editor    = {Feshbach, Herman and Ingard, K. Uno},
+  publisher = {MIT Press},
+  address   = {Cambridge, MA},
+  pages     = {217--228},
+  year      = {1969},
+  note      = {Also MIT Project MAC Report MAC-M-384, May 1968}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/800216.806596
 @inproceedings{carr1981wsclock,
   author    = {Carr, Richard W. and Hennessy, John L.},
   title     = {{WSCLOCK}---A Simple and Effective Algorithm for Virtual Memory Management},
@@ -41,7 +48,7 @@
   year      = {1981}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/363095.363141
 @article{denning1968working,
   author  = {Denning, Peter J.},
   title   = {The Working Set Model for Program Behavior},
@@ -52,7 +59,7 @@
   year    = {1968}
 }
 
-% VERIFY
+% [checked] Crossref 10.1147/sj.92.0078
 @article{mattson1970evaluation,
   author  = {Mattson, R. L. and Gecsei, J. and Slutz, D. R. and Traiger, I. L.},
   title   = {Evaluation Techniques for Storage Hierarchies},
@@ -63,7 +70,7 @@
   year    = {1970}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/170035.170081
 @inproceedings{oneil1993lruk,
   author    = {O'Neil, Elizabeth J. and O'Neil, Patrick E. and Weikum, Gerhard},
   title     = {The {LRU-K} Page Replacement Algorithm for Database Disk Buffering},
@@ -72,7 +79,7 @@
   year      = {1993}
 }
 
-% VERIFY
+% [checked] vldb.org/conf/1994/P439.PDF
 @inproceedings{johnson1994twoq,
   author    = {Johnson, Theodore and Shasha, Dennis},
   title     = {{2Q}: A Low Overhead High Performance Buffer Management Replacement Algorithm},
@@ -81,7 +88,7 @@
   year      = {1994}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/511334.511340
 @inproceedings{jiang2002lirs,
   author    = {Jiang, Song and Zhang, Xiaodong},
   title     = {{LIRS}: An Efficient Low Inter-Reference Recency Set Replacement Policy to Improve Buffer Cache Performance},
@@ -90,15 +97,16 @@
   year      = {2002}
 }
 
-% VERIFY
+% [checked] USENIX FAST '03 page and PDF
 @inproceedings{megiddo2003arc,
   author    = {Megiddo, Nimrod and Modha, Dharmendra S.},
   title     = {{ARC}: A Self-Tuning, Low Overhead Replacement Cache},
   booktitle = {Proceedings of the 2nd USENIX Conference on File and Storage Technologies (FAST)},
+  pages     = {115--130},
   year      = {2003}
 }
 
-% VERIFY
+% [checked] USENIX FAST '04 page (no page numbers printed)
 @inproceedings{bansal2004car,
   author    = {Bansal, Sorav and Modha, Dharmendra S.},
   title     = {{CAR}: Clock with Adaptive Replacement},
@@ -106,48 +114,56 @@
   year      = {2004}
 }
 
-% VERIFY
+% [checked] USENIX ATC '05 page and PDF
 @inproceedings{jiang2005clockpro,
   author    = {Jiang, Song and Chen, Feng and Zhang, Xiaodong},
   title     = {{CLOCK-Pro}: An Effective Improvement of the {CLOCK} Replacement},
   booktitle = {Proceedings of the USENIX Annual Technical Conference (ATC)},
+  pages     = {323--336},
   year      = {2005}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/3600006.3613147 (ACM lists the fifth author as Rashmi Vinayak;
+% the paper's byline prints K. V. Rashmi -- same person)
 @inproceedings{yang2023s3fifo,
   author    = {Yang, Juncheng and Zhang, Yazhuo and Qiu, Ziyue and Yue, Yao and Vinayak, Rashmi},
   title     = {{FIFO} Queues Are All You Need for Cache Eviction},
   booktitle = {Proceedings of the 29th ACM Symposium on Operating Systems Principles (SOSP)},
+  pages     = {130--149},
   year      = {2023}
 }
 
-% VERIFY
+% [checked] USENIX NSDI '24 page
 @inproceedings{zhang2024sieve,
   author    = {Zhang, Yazhuo and Yang, Juncheng and Yue, Yao and Vigfusson, Ymir and Rashmi, K. V.},
   title     = {{SIEVE} is Simpler than {LRU}: An Efficient Turn-Key Eviction Algorithm for Web Caches},
   booktitle = {Proceedings of the 21st USENIX Symposium on Networked Systems Design and Implementation (NSDI)},
+  pages     = {1229--1246},
   year      = {2024}
 }
 
-% VERIFY
+% [checked] USENIX NSDI '18 page
 @inproceedings{beckmann2018lhd,
   author    = {Beckmann, Nathan and Chen, Haoxian and Cidon, Asaf},
   title     = {{LHD}: Improving Cache Hit Rate by Maximizing Hit Density},
   booktitle = {Proceedings of the 15th USENIX Symposium on Networked Systems Design and Implementation (NSDI)},
+  pages     = {389--403},
   year      = {2018}
 }
 
-% VERIFY (source of the Twitter cache traces replayed as kv-T; check the trace licence too)
+% [checked] USENIX OSDI '20 page prints "K. V. Rashmi" (the trace repository asks for
+% "Rashmi Vinayak"; cite the publication as printed). Source of the kv-T replays; the traces
+% are CC BY 4.0 (github.com/twitter/cache-trace, checked 2026-10-12).
 @inproceedings{yang2020twitter,
   author    = {Yang, Juncheng and Yue, Yao and Rashmi, K. V.},
   title     = {A Large Scale Analysis of Hundreds of In-memory Cache Clusters at {T}witter},
   booktitle = {Proceedings of the 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
+  pages     = {191--208},
   year      = {2020}
 }
 
 % ------------------------------------------------------------ Linux / xv6 ------
-% VERIFY URL and the kernel version MGLRU was merged in (ML_REPORT says 5.18+; believed 6.1)
+% [checked] URL resolves (heading "Multi-Gen LRU"); merged in Linux 6.1 (kernelnewbies Linux_6.1)
 @misc{linux_mglru,
   author       = {{The Linux Kernel Documentation}},
   title        = {Multi-Gen {LRU}},
@@ -155,7 +171,7 @@
   year         = {2024}
 }
 
-% VERIFY
+% [checked] path exists (GitHub mirror; git.kernel.org shows a bot check to scripts)
 @misc{linux_workingset,
   author       = {{The Linux Kernel}},
   title        = {mm/workingset.c: Workingset Detection (Refault Distance)},
@@ -163,15 +179,24 @@
   year         = {2024}
 }
 
-% VERIFY
+% [checked] URL resolves; page heading as of 2026-10-13. Merged in Linux 5.15 (kernelnewbies).
 @misc{linux_damon,
   author       = {{The Linux Kernel Documentation}},
-  title        = {{DAMON}: Data Access {MON}itor},
+  title        = {{DAMON}: Data Access {MON}itoring and Access-aware System Operations},
   howpublished = {\url{https://docs.kernel.org/admin-guide/mm/damon/index.html}},
   year         = {2024}
 }
 
-% VERIFY
+% [checked] "Kernel code is normally prohibited from using floating-point (FP) registers or
+% instructions, including the C float and double data types."
+@misc{linux_fpu,
+  author       = {{The Linux Kernel Documentation}},
+  title        = {Floating-point {API}},
+  howpublished = {\url{https://docs.kernel.org/core-api/floating-point.html}},
+  year         = {2026}
+}
+
+% [checked] repository resolves; the title is the companion book's (rev4, Aug 2024)
 @misc{xv6,
   author       = {Cox, Russ and Kaashoek, M. Frans and Morris, Robert},
   title        = {xv6: A Simple, {U}nix-like Teaching Operating System ({RISC-V} version)},
@@ -180,39 +205,45 @@
 }
 
 % --------------------------------------------------- learned caching -----------
-% VERIFY
+% [checked] Crossref 10.1109/ISCA.2016.17
 @inproceedings{jain2016hawkeye,
   author    = {Jain, Akanksha and Lin, Calvin},
   title     = {Back to the Future: Leveraging {B}elady's Algorithm for Improved Cache Replacement},
   booktitle = {Proceedings of the 43rd International Symposium on Computer Architecture (ISCA)},
+  pages     = {78--89},
   year      = {2016}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/3352460.3358319
 @inproceedings{shi2019glider,
   author    = {Shi, Zhan and Huang, Xiangru and Jain, Akanksha and Lin, Calvin},
   title     = {Applying Deep Learning to the Cache Replacement Problem},
   booktitle = {Proceedings of the 52nd IEEE/ACM International Symposium on Microarchitecture (MICRO)},
+  pages     = {413--425},
   year      = {2019}
 }
 
-% VERIFY
+% [checked] PMLR v119 (the PDF prints "Evan Zheran Liu")
 @inproceedings{liu2020parrot,
   author    = {Liu, Evan Zheran and Hashemi, Milad and Swersky, Kevin and Ranganathan, Parthasarathy and Ahn, Junwhan},
   title     = {An Imitation Learning Approach for Cache Replacement},
   booktitle = {Proceedings of the 37th International Conference on Machine Learning (ICML)},
+  series    = {PMLR},
+  volume    = {119},
+  pages     = {6237--6247},
   year      = {2020}
 }
 
-% VERIFY
+% [checked] USENIX NSDI '20 page
 @inproceedings{song2020lrb,
   author    = {Song, Zhenyu and Berger, Daniel S. and Li, Kai and Lloyd, Wyatt},
   title     = {Learning Relaxed {B}elady for Content Distribution Network Caching},
   booktitle = {Proceedings of the 17th USENIX Symposium on Networked Systems Design and Implementation (NSDI)},
+  pages     = {529--544},
   year      = {2020}
 }
 
-% VERIFY (author list especially)
+% [checked] USENIX HotStorage '18 page (all 8 authors; no page numbers printed)
 @inproceedings{vietri2018lecar,
   author    = {Vietri, Giuseppe and Rodriguez, Liana V. and Martinez, Wendy A. and Lyons, Steven and Liu, Jason and Rangaswami, Raju and Zhao, Ming and Narasimhan, Giri},
   title     = {Driving Cache Replacement with {ML}-based {LeCaR}},
@@ -220,40 +251,56 @@
   year      = {2018}
 }
 
-% VERIFY (author list especially)
+% [checked] USENIX FAST '21 page (all 8 authors)
 @inproceedings{rodriguez2021cacheus,
   author    = {Rodriguez, Liana V. and Yusuf, Farzana and Lyons, Steven and Paz, Eysler and Rangaswami, Raju and Liu, Jason and Zhao, Ming and Narasimhan, Giri},
   title     = {Learning Cache Replacement with {CACHEUS}},
   booktitle = {Proceedings of the 19th USENIX Conference on File and Storage Technologies (FAST)},
+  pages     = {341--354},
   year      = {2021}
 }
 
+% [checked] Crossref 10.1109/HPCA57654.2024.00090. Online RL decides LLC replacement and bypass
+% (prefetch-aware); prefetching itself is done by conventional prefetchers.
+@inproceedings{lu2024chrome,
+  author    = {Lu, Xiaoyang and Najafi, Hamed and Liu, Jason and Sun, Xian-He},
+  title     = {{CHROME}: Concurrency-Aware Holistic Cache Management Framework with Online Reinforcement Learning},
+  booktitle = {Proceedings of the 30th IEEE International Symposium on High-Performance Computer Architecture (HPCA)},
+  pages     = {1154--1167},
+  year      = {2024}
+}
+
 % ---------------------------------------------- learned OS components ----------
-% VERIFY
+% [checked] PMLR v80 (the PDF prints "Jamie A. Smith")
 @inproceedings{hashemi2018learning,
   author    = {Hashemi, Milad and Swersky, Kevin and Smith, Jamie A. and Ayers, Grant and Litz, Heiner and Chang, Jichuan and Kozyrakis, Christos and Ranganathan, Parthasarathy},
   title     = {Learning Memory Access Patterns},
   booktitle = {Proceedings of the 35th International Conference on Machine Learning (ICML)},
+  series    = {PMLR},
+  volume    = {80},
+  pages     = {1919--1928},
   year      = {2018}
 }
 
-% VERIFY
+% [checked] USENIX OSDI '20 page
 @inproceedings{hao2020linnos,
   author    = {Hao, Mingzhe and Toksoz, Levent and Li, Nanqinqin and Halim, Edward Edberg and Hoffmann, Henry and Gunawi, Haryadi S.},
   title     = {{LinnOS}: Predictability on Unpredictable Flash Storage with a Light Neural Network},
   booktitle = {Proceedings of the 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
+  pages     = {173--190},
   year      = {2020}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/3373376.3378525
 @inproceedings{maas2020llama,
   author    = {Maas, Martin and Andersen, David G. and Isard, Michael and Javanmard, Mohammad Mahdi and McKinley, Kathryn S. and Raffel, Colin},
   title     = {Learning-based Memory Allocation for {C++} Server Workloads},
   booktitle = {Proceedings of the 25th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS)},
+  pages     = {541--556},
   year      = {2020}
 }
 
-% VERIFY (cited as "learned OS vision (Zhang & Huang, 2019)" inside the MLSys corpus)
+% [checked] Crossref 10.1145/3352020.3352027
 @article{zhang2019learned,
   author  = {Zhang, Yiying and Huang, Yutong},
   title   = {``{L}earned'' Operating Systems},
@@ -264,11 +311,13 @@
   year    = {2019}
 }
 
-% VERIFY
+% [checked] PMLR v15
 @inproceedings{ross2011dagger,
   author    = {Ross, St{\'e}phane and Gordon, Geoffrey J. and Bagnell, J. Andrew},
   title     = {A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning},
   booktitle = {Proceedings of the 14th International Conference on Artificial Intelligence and Statistics (AISTATS)},
+  series    = {PMLR},
+  volume    = {15},
   pages     = {627--635},
   year      = {2011}
 }
@@ -347,7 +396,7 @@
 }
 
 % ----------------------------------------------------------- tools/data --------
-% VERIFY
+% [checked] Crossref 10.1145/1807128.1807152
 @inproceedings{cooper2010ycsb,
   author    = {Cooper, Brian F. and Silberstein, Adam and Tam, Erwin and Ramakrishnan, Raghu and Sears, Russell},
   title     = {Benchmarking Cloud Serving Systems with {YCSB}},
@@ -356,7 +405,7 @@
   year      = {2010}
 }
 
-% VERIFY
+% [checked] Crossref 10.1145/1250734.1250746
 @inproceedings{nethercote2007valgrind,
   author    = {Nethercote, Nicholas and Seward, Julian},
   title     = {Valgrind: A Framework for Heavyweight Dynamic Binary Instrumentation},
@@ -366,14 +415,14 @@
 }
 
 % =============================================================================
-% Related-work search 2026-10-12 (see related-work-notes.md).
-% [SEARCH-VERIFIED] each was found on a publisher / USENIX / PMLR / arXiv page by the
-% search; LearnedCache and PageFlex were also spot-checked by hand. Re-check the ones you
-% cite on the publisher page before submission (pages, author spelling).
-% Uncited entries do not appear in the PDF.
+% Related-work search 2026-10-12 (related-work-notes.md) and the literature review of
+% 2026-10-12. Entries marked [checked] were re-checked on 2026-10-13.
 % =============================================================================
 
 % --- learned or programmable memory policies inside kernels ---------------------
+% [checked] arXiv API: v1 2026-05-25, v2 2026-07-30; 6-page preprint, not peer-reviewed.
+% Perceptron per workload in cache_ext; baselines: Linux LRU, MGLRU and the cache_ext
+% heuristics (FIFO, MRU, LHD, LFU, S3-FIFO). The MLSys'26 YPS poster is non-archival.
 @misc{qi2026learnedcache,
   author       = {Qi, Zejia},
   title        = {{LearnedCache}: {eBPF}-Integrated Perceptron-Based Eviction Policies for the {Linux} Page Cache},
@@ -381,6 +430,7 @@
   year         = {2026}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{zussman2025cacheext,
   author    = {Zussman, Tal and Zarkadas, Ioannis and Carin, Jeremy and Cheng, Andrew and Franke, Hubertus and Pfefferle, Jonas and Cidon, Asaf},
   title     = {cache\_ext: Customizing the Page Cache with {eBPF}},
@@ -389,6 +439,7 @@
   year      = {2025}
 }
 
+% [search]
 @inproceedings{yelam2025pageflex,
   author    = {Yelam, Anil and Wu, Kan and Guo, Zhiyuan and Yang, Suli and Shashidhara, Rajath and Xu, Wei and Novakovi{\'c}, Stanko and Snoeren, Alex C. and Keeton, Kimberly},
   title     = {{PageFlex}: Flexible and Efficient User-space Delegation of {Linux} Paging Policies with {eBPF}},
@@ -396,6 +447,8 @@
   year      = {2025}
 }
 
+% [checked] arXiv API: v1 2026-09-23. "uses a compact quantized MLP to score sampled pages
+% inside the kernel" (eBPF on PEBS events; INT8 weights).
 @misc{ramaswamy2026xtier,
   author       = {Ramaswamy, Sriranga and Chen, Yueqi},
   title        = {{xTier}: Intelligent Tiering for {CXL}-Enabled Memory},
@@ -403,6 +456,7 @@
   year         = {2026}
 }
 
+% [search]
 @inproceedings{saxena2025guardrails,
   author    = {Saxena, Divyanshu and Chen, Jiayi and Yadalam, Sujay and Ro, Yeonju and Dwivedula, Rohit and Campbell, Eric H. and Akella, Aditya and Rossbach, Christopher J. and Swift, Michael},
   title     = {How {I} Learned to Stop Worrying and Love Learned {OS} Policies},
@@ -411,6 +465,7 @@
   year      = {2025}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{fingler2023lake,
   author    = {Fingler, Henrique and Tarte, Isha and Yu, Hangchen and Szekely, Ariel and Hu, Bodun and Akella, Aditya and Rossbach, Christopher J.},
   title     = {Towards a Machine Learning-Assisted Kernel with {LAKE}},
@@ -419,6 +474,7 @@
   year      = {2023}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{akgun2021kml,
   author    = {Akgun, Ibrahim Umit and Aydin, Ali Selman and Shaikh, Aadil and Velikov, Lukas and Zadok, Erez},
   title     = {A Machine Learning Framework to Improve Storage System Performance},
@@ -427,6 +483,7 @@
   year      = {2021}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{qiu2021rmt,
   author    = {Qiu, Yiming and Liu, Hongyi and Anderson, Thomas and Lin, Yingyan and Chen, Ang},
   title     = {Toward Reconfigurable Kernel Datapaths with Learned Optimizations},
@@ -435,6 +492,8 @@
   year      = {2021}
 }
 
+% [checked] Crossref 10.1145/3297858.3304053. A GP bandit tunes the threshold controller's
+% parameters (K, S) offline; kstaled ages pages from accessed bits.
 @inproceedings{lagarcavilla2019farmemory,
   author    = {Lagar-Cavilla, Andres and Ahn, Junwhan and Souhlal, Suleiman and Agarwal, Neha and Burny, Radoslaw and Butt, Shakeel and Chang, Jichuan and Chaugule, Ashwin and Deng, Nan and Shahid, Junaid and Thelen, Greg and Yurtsever, Kamil Adam and Zhao, Yu and Ranganathan, Parthasarathy},
   title     = {Software-Defined Far Memory in Warehouse-Scale Computers},
@@ -443,7 +502,50 @@
   year      = {2019}
 }
 
+% [checked] nature.com, doi 10.1038/s41598-025-88736-4. A multi-armed bandit chooses between
+% LRU and MRU (via CLOCK and LIFO+); trace-driven simulation and FlashGraph's
+% application-level memory manager; no kernel implementation.
+@article{kim2025lpr,
+  author  = {Kim, Hwajung},
+  title   = {Learning-based Page Replacement Scheme for Efficient {I/O} Processing},
+  journal = {Scientific Reports},
+  volume  = {15},
+  number  = {1},
+  pages   = {4721},
+  year    = {2025}
+}
+
+% [checked] Crossref 10.1145/3307681.3325398. RNNs for a subset of pages, history-based
+% scheduling for the rest; DRAM + NVM page placement.
+@inproceedings{doudali2019kleio,
+  author    = {Doudali, Thaleia Dimitra and Blagodurov, Sergey and Vishnu, Abhinav and Gurumurthi, Sudhanva and Gavrilovska, Ada},
+  title     = {Kleio: A Hybrid Memory Page Scheduler with Machine Intelligence},
+  booktitle = {Proceedings of the 28th International Symposium on High-Performance Parallel and Distributed Computing (HPDC)},
+  pages     = {37--48},
+  year      = {2019}
+}
+
+% [checked] Crossref 10.1145/3470496.3527442. Online RL for data placement in hybrid storage.
+@inproceedings{singh2022sibyl,
+  author    = {Singh, Gagandeep and Nadig, Rakesh and Park, Jisung and Bera, Rahul and Hajinazar, Nastaran and Novo, David and G{\'o}mez-Luna, Juan and Stuijk, Sander and Corporaal, Henk and Mutlu, Onur},
+  title     = {Sibyl: Adaptive and Extensible Data Placement in Hybrid Storage Systems Using Online Reinforcement Learning},
+  booktitle = {Proceedings of the 49th Annual International Symposium on Computer Architecture (ISCA)},
+  pages     = {320--336},
+  year      = {2022}
+}
+
+% [checked] Crossref 10.1145/3503222.3507704 (the author is Daniel Crankshaw). Safeguards
+% protect workloads from bad on-node models.
+@inproceedings{wang2022sol,
+  author    = {Wang, Yawen and Crankshaw, Daniel and Yadwadkar, Neeraja J. and Berger, Daniel and Kozyrakis, Christos and Bianchini, Ricardo},
+  title     = {{SOL}: Safe On-Node Learning in Cloud Platforms},
+  booktitle = {Proceedings of the 27th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS)},
+  pages     = {622--634},
+  year      = {2022}
+}
+
 % --- learned eviction outside the kernel -----------------------------------------
+% [search]
 @inproceedings{berger2018lfo,
   author    = {Berger, Daniel S.},
   title     = {Towards Lightweight and Robust Machine Learning for {CDN} Caching},
@@ -452,6 +554,8 @@
   year      = {2018}
 }
 
+% [checked] USENIX NSDI '23 page: "running in YouTube CDN production as a DRAM level eviction
+% algorithm since early 2022"; a heuristic proposes candidates, a network re-ranks them.
 @inproceedings{song2023halp,
   author    = {Song, Zhenyu and Chen, Kevin and Sarda, Nikhil and Alt{\i}nb{\"u}ken, Deniz and Brevdo, Eugene and Coleman, Jimmy and Ju, Xiao and Jurczyk, Pawel and Schooler, Richard and Gummadi, Ramki},
   title     = {{HALP}: Heuristic Aided Learned Preference Eviction Policy for {YouTube} Content Delivery Network},
@@ -460,6 +564,7 @@
   year      = {2023}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{zhou2025threelcache,
   author    = {Zhou, Wenbin and Niu, Zhixiong and Xiong, Yongqiang and Fang, Juan and Wang, Qian},
   title     = {{3L-Cache}: Low Overhead and Precise Learning-based Eviction Policy for Caches},
@@ -468,6 +573,7 @@
   year      = {2025}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{xia2026lah,
   author    = {Xia, Haocheng and Nixon, William and Marthen, Bintang Dwi and Bhandari, Pranav and Yang, Juncheng},
   title     = {Learning-Augmented Heuristics: Simple Yet Smart, Robust and Interpretable Cache Eviction},
@@ -476,6 +582,7 @@
   year      = {2026}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{yang2023glcache,
   author    = {Yang, Juncheng and Mao, Ziming and Yue, Yao and Rashmi, K. V.},
   title     = {{GL-Cache}: Group-level Learning for Efficient and High-Performance Caching},
@@ -484,6 +591,7 @@
   year      = {2023}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{shah2022mockingjay,
   author    = {Shah, Ishan and Jain, Akanksha and Lin, Calvin},
   title     = {Effective Mimicry of {B}elady's {MIN} Policy},
@@ -492,6 +600,7 @@
   year      = {2022}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{sethumurugan2021rlr,
   author    = {Sethumurugan, Subhash and Yin, Jieming and Sartori, John},
   title     = {Designing a Cost-Effective Cache Replacement Policy using Machine Learning},
@@ -500,6 +609,7 @@
   year      = {2021}
 }
 
+% [search]
 @inproceedings{zhou2021traces,
   author    = {Zhou, Giulio and Maas, Martin},
   title     = {Learning on Distributed Traces for Data Center Storage Systems},
@@ -508,16 +618,19 @@
 }
 
 % --- paging with ML predictions (theory) -------------------------------------------
+% [checked] J. ACM 68(4), Article 24, 25 pages (doi 10.1145/3447579); ICML 2018 version in
+% PMLR 80:3296-3305. Each request carries a predicted next arrival time.
 @article{lykouris2021jacm,
   author  = {Lykouris, Thodoris and Vassilvitskii, Sergei},
   title   = {Competitive Caching with Machine Learned Advice},
   journal = {Journal of the ACM},
   volume  = {68},
   number  = {4},
-  note    = {Article 24},
+  pages   = {24:1--24:25},
   year    = {2021}
 }
 
+% [checked] 2026-10-13 (publisher page / Crossref)
 @inproceedings{rohatgi2020,
   author    = {Rohatgi, Dhruv},
   title     = {Near-Optimal Bounds for Online Caching with Machine Learned Advice},
@@ -526,16 +639,39 @@
   year      = {2020}
 }
 
+% [checked] drops.dagstuhl.de, doi 10.4230/LIPIcs.APPROX/RANDOM.2020.60
 @inproceedings{wei2020,
   author    = {Wei, Alexander},
   title     = {Better and Simpler Learning-Augmented Online Caching},
-  booktitle = {Approximation, Randomization, and Combinatorial Optimization (APPROX/RANDOM)},
+  booktitle = {Approximation, Randomization, and Combinatorial Optimization. Algorithms and Techniques (APPROX/RANDOM)},
   series    = {LIPIcs},
   volume    = {176},
   pages     = {60:1--60:17},
   year      = {2020}
 }
 
+% [checked] PMLR v162
+@inproceedings{im2022parsimonious,
+  author    = {Im, Sungjin and Kumar, Ravi and Petety, Aditya and Purohit, Manish},
+  title     = {Parsimonious Learning-Augmented Caching},
+  booktitle = {Proceedings of the 39th International Conference on Machine Learning (ICML)},
+  series    = {PMLR},
+  volume    = {162},
+  pages     = {9588--9601},
+  year      = {2022}
+}
+
+% [checked] Crossref 10.1137/1.9781611977073.4. Each page has its own fetching cost; predictions
+% of each page's next arrival.
+@inproceedings{bansal2022weighted,
+  author    = {Bansal, Nikhil and Coester, Christian and Kumar, Ravi and Purohit, Manish and Vee, Erik},
+  title     = {Learning-Augmented Weighted Paging},
+  booktitle = {Proceedings of the 2022 Annual ACM-SIAM Symposium on Discrete Algorithms (SODA)},
+  pages     = {67--89},
+  year      = {2022}
+}
+
+% [search] Needs \usepackage[T1]{fontenc} for the ogonek; not cited (see the header).
 @inproceedings{chledowski2021robust,
   author    = {Ch{\l}{\k{e}}dowski, Jakub and Polak, Adam and Szabucki, Bartosz and {\.Z}o{\l}na, Konrad Tomasz},
   title     = {Robust Learning-Augmented Caching: An Experimental Study},

@@ -1,0 +1,4 @@
+row,workload,policy,ratio,clipped,true_ratio
+1,graph,lfu_exact,1.500,1,3.000
+4,matmul,lfu_exact,1.500,1,3.000
+5,sort,lfu_exact,1.500,1,2.919

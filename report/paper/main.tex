@@ -1,6 +1,8 @@
 %%%%%%%% Paper skeleton -- MLSys research track (2025 style file) %%%%%%%%%%%%%%
 %
-% STATUS: draft on the final kernel results. Claim, title and authors pending D2.
+% STATUS: draft on the final, frozen kernel results (2,743 runs). D2 is decided
+% (GAWWY_HANDOFF_PAPER.md, "D2 decided"): the claim, the title, no system name, MLSys
+% 2027 research track. The guard was dropped by the collaborator: do not reintroduce it.
 % Numbers come from report/week_16_update, report/week_15_update and
 % report/results2; each typed number carries a "% src:" comment. Nothing here is a
 % new measurement. See paper-state.md and outline.md.
@@ -20,7 +22,6 @@
 %
 \documentclass{article}
 
-\usepackage[T1]{fontenc}   % needed for author names with accents such as the ogonek (Ch{\l}{\k{e}}dowski)
 \usepackage{microtype}
 \usepackage{graphicx}
 \usepackage{subfigure}
@@ -39,12 +40,35 @@
 
 \usepackage{xcolor}
 \usepackage{xspace}
+\usepackage{enumitem}   % compact research-question list (\S2.5)
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usetikzlibrary{arrows.meta,positioning,calc}
+% Figure colours: the dataviz reference palette, slots 1-2 (validated colour-blind safe on
+% white, all pairs) and its neutral inks. Learned linear score = blue, heavier models =
+% orange, classical policies = ink. Diverging maps: blue <-> red through a gray midpoint.
+\definecolor{cLin}{HTML}{2A78D6}
+\definecolor{cHeavy}{HTML}{EB6834}
+\definecolor{cInk}{HTML}{52514E}
+\definecolor{cMuted}{HTML}{898781}
+\definecolor{cGrid}{HTML}{E1E0D9}
+\definecolor{cAxis}{HTML}{C3C2B7}
+\definecolor{cNeg}{HTML}{E34948}
+\pgfplotsset{
+  paperplot/.style={
+    font=\scriptsize, tick label style={font=\scriptsize}, label style={font=\scriptsize},
+    axis line style={cAxis}, tick style={cAxis}, major grid style={cGrid, thin},
+    every axis legend/.append style={draw=none, fill=none, font=\scriptsize},
+    legend cell align=left, /tikz/every mark/.append style={solid}},
+  diverging/.style={colormap={div}{rgb255=(42,120,214) rgb255=(240,239,236) rgb255=(227,73,72)}},
+}
+\newcommand{\figdata}{figures/data}   % written by make_figdata.py from ../results2
 %==============================================================================
 % ----- MACROS -----
 %==============================================================================
 % ---- names (one name per component, used everywhere) -----------------------
-% \sys is a WORKING NAME. Decide it with the title (paper-state.md, Decisions).
-\newcommand{\sys}{\textsc{Glimpse}\xspace}
+% No system name (D2, the collaborator's language rule): write "the learned policy" or
+% "the linear score". ARC, LHD and S3-FIFO are always the accessed-bit forms (\S4).
 \newcommand{\xv}{xv6-riscv\xspace}
 \newcommand{\clock}{Clock\xspace}
 \newcommand{\belady}{Belady\xspace}
@@ -59,6 +83,7 @@
 % ---- generated tables from the collaborator's week-16 report (never retype) -----
 % Regenerate with: cd tools/ml2 && python3 report_w15.py && python3 report_w16.py
 \newcommand{\wsixteen}{../week_16_update/tables}
+\newcommand{\wfifteen}{../week_15_update/tables}   % appendix dataset table only
 \newcommand{\best}[1]{\textbf{#1}}   % used inside ci_main.tex: whole interval below 1
 
 % ---- drafting marks (remove before submission; check_draft flags leftovers) --
@@ -90,16 +115,20 @@
 
 \graphicspath{{figures/}{../figures2/}}
 
-\mlsystitlerunning{\sys: Learned Page Replacement from What the Kernel Already Sees}
+\mlsystitlerunning{Learned Page Replacement from What the Kernel Already Sees}
 
 \begin{document}
 
 \twocolumn[
-% Working title (Step 5.10 of the skill drafts the title LAST; alternatives in paper-state.md)
-\mlsystitle{\sys: Learned Page Replacement from What the Kernel Already Sees}
+% Title decided in D2 (2026-10-12).
+\mlsystitle{Learned Page Replacement from What the Kernel Already Sees}
 
 % Double-blind: the style hides authors unless [accepted]. Keep placeholders
 % here anyway so a stray build never leaks names.
+% Camera-ready (D2): two authors with equal contribution; legal names, affiliations
+% and e-mails come from the collaborator. Mark both names with an asterisk and pass
+% \mlsysEqualContribution to \printAffiliationsAndNotice. Whether the supervisor
+% is an author must be settled before submissions open (19 Oct).
 \begin{mlsysauthorlist}
 \mlsysauthor{Anonymous Author 1}{anon}
 \mlsysauthor{Anonymous Author 2}{anon}
@@ -122,27 +151,26 @@
 % evaluation basis; headline numbers WITH baseline; code.
 % Every number below must appear identically in the body (paper-state.md, "Numbers").
 %
-% CLAIM STATUS: PENDING decision D2 (AUSTRA_HANDOFF.md, START HERE section 1). The
-% claim below is the one the handoff proposes; confirm it with the collaborator before
-% submission. Rule from the handoff: never write "beats ARC".
-% Numbers: week-16 kernel results (report/week_16_update), all tagged FINAL there.
+% CLAIM: decided in D2 (GAWWY_HANDOFF_PAPER.md, "D2 decided", 2026-10-12). Never write
+% "beats ARC". Numbers: week-16 kernel results after round 5 (74 streams at every size).
 Learned policies beat hand-written heuristics in CPU caches and content-delivery
 networks, but an operating system's page-replacement policy works under constraints
 those settings lack: the kernel never sees individual memory accesses, cannot use
 floating point on the eviction path, and every eviction changes all later faults.
-We ask whether a learned page-replacement policy is implementable under these
-constraints, and build one in the xv6 teaching kernel. It scores resident pages with a
-small linear model over signals the kernel already keeps (accessed- and dirty-bit
-history and refault bookkeeping), computed in whole-number arithmetic and trained
-offline to imitate \belady's optimal policy.
-Across 14 workloads, eight of them never used in training, and 2,375 kernel runs at
+We ask whether a learned page-replacement policy can work under these constraints,
+and build one in the xv6 teaching kernel. It scores resident pages with a small linear
+model over signals the kernel already keeps (accessed- and dirty-bit history and
+refault bookkeeping), computed in whole numbers and trained offline to imitate
+\belady's optimal policy.
+Across 14 workloads, eight of them never used in training, and 2,743 kernel runs at
 three memory sizes, the linear score incurs 8.6\% fewer page faults than \clock at 10\%
 memory (95\% interval 2--15\%) and is level with ARC, the strongest classical policy we
-could run in the kernel. Five heavier models, including a CNN and an MLP, are not
-clearly better and cost 20--150$\times$ as much per eviction.
-Decision time is the price: 22,803 instructions per eviction, 55$\times$ \clock;
-sampling 32 candidates halves it for at most one point of faults.
-\todo{claim pending D2; anonymized code link}
+could run in the kernel. Five heavier models, including a CNN and an MLP, are level with
+it and cost 20--150$\times$ as much per eviction.
+Choosing a victim costs 22,803 instructions, 55$\times$ \clock; sampling 32 candidates
+halves that for at most one point of faults. With the devices and the core we measured,
+the saved faults pay for this work on a hard disk, and on an NVMe SSD with a fast core.
+\todo{anonymized code link}
 \end{abstract}
 ]
 
@@ -167,10 +195,11 @@ sampling 32 candidates halves it for at most one point of faults.
 \begin{table}[t]
 \caption{\textbf{Measured in the xv6 kernel.} Page faults relative to \clock (geometric
 mean over each workload's streams, then over 14 workloads with equal weight) at memory
-limits of 5, 10 and 20\% of each program's pages, and instructions spent choosing one
-victim among 68 candidates. Bold: the 95\% interval lies entirely below 1.
-$^\dagger$Adapted to what a kernel sees (accessed bits read at each eviction). The
-learned score beats \clock at 10\% and is level with ARC; it costs the most to decide.}
+limits of 5, 10 and 20\% of each program's pages (74 streams at each size), and
+instructions spent choosing one victim among 68 candidates. Bold: the 95\% interval lies
+entirely below 1. $^\dagger$Accessed-bit form: accessed bits are read at each eviction
+(\S\ref{sec:impl}). The learned score beats \clock at 10\% and is level with ARC; it
+costs the most to decide.}
 \label{tab:teaser}
 \vskip 0.1in
 \begin{center}
@@ -180,95 +209,98 @@ learned score beats \clock at 10\% and is level with ARC; it costs the most to d
 \toprule
 Policy & 5\% & 10\% & 20\% & instr./victim \\
 \midrule
-FIFO                 & 1.23  & 1.25  & 1.34  & 385 \\
-Aging                & 1.04  & 1.07  & 1.15  & 8,125 \\
-LFU                  & 1.07  & 1.13  & 1.26  & 8,005 \\
+FIFO                 & 1.23  & 1.25  & 1.35  & 385 \\
+Aging                & 1.04  & 1.07  & 1.17  & 8,125 \\
+LFU                  & 1.07  & 1.13  & 1.27  & 8,005 \\
 \clock               & 1.00  & 1.00  & 1.00  & 411 \\
-S3-FIFO$^\dagger$    & 1.091 & 1.016 & 1.073 & 1,395 \\
-LHD$^\dagger$        & 1.009 & 0.951 & 0.944 & 14,199 \\
-ARC$^\dagger$        & \textbf{0.946} & \textbf{0.943} & 0.986 & 11,934 \\
+S3-FIFO$^\dagger$    & 1.086 & 1.016 & 1.086 & 1,395 \\
+LHD$^\dagger$        & 1.005 & 0.951 & 0.949 & 14,199 \\
+ARC$^\dagger$        & \textbf{0.947} & \textbf{0.943} & 0.984 & 11,934 \\
 \midrule
-Linear score (ours)  & 0.979 & \textbf{0.914} & 0.887 & 22,803 \\
+Linear score (ours)  & 0.976 & \textbf{0.914} & 0.882 & 22,803 \\
 \bottomrule
 \end{tabular}
 \end{small}
 \end{center}
 \vskip -0.1in
 \end{table}
-% src: report/week_16_update/tables/ci_main.tex (ARC, LHD, S3-FIFO, linear; 3 decimals)
+% src: report/week_16_update/tables/ci_main.tex (ARC, LHD, S3-FIFO, linear; 3 decimals;
+% regenerated 2026-10-12 after round 5 / N1, 74 streams at every size)
 % src: kmain_A_005/01/02 "mean" column (FIFO, Aging, LFU; 2 decimals as generated)
 % src: tables/cost.tex (cost_grid.csv; QEMU instruction-count mode, 68 candidates)
 % All FINAL per AUSTRA_HANDOFF.md START HERE sections 0 and 3.
 
 % --- Move 1: stakes --------------------------------------------------------
-\plan{Stakes in one sentence with a number we can support. Page faults under memory
-pressure turn a memory access into a disk access; every avoidable fault is lost time,
-and memory limits (containers, cgroups, far memory) make pressure the normal case.}
-\todo{one supportable stakes number with a citation, e.g.\ DRAM share of server cost,
-or fault cost vs DRAM access; do not invent it}
+When a program needs more memory than it is allowed, each page fault turns a memory
+access into a device access: a 4\,KB read takes 63\,\textmu s on the NVMe SSD and
+8.9\,ms on the hard disk we measured (\S\ref{sec:eval-cost}). Which page the kernel
+evicts decides how many of these accesses a program pays for.
+% src: report/results2/device_latency.csv (S1; median 4 KB random read, no file cache)
 
 % --- Move 2: how the OS does it today, and the measured failure --------------
-Operating systems choose which page to evict with recency heuristics built on the
-hardware accessed bit: \clock and its descendants~\citep{corbato1968paging,carr1981wsclock},
-and in Linux the active/inactive lists and the multi-generational LRU~\citep{linux_mglru}.
-These heuristics leave a large gap to the optimum. On B-tree, key-value and graph
-workloads, \belady's offline policy~\citep{belady1966study} incurs 43--54\% fewer faults
-than \clock, and \clock is within 2\% of exact LRU on five of the six training
-workloads (\S\ref{sec:bg-headroom}). Stronger classical policies such as
-ARC~\citep{megiddo2003arc}, LHD~\citep{beckmann2018lhd} and
-S3-FIFO~\citep{yang2023s3fifo} were designed for caches that see every hit; in the form
-a kernel can run, the best of them, ARC, incurs about 5\% fewer faults than \clock
+The kernel must choose the page without knowing the program's future accesses. It
+decides with recency heuristics built on the hardware accessed bit: \clock and its
+descendants~\citep{corbato1968paging,carr1981wsclock}, and in Linux the active/inactive
+lists and the multi-generational LRU~\citep{linux_mglru}. These heuristics leave many
+avoidable faults. On B-tree, key-value and graph workloads, \belady's offline
+policy~\citep{belady1966study} incurs 43--54\% fewer faults than \clock, and \clock is
+within 2\% of exact LRU on five of the six training workloads (\S\ref{sec:bg-headroom}).
+Stronger classical policies such as ARC~\citep{megiddo2003arc},
+LHD~\citep{beckmann2018lhd} and S3-FIFO~\citep{yang2023s3fifo} were designed for caches
+that see every hit; in the accessed-bit form a kernel can run, the best of them, ARC,
+incurs about 5\% fewer faults than \clock at the two smaller memory sizes
 (Table~\ref{tab:teaser}).
 % src: classical tables (unchanged by the week-15 refit): Belady test 0.550 / 0.571 / 0.456 vs Clock (btree, kv, graph)
 % src: week_16 tables/model_comparison.tex LRU column: 0.981-1.012 on btree, graph, kv, lzw, sort; matmul 0.879
 
 % --- Move 3: why prior learned approaches do not solve it --------------------
-% DRAFT written with an AI assistant from related-work-notes.md. MLSys forbids text
-% generated by an LLM alone: rewrite it in your own words before submission, and check
-% each claim against the cited paper. Do not add a "first" claim (LearnedCache exists).
-Learned replacement policies already beat hand-written ones, but in settings that see
-every access. Hardware cache policies learn from \belady's decisions using per-access
-program counters~\citep{jain2016hawkeye,shi2019glider,shah2022mockingjay}, or imitate
-\belady with a neural policy~\citep{liu2020parrot}. Content-delivery and storage caches
-learn from the history of every request, in floating point, outside the
-kernel~\citep{song2020lrb,song2023halp,vietri2018lecar,rodriguez2021cacheus}. A kernel
-has none of this: it learns about a page only when the page faults or when a scan finds
-its accessed or dirty bit set, and it must pick a victim on the eviction path without
-floating point. The closest work, LearnedCache~\citep{qi2026learnedcache}, runs a
-perceptron inside the Linux page cache through cache\_ext~\citep{zussman2025cacheext},
-but it sees every page-cache access and manages file pages, not a program's memory.
-Learned operating-system policies at MLSys have so far worked above the kernel, in VM
-allocation~\citep{barbalho2023vmalloc,ling2025lava}, NUMA placement~\citep{zhao2026catur}
-and storage placement~\citep{yang2025byom}. Whether a learned policy can work with only
-what a kernel sees has remained open.
-% src: related-work-notes.md (LearnedCache: arXiv 2605.26168, spot-checked; cache_ext SOSP'25;
-% Mockingjay HPCA'22; HALP NSDI'23); MLSys corpus from the skill's papers.md.
+Learned replacement policies outperform hand-written ones, but where every access is
+visible. Hardware cache policies learn from \belady's past decisions, with the program
+counter of each access as the main feature~\citep{jain2016hawkeye,shi2019glider,shah2022mockingjay}.
+Content-delivery and storage caches learn from every request, in floating point, outside
+the kernel~\citep{song2020lrb,song2023halp,vietri2018lecar,rodriguez2021cacheus}; even
+there, three FIFO queues match the learned LRB on the traces where both were
+compared~\citep{yang2023s3fifo}. A kernel has none of this visibility: it learns about a
+page only when the page faults or when a scan finds its accessed or dirty bit set, and it
+must pick a victim on the fault path without floating point. Learning in memory management
+has so far placed pages across memory tiers~\citep{doudali2019kleio,ramaswamy2026xtier} or
+tuned the parameters of far-memory reclaim~\citep{lagarcavilla2019farmemory} rather than
+chosen victims. The
+closest eviction work, LearnedCache~\citep{qi2026learnedcache}, runs a perceptron in the
+Linux page cache through cache\_ext~\citep{zussman2025cacheext}, where every access is
+visible and the pages are file pages. Learned operating-system policies at MLSys work above
+the kernel~\citep{barbalho2023vmalloc,ling2025lava,zhao2026catur,yang2025byom}. We found no
+learned eviction policy for a program's own memory, its anonymous pages and swap, and none
+that learns only from the coarse signals a kernel has.
+% src: related-work-notes.md (search of OS/arch/ML venues, 2026-10-12) and the literature
+% review ML_Page_Replacement_Literature_Review.pdf (2026-10-12): "Anonymous memory and swap:
+% open gap, no learned eviction policy found"; LearnedCache is page cache only. Not a
+% "first" claim. S3-FIFO vs LRB: "similar efficiency" on ten random traces (LRB was too
+% slow for the 6,594-trace set), S3-FIFO paper, checked 2026-10-13. Far memory: a GP
+% bandit tunes the threshold controller's parameters K and S offline (ASPLOS'19 PDF).
+% Kleio: RNN page scheduling DRAM/NVM; xTier: INT8 MLP in eBPF over PEBS samples.
 
 % --- Move 4: the question and the insight ------------------------------------
-This paper asks whether a learned page-replacement policy is \emph{implementable} at
-operating-system level: with only the signals a kernel observes, without floating point,
-on the eviction path, and without knowing which program it serves. Our answer is a
-qualified yes: \textbf{the kernel already sees enough}. Accessed-bit history and the
-refault bookkeeping kernels already keep carry the signal a learned policy needs; a
-small linear score over them, computed in whole numbers, beats \clock inside the kernel
-and is level with the strongest classical policy a kernel can run. Larger models do not
-pay for their cost.
+We ask whether a learned page-replacement policy can work at operating-system level:
+with only the signals a kernel observes, without floating point, on the eviction path,
+and without knowing which program it serves. Our answer is a qualified yes:
+\textbf{the kernel already sees enough}. Accessed-bit history and the refault
+bookkeeping kernels already keep carry the signal a learned policy needs; a small linear
+score over them, computed in whole numbers, beats \clock inside the kernel and is level
+with the strongest classical policy a kernel can run. Larger models do not pay for their
+cost.
 
 % --- Move 5: challenges -> techniques (the paper's spine; see paper-state.md) --
-\plan{Five challenges, each measured, each mapped to one technique of
-\S\ref{sec:design} and one ablation of \S\ref{sec:eval}:
-(C1) the kernel never sees accesses $\rightarrow$ features from accessed/dirty-bit scans
-and refault bookkeeping (\S\ref{sec:design-features});
-(C2) no floating point and a per-eviction budget $\rightarrow$ a whole-number linear
-score; heavier models also converted to whole numbers for comparison
-(\S\ref{sec:design-int});
-(C3) decisions compound, and naively sampled training data teaches the policy to evict
-the page being streamed through $\rightarrow$ decision-point training with
-recency-stratified recording, plus probation for new pages (\S\ref{sec:design-train});
-(C4) a wrong model can be worse than \clock $\rightarrow$ validation-only selection, a
-validated victim, and a fallback guard (simulator prototype; \S\ref{sec:design-wrong});
-(C5) scoring every page is slow $\rightarrow$ scoring 32 sampled candidates
-(\S\ref{sec:design-cost}).}
+Five problems stand in the way, and each design element answers one. The kernel never
+sees accesses, so the features come from accessed/dirty-bit scans and refault
+bookkeeping (\S\ref{sec:design-features}). Training data sampled naively teaches the
+policy to evict the page being streamed through, so we record eviction decisions with
+the most recent pages always included and protect new pages for a few scans
+(\S\ref{sec:design-train}). There is no floating point on the fault path, so the score
+is a whole-number dot product (\S\ref{sec:design-int}). A wrong model can be worse than
+\clock, so models are chosen on validation streams only and every victim is checked
+(\S\ref{sec:design-wrong}). Scoring every page is slow, so the policy can score 32
+sampled candidates instead (\S\ref{sec:design-cost}).
 
 % --- Move 6: contributions ----------------------------------------------------
 Our contributions are:
@@ -282,34 +314,31 @@ Our contributions are:
   real application traces; with kernel-visible inputs, more capacity does not pay
   (\S\ref{sec:bg}, \S\ref{sec:eval-info}, \S\ref{sec:eval-ablate}).
 \item \textbf{An in-kernel evaluation against strong classical policies}: 14 workloads
-  (eight never used in training), three memory sizes, 2,375 kernel runs and 95\%
-  intervals, against \clock and kernel forms of ARC, LHD and S3-FIFO, with exact
-  instruction counts for every policy's decision (\S\ref{sec:eval-kernel},
+  (eight never used in training), three memory sizes, 2,743 kernel runs and 95\%
+  intervals, against \clock and the accessed-bit forms of ARC, LHD and S3-FIFO, with
+  exact decision costs and measured device latency (\S\ref{sec:eval-kernel},
   \S\ref{sec:eval-cost}, \S\ref{sec:eval-robust}).
 \item \textbf{A paging platform and dataset for xv6}: demand paging and swap, and
   complete read/write-marked reference strings checked against independent models of
   every program (\S\ref{sec:impl}, Appendix~\ref{app:data}).
-  \todo{keep only if released anonymously; credits for the platform, programs and
-  Kaggle runs are part of D2}
 \end{itemize}
 
 % --- Move 7: headline results with baseline named ----------------------------
 At 10\% memory the linear score incurs 8.6\% fewer faults than \clock (95\% interval
-2--15\%); at 5\% and 20\% it is better on average (2.1\% and 11.3\% fewer) but the
-intervals include no change. Against ARC it moves from 3.5\% more faults at 5\% to
-10.1\% fewer at 20\%, and no interval excludes a tie. It fails on specific workloads
+2--15\%); at 5\% and 20\% it is better on average (2.4\% and 11.8\% fewer) but the
+intervals include no change. Against ARC it moves from 3.1\% more faults at 5\% to
+10.4\% fewer at 20\%, and no interval excludes a tie. It fails on specific workloads
 (matrix multiply at 5\%, sparse matrix--vector product, graph with the global weights;
 \S\ref{sec:eval-loss}), and it does not reduce page writes on average: it writes less than
 \clock on B-tree, key-value, heap and pointer-chasing workloads and several times more on
-matmul and SpMV. Choosing a victim costs 22,803 instructions among 68
-candidates, 55$\times$ \clock and about twice ARC; sampling 32 candidates holds the cost
-at about 11,700 instructions whatever the memory size. Assuming a fault cost we did not
-measure, the per-workload linear score pays for itself on a hard disk and roughly breaks
-even on fast flash (\S\ref{sec:eval-cost}).
-% src: ci_main.tex (0.914 [0.85,0.98]; 0.979; 0.887; vs ARC 1.035 / 0.970 / 0.899); cost.tex; week-15 report, cost section
-\todo{claim and framing pending D2}
-
-\plan{Optional one-line roadmap.}
+matmul and SpMV. Choosing a victim costs 22,803 instructions among 68 candidates,
+55$\times$ \clock and about twice ARC; sampling 32 candidates halves that. Counting
+device time and decision time, the linear score takes 0.92 of \clock's
+time on a hard disk, and on an NVMe SSD 0.95 with a fast core but 1.34 with a slow one
+(\S\ref{sec:eval-cost}).
+% src: ci_main.tex after round 5 (0.914 [0.85,0.98]; 0.976; 0.882; vs ARC 1.031 / 0.970 / 0.896);
+% cost.tex; native_timing.csv (1,350 ns at 68 candidates); week-16 report section "What choosing a
+% victim costs" (time vs Clock 0.92 / 0.92 hard disk, 0.95 / 1.34 SSD at 0.06 / 1 ns per instruction)
 %==============================================================================
 % ----- 2 BACKGROUND AND MOTIVATION -----
 %==============================================================================
@@ -325,28 +354,44 @@ even on fast flash (\S\ref{sec:eval-cost}).
 \subsection{Page Replacement, as the Kernel Sees It}
 \label{sec:bg-mechanism}
 
-\plan{For ML readers, in about 0.5 page. (1) A process has more virtual pages than its
-resident limit allows; touching a non-resident page traps (a page fault); the kernel
-must pick a resident \emph{victim}, write it back if it is dirty or has no swap copy,
-and load the faulting page. (2) The decision: which resident page to evict; made once
-per eviction, synchronously on the fault path; its budget is set by the fault it
-serves (a disk read, often a write). (3) What the kernel can see: the MMU handles loads
-and stores itself and only sets the accessed (A) and dirty (D) bits in the page-table
-entry; the kernel reads and clears them when it scans. It never sees individual
-accesses. Linux has the same limit for anonymous memory. (4) \clock and Aging as
-heuristics over the A bit; \belady as the offline optimum (evict the page whose next
-use is furthest away), optimal for faults but not for writes.}
+A process may use more virtual pages than its resident limit allows. Touching a page
+that is not resident traps into the kernel: a page fault. If the process is at its
+limit, the kernel picks a resident \emph{victim} among the process's own evictable
+pages, writes it to swap if it is dirty or has no swap copy, and loads the faulting page
+into the freed frame (Figure~\ref{fig:mechanism}). The choice is made once per eviction,
+synchronously on the fault path, so its cost adds to the fault it serves. The policy
+cannot see the program's accesses: the MMU performs loads and stores itself and only
+sets the accessed (A) and dirty (D) bits in the page-table entry, which the kernel reads
+and clears when it scans. Linux has the same limit for anonymous memory. \clock and
+Aging are heuristics over the A bit. \belady's policy, which evicts the page whose next
+use is furthest in the future, is the offline optimum for faults, though not for
+write-backs.
+% src: kernel/vmpage.c reclaim_frame() (candidates = the faulting process's own frames,
+% page_is_candidate; write to a new swap slot unless the page has a valid slot and PTE_D is
+% clear), sample_page() (reads PTE_A/PTE_D, clears PTE_A); kernel/vm.c sets PTE_A at fault-in.
 
 \begin{figure}[t]
 \centering
-\figbox{1.55in}{The eviction path. Fault $\rightarrow$ resident limit reached
-$\rightarrow$ \emph{choose victim} (policy: FIFO / \clock / Aging / LFU / \sys)
-$\rightarrow$ write back if dirty or no swap copy $\rightarrow$ load page. Annotate what
-the policy can read (A/D bits at scan time, per-page counters, swap-slot metadata) and
-what it cannot (individual accesses).}{to draw (TikZ or vector); mechanism from
-kernel/vmpage.c \texttt{reclaim\_frame}}
-\caption{\plan{Takeaway caption: the policy decides once per eviction, on the fault path,
-seeing only accessed/dirty bits.}}
+\begin{tikzpicture}[font=\scriptsize, node distance=0.36cm,
+  box/.style={draw=cAxis, rounded corners=2pt, align=center, inner sep=2.5pt,
+    minimum height=0.8cm, text width=1.3cm},
+  flow/.style={-{Stealth[length=4pt]}, cInk, thick}]
+\node[box] (fault) {page fault at the resident limit};
+\node[box, right=of fault, draw=cLin, very thick] (choose) {\textbf{choose a victim}};
+\node[box, right=of choose] (wb) {write back if dirty or no swap copy};
+\node[box, right=of wb] (load) {load the faulting page};
+\node[box, above=0.55cm of choose] (mmu) {MMU sets A and D in the page table};
+\node[box, left=of mmu] (prog) {the program's loads and stores};
+\draw[flow] (prog) -- (mmu);
+\draw[flow] (fault) -- (choose); \draw[flow] (choose) -- (wb); \draw[flow] (wb) -- (load);
+\draw[flow, cLin] (mmu) -- node[right, text=cLin, font=\tiny, align=left, inner sep=2pt]
+  {the kernel reads and clears A\\at each eviction scan} (choose);
+\node[below=0.06cm of wb.south west, anchor=north, text=cMuted, font=\tiny, align=center]
+  {it also keeps per-page counters and refault bookkeeping;\\it never sees individual accesses};
+\end{tikzpicture}
+% Drawn from kernel/vmpage.c reclaim_frame() and sample_page(); kernel/vm.c sets PTE_A at fault-in.
+\caption{The eviction path. The policy decides once per eviction, on the fault path,
+and sees only the accessed and dirty bits a scan finds, never individual accesses.}
 \label{fig:mechanism}
 \end{figure}
 
@@ -355,24 +400,51 @@ seeing only accessed/dirty bits.}}
 
 \obs{1}{\clock is as good as exact LRU, and both are far from optimal.}
 On the six workloads used for training (\S\ref{sec:eval-setup}), \clock is within 2\%
-of exact LRU on five, xv6's Aging is barely better than FIFO, and the only classical
-policy that beats \clock anywhere, exact LFU, is catastrophic elsewhere
-($\geq3\times$ \clock on graph, sort and matmul). \belady needs 43--54\% fewer faults
+of exact LRU on five, xv6's Aging is barely better than FIFO, and exact LFU, which beats
+\clock by 6--13\% on btree, reaches about 3$\times$ \clock, where our runs stop, on graph,
+sort and matmul. \belady needs 43--54\% fewer faults
 than \clock on the B-tree, key-value and graph workloads, 53--59\% on LZW, 38\% on
 matmul, and only 10--17\% on sort (Figure~\ref{fig:headroom}).
 $\rightarrow$ \emph{Recency and frequency both carry signal, but every fixed combination
 fails on some workload; a policy should learn the combination.}
 % src: ML_REPORT 6.1 classical_test / classical_heldout (simulator, geo-mean 5/10/20%);
+% report/results2/summary_classical.csv: lfu_exact btree 0.943 test / 0.871 held-out; graph test,
+% matmul and sort held-out 3.000 (censored at 3x), sort test 2.919 (5 censored cells). Note LRU
+% beats Clock on matmul (0.879), so "the only classical policy that beats Clock" was wrong.
 % classical results unchanged by the week-15 refit (AUSTRA_HANDOFF.md, week-15 addendum).
 % src: lzw Belady 0.466 (test) / 0.409 (held-out), week_16 tables/model_comparison.tex
 
 \begin{figure}[t]
 \centering
-\figbox{1.6in}{Faults relative to \clock for FIFO, Aging, decayed LFU, LRU, exact LFU and
-\belady, per workload family (test and held-out streams, geo-mean over 5/10/20\% memory).}
-{exists as report/figures2/classical.pdf; re-plot without in-figure title, grayscale-safe}
-\caption{\plan{Takeaway: \belady incurs 43--54\% fewer faults than \clock on btree, kv and
-graph; no classical policy closes that gap.}}
+\begin{tikzpicture}
+\begin{axis}[paperplot, width=\linewidth, height=1.42in, tick pos=left,
+  xmin=0.25, xmax=1.56, ymin=-0.6, ymax=5.6, y dir=reverse,
+  ytick={0,...,5}, yticklabels={btree,graph,kv,lzw,matmul,sort},
+  xtick={0.4,0.6,0.8,1.0,1.2,1.4}, xmajorgrids,
+  xlabel={faults relative to \clock}, xlabel style={yshift=3pt},
+  legend style={at={(0.5,1.02)}, anchor=south, legend columns=-1,
+    /tikz/every even column/.append style={column sep=6pt}}]
+\addplot[cInk, thin, forget plot] coordinates {(1,-0.6) (1,5.6)};
+\addplot[only marks, mark=*, mark size=1.5pt, cInk, fill opacity=0.75, draw opacity=0.75]
+  table[x=ratio, y=row, col sep=comma] {\figdata/headroom_classical.csv};
+\addlegendentry{FIFO, Aging, LFU, LRU, exact LFU}
+\addplot[only marks, mark=triangle*, mark size=2pt, mark options={rotate=-90}, cInk,
+  forget plot] table[x=ratio, y=row, col sep=comma] {\figdata/headroom_clipped.csv};
+\addplot[only marks, mark=*, mark size=2.2pt, cLin,
+  error bars/.cd, x dir=plus, x explicit, error mark=none,
+  error bar style={cLin, line width=1.2pt}]
+  table[x=ratio, y=row, x error=gap, col sep=comma] {\figdata/headroom_belady.csv};
+\addlegendentry{\belady}
+\addplot[only marks, mark=none, nodes near coords, point meta=explicit symbolic,
+  every node near coord/.append style={anchor=east, font=\tiny, text=cLin, xshift=-2pt},
+  forget plot]
+  table[x=ratio, y=row, meta=label, col sep=comma] {\figdata/headroom_belady.csv};
+\end{axis}
+\end{tikzpicture}
+% data: figures/data/headroom_*.csv from report/results2/summary_classical.csv (make_figdata.py)
+\caption{Headroom (simulator, geometric mean over 5, 10 and 20\% memory; test streams,
+matmul held-out). The blue rule is the gap between \belady and the best classical
+policy. Exact LFU, whose runs stop at 3$\times$ \clock's faults, is drawn at the edge.}
 \label{fig:headroom}
 \end{figure}
 
@@ -395,12 +467,34 @@ decisions, not on individual references} (\S\ref{sec:design-features},
 
 \begin{figure}[t]
 \centering
-\figbox{1.5in}{Within-decision rank correlation of each of the 12 features with the true
-next-use distance, per workload (oracle tier vs.\ kernel tiers).}
-{data: report/results2/feature\_diagnostics.csv (current); the old figures2/diagnostics.pdf
-predates it, so re-plot for one column}
-\caption{\plan{Takeaway: kernel-observable features are nearly as informative as oracle
-features at the moment of the decision.}}
+\begin{tikzpicture}
+\begin{axis}[paperplot, diverging, width=0.72\linewidth, height=1.15in,
+  scale only axis, enlargelimits=false, clip=false,
+  xmin=-0.5, xmax=11.5, ymin=-0.5, ymax=6.5, y dir=reverse,
+  xtick={0,...,11}, xticklabels={rec,freq,sd,wr,ref,aging,sfreq,idle,age,dirty,refaults,rdist},
+  xticklabel style={font=\tiny\ttfamily, rotate=40, anchor=north east, inner sep=1pt},
+  ytick={0,...,6}, yticklabels={btree,graph,kv,lzw,matmul,sort,\textbf{mean}},
+  yticklabel style={font=\tiny}, tick style={draw=none}, axis line style={draw=none},
+  point meta min=-0.7, point meta max=0.7,
+  colorbar, colorbar style={width=4pt, ytick={-0.6,0,0.6}, font=\tiny,
+    yticklabel style={font=\tiny}, axis line style={cAxis}}]
+\addplot[matrix plot*, mesh/cols=12, point meta=explicit]
+  table[x=col, y=row, meta=rho, col sep=comma] {\figdata/diagnostics.csv};
+\addplot[only marks, mark=none, nodes near coords, point meta=explicit symbolic,
+  every node near coord/.append style={anchor=center, font=\tiny, yshift=0pt}]
+  table[x=col, y=row, meta=label, col sep=comma] {\figdata/diagnostics.csv};
+\draw[white, line width=1.6pt] (axis cs:3.5,-0.5) -- (axis cs:3.5,6.5);
+\draw[white, line width=1.6pt] (axis cs:9.5,-0.5) -- (axis cs:9.5,6.5);
+\draw[white, line width=1.6pt] (axis cs:-0.5,5.5) -- (axis cs:11.5,5.5);
+\node[font=\tiny, text=cMuted, anchor=south] at (axis cs:1.5,-0.55) {oracle (\tierF)};
+\node[font=\tiny, text=cMuted, anchor=south] at (axis cs:6.5,-0.55) {kernel scans (\tierK)};
+\node[font=\tiny, text=cMuted, anchor=south] at (axis cs:10.5,-0.55) {refaults (\tierKp)};
+\end{axis}
+\end{tikzpicture}
+% data: figures/data/diagnostics.csv from report/results2/feature_diagnostics.csv (make_figdata.py)
+\caption{Rank correlation of each feature with the next-use distance within each
+eviction decision (Spearman; red: a larger value means a later next use). The kernel's
+\feat{sfreq} is as informative as the trace-only \feat{freq}; \feat{rdist} beats both.}
 \label{fig:diagnostics}
 \end{figure}
 
@@ -418,17 +512,14 @@ about 300 references earlier. Out of 167 resident pages, the one or two just tou
 almost never sampled, so the model never learned to keep them.
 $\rightarrow$ \emph{The training distribution must contain just-used pages, and new pages
 need protection} (\S\ref{sec:design-train}).
-% src: ML_REPORT 7.1 (graph-pr2000x2-s2, validation)
-\plan{This is the ``naive learned approach fails'' move reviewers reward (cf.\ Catur's
-off-the-shelf RL losing to a rule). Consider a small figure: victim age distribution,
-naive vs.\ \sys vs.\ \belady.} \todo{decide: figure or text only}
+% src: ML_REPORT 7.1 (graph-pr2000x2-s2, validation). Text only, no figure (space).
 
 \subsection{Research Questions}
 \label{sec:bg-rq}
 
 Whether a learned policy is implementable in a kernel breaks into four questions,
 answered in \S\ref{sec:eval}:
-\begin{description}
+\begin{description}[topsep=2pt, itemsep=1pt, parsep=0pt]
 \item[RQ1 Information.] Do kernel-observable signals suffice, or does a learned policy
   need information only a full trace has? (\S\ref{sec:eval-info})
 \item[RQ2 Effect in the kernel.] Inside a real kernel, does the policy beat \clock and
@@ -436,14 +527,14 @@ answered in \S\ref{sec:eval}:
   (\S\ref{sec:eval-kernel})
 \item[RQ3 Cost.] Can it be computed without floating point, what does a decision cost
   on the eviction path, and when does a saved fault pay for it? (\S\ref{sec:eval-cost})
-\item[RQ4 Robustness.] What happens on workloads it never saw, where does it fail, and
-  can a guard limit the damage? (\S\ref{sec:eval-robust})
+\item[RQ4 Robustness.] What happens on workloads it never saw, and where does it fail?
+  (\S\ref{sec:eval-robust}, \S\ref{sec:eval-loss})
 \end{description}
 %==============================================================================
 % ----- 3 DESIGN -----
 %==============================================================================
 % =============================================================================
-\section{\sys: Learning From What the Kernel Already Sees}
+\section{Learning From What the Kernel Already Sees}
 \label{sec:design}
 % Budget: 3.0 pages. Draft SECOND (Step 5.2). One subsection per challenge, each
 % "Observation. -> Solution." Misprediction handling is its own subsection.
@@ -454,40 +545,62 @@ answered in \S\ref{sec:eval}:
 \subsection{Overview and Formulation}
 \label{sec:design-overview}
 
-\plan{Walk Figure~\ref{fig:overview} in decision order.
-\emph{Offline}: complete reference strings $\rightarrow$ replay under LRU at 5/10/20\%
-memory $\rightarrow$ record eviction decisions (candidates, features, label)
-$\rightarrow$ fit a linear scorer $\rightarrow$ select feature subset and probation on
-validation only $\rightarrow$ export integer weights.
-\emph{Online}: at each eviction the kernel scans the eligible resident pages, updates
-their counters, scores each with an integer dot product, protects pages in probation,
-and evicts the highest score (oldest load on a tie).}
+\finding{Offline.} Each training stream, a complete reference string
+(\S\ref{sec:impl}), is replayed under LRU at 5, 10 and 20\% of its distinct pages. At a
+sample of evictions we record the resident candidates with their features and labels
+(\S\ref{sec:design-train}), fit a linear scorer, choose the feature subset and the
+probation length on validation streams only, and export the weights as integers
+(Figure~\ref{fig:overview}).
+\finding{Online.} At each eviction the kernel scans the eligible resident pages as Aging
+already does, updates their counters, scores each with an integer dot product, skips
+pages in probation, and evicts the highest score, the oldest load on a tie
+(Algorithm~\ref{alg:choose}).
 
-\plan{Formulation, and why this kind of ML. The policy imitates \belady: for each
-candidate it regresses $\log(1+d)$, where $d$ is the distance in references to the
-page's next use (capped at $2^{20}$), and evicts the candidate with the largest
-prediction. Supervised imitation fits because complete reference strings give exact
-labels offline and \belady is optimal for faults; reinforcement learning would need
-exploration inside a running kernel. Decisions compound, so every policy is judged by
-replaying complete streams, never by per-reference accuracy; on-policy data (DAgger)
-was tried and did not help (\S\ref{sec:eval-ablate}). Why linear: five heavier models,
-trained the same way and also run in the kernel, were level with it at 20--150$\times$ the
-cost (\S\ref{sec:eval-ablate}). The global model is trained on six workloads (B-tree,
-graph, key-value, LZW, matmul, sort) and used unchanged on all others.}
+\finding{Formulation.} The policy imitates \belady. For each candidate it predicts
+$\log(1+d)$, where $d$ is the number of references until the page's next use, capped at
+$2^{20}$, and it evicts the candidate with the largest prediction; the fit is
+closed-form ridge regression. Supervised imitation suits the problem because complete
+reference strings give exact labels offline and \belady is optimal for faults;
+reinforcement learning would have to explore inside a running kernel. Decisions
+compound, so every policy is judged by replaying complete streams, never by
+per-reference accuracy. The global model is trained on six workloads (B-tree, graph,
+key-value, LZW, matmul, sort) and used unchanged on all others. It is linear because
+five heavier models trained the same way are level with it at 20--150$\times$ the cost
+(\S\ref{sec:eval-ablate}).
+% src: tools/ml2/build_datasets.py (LRU replay, MAX_CAND 32, N_RECENT 4, label log1p capped);
+% tools/ml2/pagesim.c LABEL_CAP (1 << 20); tools/ml2/models.py ("closed-form weighted ridge
+% regression"); kernel/vmpage.c choose_ml(); selection on validation: ML_REPORT 5.2, 7.2.
 
 \begin{figure*}[t]
 \centering
-\figboxwide{1.7in}{Overview. Left (offline, host): traced workload $\rightarrow$
-reference string with R/W marks $\rightarrow$ LRU replay $\rightarrow$
-decision-point dataset (\belady label, recency-stratified candidates) $\rightarrow$
-ridge regression $\rightarrow$ nested selection on validation (subset $\times$
-probation) $\rightarrow$ integer weights (\texttt{mlweights.h} / \texttt{vmctl}).
-Right (online, kernel): fault $\rightarrow$ scan candidates (read/clear A, update
-counters) $\rightarrow$ features in Q8 $\rightarrow$ $\sum_j q_j X_j$ $\rightarrow$
-probation $\rightarrow$ victim (optionally among 32 sampled candidates).}
-{to draw; single vector figure, the paper's mechanism figure}
-\caption{\plan{Takeaway: training is offline and uses the future; the kernel side is a
-scan it already performs plus a few integer multiply-adds per page.}}
+\begin{tikzpicture}[font=\scriptsize, node distance=0.3cm,
+  box/.style={draw=cAxis, rounded corners=2pt, align=center, inner sep=2.5pt,
+    minimum height=0.8cm, text width=1.72cm},
+  flow/.style={-{Stealth[length=3.5pt]}, cInk, thick},
+  lane/.style={font=\scriptsize\bfseries, text=cMuted, anchor=east, align=right}]
+% offline row
+\node[box] (o1) {run the workload, record every access (R/W, page)};
+\node[box, right=of o1] (o2) {replay under LRU at 5, 10, 20\% memory};
+\node[box, right=of o2] (o3) {record decisions: \belady's victim, 4 newest, random rest};
+\node[box, right=of o3] (o4) {ridge fit; pick features and probation on validation};
+\node[box, right=of o4, draw=cLin, thick] (o5) {integer weights (Q8)};
+% online row
+\node[box, below=0.6cm of o1] (k1) {fault at the resident limit};
+\node[box, right=of k1] (k2) {optional: sample 32 of the candidates};
+\node[box, right=of k2] (k3) {scan: read and clear A, update counters};
+\node[box, right=of k3] (k4) {features in Q8 from the shared header};
+\node[box, right=of k4, draw=cLin, thick] (k5) {score $\sum_j q_j X_j$, skip pages in probation};
+\node[box, right=of k5] (k6) {evict the top score; kernel checks the victim};
+\foreach \a/\b in {o1/o2,o2/o3,o3/o4,o4/o5,k1/k2,k2/k3,k3/k4,k4/k5,k5/k6}
+  \draw[flow] (\a) -- (\b);
+\draw[flow, cLin] (o5) -- node[right, font=\tiny, text=cLin] {\texttt{vmctl}, per process} (k5);
+\node[lane, left=0.12cm of o1] {offline\\(host)};
+\node[lane, left=0.12cm of k1] {online\\(kernel)};
+\end{tikzpicture}
+% Drawn from tools/ml2/build_datasets.py (LRU replay, MAX_CAND 32, N_RECENT 4), models.py (ridge),
+% export_kernel.py (integer weights), kernel/vmpage.c choose_ml()/ml_sample(), kernel/mlfeat.h.
+\caption{Overview. Training is offline and uses the future; the kernel side is a scan it
+already performs plus a few integer multiply-adds per page.}
 \label{fig:overview}
 \end{figure*}
 
@@ -500,7 +613,7 @@ scan it already performs plus a few integer multiply-adds per page.}}
 (\S\ref{sec:bg-mechanism}), so a model trained on per-access recency or frequency cannot
 be deployed as trained.
 
-\finding{Solution.} \sys uses only features a kernel can compute when it scans the
+\finding{Solution.} The policy uses only features a kernel can compute when it scans the
 resident pages at an eviction (tier \tierK), plus refault bookkeeping that Linux already
 keeps in its workingset shadow entries (tier \tierKp) (Table~\ref{tab:features}). Time is
 counted in scans, one per eviction. Counts enter as $\log(1+x)$ and are standardised.
@@ -536,7 +649,8 @@ Feature & Definition & Linux analogue \\
 \end{center}
 \vskip -0.1in
 \end{table}
-% src: ML_REPORT section 4 and 9. \verify{Linux version numbers for MGLRU (merged 6.1?) and DAMON (5.15?)}
+% src: ML_REPORT section 4 and 9. Linux versions (checked 2026-10-13, kernelnewbies): MGLRU
+% merged in 6.1 (Dec 2022), DAMON in 5.15 (Oct 2021); ML_REPORT's "5.18+" for MGLRU was wrong.
 
 % -----------------------------------------------------------------------------
 \subsection{Training on Decisions, Not References}
@@ -547,7 +661,7 @@ Feature & Definition & Linux analogue \\
 moment, and a naive sample of those pages almost never contains the page just used
 (\S\ref{sec:bg-naive}).
 
-\finding{Solution.} \sys trains on recorded eviction decisions. Every training and
+\finding{Solution.} The policy is trained on recorded eviction decisions. Every training and
 validation stream is replayed under LRU at 5, 10 and 20\% of its distinct pages; at a
 sample of evictions we record up to 32 resident candidates with their features and
 labels: always \belady's victim, always the four most recently accessed candidates
@@ -565,9 +679,12 @@ from 377K decisions, and 0.91M validation rows from 43K decisions.
 \label{sec:design-int}
 % Challenge C2 -> technique T2 -> ablations A2 (float vs 4/8/12-bit; linear vs MLP)
 
-\finding{Observation.} xv6 saves no floating-point registers on a context switch, and a
-production kernel avoids floating point on the fault path.
-\verify{cite the Linux policy on kernel FPU use and its cost}
+\finding{Observation.} xv6 saves no floating-point registers on a context switch, and
+Linux normally prohibits kernel code from using floating point outside an explicit
+critical section~\citep{linux_fpu}.
+% src: kernel/swtch.S (ra, sp, s0-s11 only); docs.kernel.org/core-api/floating-point.html
+% ("Kernel code is normally prohibited from using floating-point (FP) registers or
+% instructions"; kernel_fpu_begin/end), checked 2026-10-13.
 
 \finding{Solution.} The score of a candidate page is
 \begin{equation}
@@ -596,15 +713,15 @@ kernel and the simulator both compile, and selected per process like the linear 
 % Challenge C4 -> technique T4 -> ablation A4 (deliberately wrong models). NON-NEGOTIABLE.
 % Every accepted ML-for-OS paper has a design element here, not a sentence.
 
-\plan{State the worst case first, then the layers that bound it.}
+The worst case is a policy that makes more faults than \clock; it is never wrong data.
+Three layers keep it there.
 \begin{enumerate}
 \item \textbf{Correctness never depends on the model.} The score only orders eligible
   candidates (the faulting process's own evictable frames). The kernel checks every
-  returned victim against that set and falls back to \clock if it is not in it (counted
-  as \texttt{policy\_fallbacks}). The same workload produces byte-identical output under
-  every policy (data-invariance suite, \S\ref{sec:impl}). A bad model costs
-  performance, not data. The fallback never fired in any correctness run (all eight
-  policies and the five heavier models, with and without prefetch).
+  returned victim against that set and falls back to \clock if it is not in it. A bad
+  model costs performance, not data (\S\ref{sec:impl}); the fallback never fired in any
+  correctness run (all eight policies and the five heavier models, with and without
+  prefetch).
   % src: GAWWY_HANDOFF_PAPER.md reply M5. The evaluation transcripts do not record the
   % counter, so there is no sum over the 2,375 runs; say "correctness runs", not "all runs".
 \item \textbf{Probation} keeps the newest pages out of the choice, removing the failure
@@ -614,19 +731,12 @@ kernel and the simulator both compile, and selected per process like the linear 
   Feature set and probation are chosen jointly on validation, never on test or held-out
   streams.
   % src: tables.md "catastrophic" (v2, test split), regenerated; GAWWY_HANDOFF_PAPER.md reply M4
-\item \textbf{A fallback guard (simulator prototype).} The learned policy and \clock
-  alternate on the same memory: one window under each, compare their faults, use the
-  better for the next $K$ windows, then test again. On streams the settings were not
-  tuned on, it cuts the worst case from 1.86 to 1.36 of \clock's faults and the losing
-  cells from 1.29 to 1.07, at a cost of about two points on average (0.861 to 0.881 of
-  \clock). It is \emph{not in the kernel}: the window is measured in accesses, which a
-  kernel cannot count; a kernel version needs another measure of progress.
 \end{enumerate}
-\plan{State plainly that the kernel runs have no guard, so the failures of
-\S\ref{sec:eval-loss} are what a deployment would see today.}
-\todo{decision for the authors: port the guard to the kernel (window in evictions or
-faults), or keep it as a prototype and say so; the collaborator calls it an optional extra}
-% src: week-15 report, "A safety guard (prototype, simulator only)"; AUSTRA_HANDOFF START HERE section 2
+Nothing switches the policy off at run time, so the learned score can still be worse
+than \clock on a workload; \S\ref{sec:eval-loss} lists where, and those losses are what a
+deployment would see.
+% The simulator guard prototype was DROPPED by the collaborator (AUSTRA_HANDOFF.md START HERE
+% 2b): not in the kernel, not to be presented as future work. Do not reintroduce it.
 
 % -----------------------------------------------------------------------------
 \subsection{Bounding the Decision Cost}
@@ -639,15 +749,16 @@ candidate, so the decision grows in a straight line with the resident set
 
 \finding{Solution.} Score only $k$ randomly sampled candidates, drawn with a partial
 Fisher--Yates shuffle over the candidate array (no extra memory). With $k=32$ the
-decision costs about 11,700 instructions whatever the memory size, for 0 to 1 point of
-faults; $k=16$ costs 5,850 instructions for 1 to 2 points. The weights are unchanged;
+decision costs 11,300--11,900 instructions whatever the memory size, for 0 to 1 point
+of faults; $k=16$ costs 5,650--5,970 for 1 to 2 points. The weights are unchanged;
 $k$ is a per-process setting.
-% src: week-15 report, "In the xv6 kernel" (lzw 0.837->0.842, Twitter replays 0.876->0.875,
+% src: cost_grid.csv (global@32: 11,293 / 11,813 / 11,907 at 64 / 256 / 512 frames; @16:
+% 5,656-5,974); week-15 report, "In the xv6 kernel" (lzw 0.837->0.842, Twitter replays 0.876->0.875,
 % patbench 0.853->0.861 at k=32); week_16 report section "What choosing a victim costs"
 
 % -----------------------------------------------------------------------------
 \begin{algorithm}[t]
-\caption{\sys victim selection (\texttt{choose\_ml}), one eviction}
+\caption{Victim selection by the learned score (\texttt{choose\_ml}), one eviction}
 \label{alg:choose}
 \begin{algorithmic}
 \STATE {\bfseries Input:} eligible resident pages $C$, weights $q$, subset $S$, probation $p$, scan counter $t$
@@ -688,15 +799,12 @@ Aging and a decayed LFU, synchronous and asynchronous prefetch, an event tracer,
 control call (\texttt{vmctl}) that sets a process's limit, policy and weights: about
 4,200 kernel lines over upstream xv6, all policies included. On the final build the same
 workload produces byte-identical output under all eight policies and the five heavier
-models, with and without prefetch.
-\todo{re-run the full 74-step regression matrix on the final build, or cite only the
-data-invariance check}
-% src: git diff --stat 7d01506..a15c8a3 -- kernel (4,240 insertions, 37 files);
-% data invariance: GAWWY_HANDOFF_PAPER.md reply M5 (checksum AB0C8578 everywhere).
-\plan{Say why xv6: the whole fault path is visible and small, experiments are
-deterministic and repeatable, and every decision can be traced. Say what is the same as
-Linux (A/D bits sampled by scans; refault bookkeeping) and what differs (per-process
-local replacement, one hart, no page cache pressure) (\S\ref{sec:discussion}).}
+models, with and without prefetch. Why xv6, and what differs from Linux, is discussed in
+\S\ref{sec:discussion}.
+% src: git diff --stat 7d01506..HEAD -- kernel (4,240 insertions, 37 files; rechecked 2026-10-13);
+% data invariance: GAWWY_HANDOFF_PAPER.md reply M5 (checksum AB0C8578 everywhere). The full
+% 74-step regression matrix was NOT rerun on the final build (handoff "State of everything"):
+% cite only data invariance.
 
 \finding{The learned policy in the kernel.} \texttt{choose\_ml} (60 lines, with a 14-line
 sampler) scans the candidates as Aging already does and scores them with
@@ -708,12 +816,12 @@ refault count, refault distance) and 12 bytes to each swap slot (the eviction ti
 refault count, the information Linux keeps in a workingset shadow entry). The linear
 weights are an 80-byte record per process, set through \texttt{vmctl} with the model and
 sample size, and inherited across \texttt{fork} and \texttt{exec}. The ten built-in
-heavier models take 100,716 bytes of read-only kernel data; the kernel forms of ARC, LHD
-and S3-FIFO share about 0.95\,MB of machine-wide state.
+heavier models take 100,716 bytes of read-only kernel data; the accessed-bit forms of
+ARC, LHD and S3-FIFO share about 0.95\,MB of machine-wide state.
 % src: kernel/vmpage.c (choose_ml, ml_sample), kernel/mlfeat.h, kernel/mlnet.h;
 % sizes from GAWWY_HANDOFF_PAPER.md reply M5
 
-\finding{Classical policies in the form a kernel can run.} ARC, LHD and S3-FIFO react to
+\finding{Classical policies in accessed-bit form.} ARC, LHD and S3-FIFO react to
 every hit, which a kernel never sees. Each was adapted the same way: accessed bits are
 read and cleared at every eviction, and a page found accessed counts as one hit since the
 last look (the touch that loaded it is ignored); everything else follows the published
@@ -723,27 +831,19 @@ are 73, 34 and 44 lines in the kernel. Their simulator versions match independen
 reference implementations on 570 traces, faults and evictions alike.
 % src: week_16 report section "The three classical policies in the kernel"; kernel/vmpage.c choose_arck/s3fifo/lhd
 
-\finding{Complete reference strings.} Each workload routes every access to its data
-through one accessor that records \texttt{R} or \texttt{W} and the page number, hit or
-miss, so the stream is a complete reference string, which \belady labels require. A
-stream counts only if the run passes, the kernel reports the number of references and
-bytes written, the extracted file matches both exactly, repeats are byte-identical, and
-an independent model of the program, run on the host, produces the same string.
-% src: ML_REPORT 2.2-2.3; week-16 report ("checked reference by reference against an independent model")
-
-\finding{A validated simulator.} Feature selection needs tens of thousands of full
-replays, so it runs in a C simulator. FIFO, LRU and \belady match an independent
-implementation on all 534 stream--capacity cells; FIFO, \clock, Aging and LFU match a
-naive re-implementation of the kernel logic in faults and write-backs; every \tierK and
-\tierKp feature matches it on 11,792 evictions $\times$ 53 candidates; and the C scorer
-reproduces each trained model's predictions. The kernel's benchmarks fill memory before
-the traced part begins, so the simulator replays from filled memory too; started empty,
-it misjudges some models (set-attention by up to 14$\times$).
-% src: ML_REPORT 5.1; week-15 report "Why the kernel and the simulator disagree"
+\finding{Complete reference strings and a validated simulator.} Each workload routes
+every access to its data through one accessor that records \texttt{R} or \texttt{W} and
+the page number, so a stream is a complete reference string, which \belady labels
+require; every string matches an independent model of its program. Feature selection
+needs tens of thousands of full replays, so it runs in a C simulator, checked against
+independent implementations and against the kernel's own logic and features, and started,
+like the kernel's benchmarks, from filled memory (Appendices~\ref{app:data}
+and~\ref{app:sim}).
+% src: ML_REPORT 2.2-2.3, 5.1; week-16 report; details in Appendix A/B
 
 \finding{Measuring cost and running at scale.} Decision cost is counted in instructions
 with QEMU in instruction-counting mode, which repeats to within 0.3\%; the timer-tick
-counters of ordinary runs are too noisy for cost. The 2,375 kernel runs were split
+counters of ordinary runs are too noisy for cost. The 2,743 kernel runs were split
 between one desktop and cloud notebooks; 180 runs repeated on both gave identical faults,
 evictions and writes. Training is cheap: the linear score is a closed-form fit, and on one
 consumer GPU the MLP and CNN train in 48\,s and set-attention in 67\,s; the boosted and
@@ -753,10 +853,13 @@ ranking trees take 2--3\,s on a CPU.
 % 67 s on an RTX 3060 Ti; boosted trees 1.8 s, ranking trees 2.7 s, CPU)
 
 \finding{Availability.} The kernel, workloads, traces, simulator and training pipeline
-will be released as open source and submitted for artifact evaluation.
+will be released as open source and submitted for artifact evaluation; streams derived
+from the Twitter traces will carry their CC~BY~4.0 licence and attribution.
 \todo{anonymized code and data link for review (e.g.\ an anonymous mirror); the repository
-history and names must not identify the authors; check the Twitter trace licence before
-releasing derived streams}
+history and names must not identify the authors}
+% Twitter licence verified 2026-10-12 (GAWWY_HANDOFF_PAPER.md "Twitter licence"): CC BY 4.0;
+% release only derived streams, with attribution and a change note; do not redistribute the
+% original archive.
 %==============================================================================
 % ----- 5 EVALUATION -----
 %==============================================================================
@@ -788,22 +891,26 @@ uncertainty we report comes from which streams were run, not from run-to-run noi
 
 \finding{Workloads.} Fourteen (Table~\ref{tab:workloads}). The learned models are trained
 on six of them (B-tree, graph, key-value, LZW, matmul, sort) and run unchanged on the
-other eight, which include replays of Twitter cache traces~\citep{yang2020twitter}, an
-eleven-pattern synthetic suite with known answers, and application-shaped programs.
+other eight, which include an eleven-pattern synthetic suite with known answers,
+application-shaped programs, and our key-value store replaying six Twitter cache
+clusters~\citep{yang2020twitter} (4, 17, 18, 24, 35, 52, from the archive of
+\citet{zussman2025cacheext}), each sampled by key hash to about 1,000 keys and cut to
+4,751--40,000 requests; only key ids and write flags are kept.
 
-\finding{Memory and runs.} The resident limit is 5, 10 or 20\% of each program's pages:
-74 streams at 10\%, 51 at 5\% and 20\% (one per variant); the pattern and application
-programs run their first 50,000 accesses. 2,375 kernel runs in total.
-% src: week_16 report section "What was run"; AUSTRA_HANDOFF START HERE section 6
+\finding{Memory and runs.} The resident limit is 5, 10 or 20\% of each program's pages,
+with the same 74 streams at every size; the pattern and application programs run their
+first 50,000 accesses. 2,743 kernel runs in total.
+% src: week_16 report section "What was run"; AUSTRA_HANDOFF START HERE sections 2, 6 (round 5
+% added 23 streams at 5% and 20%); Twitter: GAWWY_HANDOFF_PAPER.md "Twitter licence" (CC BY 4.0;
+% the text must say the data were changed), tools/gen_tw_keys.py, user/twk{4,17,18,24,35,52}.bin
 
 \finding{Policies.} In the kernel: FIFO, \clock, Aging, LFU; ARC~\citep{megiddo2003arc},
-LHD~\citep{beckmann2018lhd} and S3-FIFO~\citep{yang2023s3fifo} in the form a kernel can
-run (\S\ref{sec:impl}); the learned linear score with one global set of weights (and
+LHD~\citep{beckmann2018lhd} and S3-FIFO~\citep{yang2023s3fifo} in accessed-bit form
+(\S\ref{sec:impl}); the learned linear score with one global set of weights (and
 per-workload weights where stated); and five heavier models, trained on the same six
 workloads and run on ten streams at every memory size. \belady is offline and appears
-only in simulation. \todo{closest learned prior work re-run on our traces, e.g.\
-LeCaR~\citep{vietri2018lecar} or CACHEUS~\citep{rodriguez2021cacheus} with
-kernel-visible inputs; or one sentence on why it is excluded}
+only in simulation, as does LeCaR~\citep{vietri2018lecar}, the closest learned-cache
+baseline, both as published and in accessed-bit form (\S\ref{sec:eval-info}).
 
 \finding{Metrics.} Faults are zero-fill plus swap faults, relative to \clock on the same
 stream and memory. We average with a geometric mean over the streams of each workload,
@@ -849,7 +956,8 @@ app    & four application-shaped programs                         & -- \\
 \vskip -0.1in
 \end{table}
 % src: week_16 report "Workloads (14)"; week-15 report "New workloads"; GAWWY_HANDOFF_NEW_BENCHMARKS.md
-% \todo{one line per workload on who wrote it is a D2 credits question, not for the blind version}
+% Credits (D2): the programs lzw, chase, join, bloom, spmv and heap are credited to their
+% author in the camera-ready only (the blind version cannot name authors).
 
 % -----------------------------------------------------------------------------
 \subsection{RQ1: Does the Kernel See Enough?}
@@ -871,6 +979,16 @@ What the kernel cannot see is not what limits a learned policy here; what it can
 transfers better.
 % src: week-15 report "What the wider comparison says" and "Transfer to unseen workloads";
 % week_16 tables/model_comparison.tex and tables/transfer.tex (redis-real linear F+K 3.000)
+
+\finding{A learned-cache baseline needs what the kernel lacks.}
+LeCaR~\citep{vietri2018lecar}, run as published with exact LRU and LFU as its two
+experts, which needs every access, is 0.958 of \clock on the held-out streams of the six
+workloads, against 0.896 for the linear score. In accessed-bit form, with \clock and the
+kernel's decayed frequency count as experts, it is 1.116, worse than \clock
+(Appendix, Table~\ref{tab:lecar}).
+% src: report/week_16_update/tables/lecar.tex ("global, held-out" row); GAWWY_HANDOFF_PAPER.md
+% reply S3 (original parameters; checked against an independent reference on 95 traces;
+% simulator only, not run in the kernel)
 
 \finding{\feat{idle} carries the policy.} Adding \feat{idle} (scans since the page was
 last found accessed) to a feature subset that lacks it cuts faults by a median of 71\% on
@@ -926,8 +1044,8 @@ all six & h-o  & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \begin{table*}[t]
 \caption{\textbf{Every policy on every workload, in the xv6 kernel, at 10\% memory} (74
 streams). Faults relative to \clock: one column per workload (geometric mean over its
-streams), last column the mean over the 14 workloads. ARC, LHD and S3-FIFO in the form a
-kernel can run. The 5\% and 20\% tables are in Appendix~\ref{app:results}.}
+streams), last column the mean over the 14 workloads. ARC, LHD and S3-FIFO in
+accessed-bit form. The 5\% and 20\% tables are in Appendix~\ref{app:results}.}
 \label{tab:kernel}
 \vskip 0.1in
 \begin{center}
@@ -949,15 +1067,18 @@ trees use the ten streams those models ran on.}
 \end{table}
 
 \finding{The linear score beats \clock at 10\% memory} (0.914, interval 0.85--0.98;
-Table~\ref{tab:ci}). At 5\% (0.979) and 20\% (0.887) it is better on average, but the
-intervals include 1: a few workloads decide the average.
+Table~\ref{tab:ci}). At 5\% (0.976) and 20\% (0.882) it is better on average, but the
+intervals include 1 (at 20\% only just): a few workloads decide the average.
 
-\finding{It is level with ARC, not better.} ARC, in kernel form, beats \clock at 5\% and
-10\% (0.946 and 0.943, intervals below 1) and is level at 20\% (0.986). The linear score
-against ARC is 1.035, 0.970 and 0.899 at 5, 10 and 20\% memory; no interval excludes 1,
-and the gap moves in the learned score's favour as memory grows. LHD is the most uneven
-(0.63 on graph at 10\%, level elsewhere); S3-FIFO in kernel form is not better than
-\clock at any size; FIFO, Aging and LFU are worse than \clock everywhere, by 4--34\%.
+\finding{It is level with ARC, not better.} ARC, in accessed-bit form, beats \clock at 5\%
+and 10\% (0.947 and 0.943, intervals below 1) and is level at 20\% (0.984). The linear
+score against ARC is 1.031, 0.970 and 0.896 at 5, 10 and 20\% memory; no interval
+excludes 1, and the gap moves in the learned score's favour as memory grows. LHD is the
+most uneven (0.63 on graph at 10\%, level elsewhere); S3-FIFO in accessed-bit form is not
+better than \clock at any size; FIFO, Aging and LFU are worse than \clock at every size,
+by 4--35\% on average.
+% src: ci_main.tex / kernel_ci_classic.csv after round 5 (linear vs Clock at 20%: [0.766, 1.001]);
+% kmain_A_* mean column (FIFO/Aging/LFU 1.04-1.35)
 
 \finding{Where it wins.} The learned score does best where recency is a poor guide:
 btree and kv (0.82--0.96 at every size), the heap programs (0.73 at 10\%, 0.56 at 20\%),
@@ -965,19 +1086,17 @@ pointer chasing, and the hash join at 20\% (0.55) (Table~\ref{tab:kernel}).
 
 \finding{Page writes do not fall on average.} The learned score is trained to save faults,
 not writes: its label is \belady's next-use distance. Against \clock its page writes are
-1.199, 1.120 and 1.029 at 5, 10 and 20\% memory, and every interval includes 1 ([0.83,
-2.02], [0.84, 1.72], [0.73, 1.67]). At 10\% it writes less on btree (0.95), kv (0.78),
+1.215, 1.120 and 0.984 at 5, 10 and 20\% memory, and every interval includes 1 ([0.85,
+2.05], [0.84, 1.74], [0.72, 1.51]). At 10\% it writes less on btree (0.95), kv (0.78),
 heap (0.72) and pointer chasing (0.73), but 4.75$\times$ \clock on matmul and 4.22$\times$
-on SpMV, which pull the mean up. ARC writes less than \clock at 5\% and 10\% (0.894 and
+on SpMV, which pull the mean up. ARC writes less than \clock at 5\% and 10\% (0.901 and
 0.883, intervals below 1) (Appendix, Table~\ref{tab:writes}).
 $\rightarrow$ \emph{A label or cost that counts write-backs is the obvious next step.}
-% src: report/week_16_update/tables/kmain_WA_01.tex; report/results2/kernel_ci_writes.csv;
-% GAWWY_HANDOFF_PAPER.md reply M3. Supersedes the week-14 "up to 96.5% fewer writes".
+% src: report/week_16_update/tables/kmain_WA_01.tex; report/results2/kernel_ci_writes.csv (after
+% round 5); GAWWY_HANDOFF_PAPER.md reply M3. Supersedes the week-14 "up to 96.5% fewer writes".
 
-\finding{The simulator predicts the kernel.} For the kernel forms of ARC, S3-FIFO and LHD,
-kernel faults divided by simulator faults are 0.995, 1.014 and 0.984 (geometric mean
-over 74 streams; median stream within 1.5\%), as for FIFO, Aging, LFU and the linear
-score earlier (within about 4\%), once the simulator starts from filled memory.
+\finding{The simulator predicts the kernel.} For ARC, S3-FIFO and LHD, kernel faults
+divided by simulator faults are 0.995, 1.014 and 0.984 over 74 streams (Appendix~\ref{app:sim}).
 % src: week_16 report Summary, sections "Main result" and "Does the simulator predict the kernel?"
 
 % -----------------------------------------------------------------------------
@@ -1002,35 +1121,67 @@ cells and within 0.005 in 42; the largest differences are 0.013, for an oracle-i
 a kernel could not run anyway, and 0.007 for a kernel-only model on LZW.
 % src: report/results2/tables.md "Integer-only scoring" (current models), via GAWWY_HANDOFF_PAPER.md reply M4
 
-\finding{The learned score has the highest overhead of any policy that pays.} Choosing a victim
-costs 22,803 instructions with 68 candidates, about 340 per candidate: 55$\times$ \clock,
-about twice ARC (11,934) and LHD (14,199) (Table~\ref{tab:cost}). The rest of an
+\finding{The learned score costs the most of the policies that save faults.} Choosing a
+victim costs 22,803 instructions with 68 candidates, about 340 per candidate: 55$\times$
+\clock, about twice ARC (11,934) and LHD (14,199) (Table~\ref{tab:cost}). The rest of an
 eviction (finding the candidates and bookkeeping) costs about 6,000--6,500 instructions
 for every policy. The heavier models cost 20$\times$ (boosted and ranking trees) to
-150$\times$ (deeper MLP) the linear score. Sampling 32 candidates holds the linear score
-at about 11,700 instructions whatever the memory size, for 0 to 1 point of faults.
-% src: tables/cost.tex; week-15 report section "What choosing a victim costs, and when it pays"
+150$\times$ (deeper MLP) the linear score. Compiled for one core of a desktop CPU (Ryzen~5
+5600), the kernel's own scoring code takes 1.35\,\textmu s per decision for the linear
+score (20\,ns per candidate) and 30--206\,\textmu s for the heavier models, about 0.06\,ns
+per kernel instruction; this omits the page-table walk that reads the accessed bits, so it
+is a lower bound. Sampling 32 candidates holds the linear score at 11,300--11,900
+instructions whatever the memory size, for 0 to 1 point of faults.
+% src: tables/cost.tex; report/results2/native_timing.csv (S2; median of 25 batches, pinned core,
+% two runs within 3%); week-15 report section "In the xv6 kernel" (sampling)
 
-\finding{Whether a saved fault pays depends on the device.} Assuming one instruction per
-nanosecond and a fault cost we did not measure, the linear score of each workload pays
-for itself on a hard disk (8\,ms per fault) on every workload where it saves faults (time
-0.58--0.94 of \clock's) and roughly breaks even on fast flash (100\,\textmu s): 0.90 of
-\clock's time on graph, 1.51 on btree, where 230 candidates make the scan expensive.
-With 16 sampled candidates it beats \clock in total time even on flash for LZW (0.91)
-and the Twitter replays (0.93). The CNN and MLP never pay: their break-even fault cost is
-10--670\,ms.
-% src: week-15 report, cost section and break-even table (cost_benefit.csv). FINAL given the
-% two stated assumptions (AUSTRA_HANDOFF START HERE section 2).
-\todo{a measured page-in/page-out cost on real hardware would remove the main assumption}
+\finding{Whether a saved fault pays depends on the device and the core.} A 4\,KB random
+read, one at a time and bypassing the file cache, takes a median of 63\,\textmu s on an
+NVMe SSD and 8.9\,ms on a hard disk. Counting device time per fault plus decision time,
+the linear score takes 0.92 of \clock's time on the hard disk, with a slow core
+(1\,ns per instruction) or the measured fast one (0.06\,ns). On the SSD it takes 0.95 of
+\clock's time with the fast core, faster on 9 of 14 workloads, but 1.34 with the slow
+one; its median break-even fault cost is 15\,\textmu s and 250\,\textmu s on the two
+cores. The CNN, MLP and set-attention lose on the SSD even with the fast core
+(2.6--3.8$\times$ \clock's time) and gain only 3--5\% on the hard disk. These are device
+reads through a test file, not xv6 faults; the rest of the fault path is not counted.
+% src: report/results2/device_latency.csv (S1: Samsung 980 NVMe read median 63 us, p99 134;
+% WD Blue 1 TB SATA read median 8,921 us over a 1 GB file, pessimistic for a 32 MB swap area);
+% cost_benefit_measured_devices.csv (1 ns) and cost_benefit_measured_all.csv (0.06 ns); week-16
+% report "What choosing a victim costs" (time table; 9 of 14 SSD, 11 of 14 hard disk at 0.06 ns)
 
 \begin{figure}[t]
 \centering
-\figbox{1.4in}{Trade-off: instructions per decision (x, log) vs.\ faults relative to
-\clock at 10\% (y), one point per policy; the linear score with 16 and 32 sampled
-candidates as extra points.}{data READY: report/results2/tradeoff.csv (tools/ml2/tradeoff.py;
-sampled points cover only 3 and 2 workloads, heavier models 10, so mark them). To plot.}
-\caption{\plan{Takeaway: the learned score buys the most faults per decision of any policy
-but ARC; sampling halves its cost for at most a point of faults.}}
+\begin{tikzpicture}
+\begin{axis}[paperplot, xmode=log, width=\linewidth, height=1.6in, tick pos=left,
+  xmin=150, xmax=2e7, ymin=0.87, ymax=1.45, log basis x=10,
+  xlabel={instructions to choose one victim (68 candidates)},
+  ylabel={faults / \clock, 10\%}, xlabel style={yshift=3pt}, ylabel style={yshift=-4pt},
+  ymajorgrids, ytick={0.9,1.0,1.1,1.2,1.3,1.4}, minor x tick num=0,
+  every node near coord/.append style={font=\tiny, inner sep=0.5pt},
+  visualization depends on={value \thisrow{anchor}\as\lblanchor},
+  visualization depends on={value \thisrow{dx}\as\lbldx},
+  visualization depends on={value \thisrow{dy}\as\lbldy},
+  nodes near coords, point meta=explicit symbolic,
+  nodes near coords style={anchor=\lblanchor, xshift=\lbldx pt, yshift=\lbldy pt}]
+\draw[cInk, thin] (axis cs:150,1) -- (axis cs:3e7,1);
+\addplot[only marks, mark=*, mark size=1.8pt, cInk, text=cInk]
+  table[x=instr, y=faults, meta=label, col sep=comma] {\figdata/tradeoff_classic.csv};
+\addplot[only marks, mark=square*, mark size=1.6pt, cInk, text=cInk]
+  table[x=instr, y=faults, meta=label, col sep=comma] {\figdata/tradeoff_adapted.csv};
+\addplot[only marks, mark=*, mark size=2.3pt, cLin, text=cLin]
+  table[x=instr, y=faults, meta=label, col sep=comma] {\figdata/tradeoff_linear.csv};
+\addplot[only marks, mark=o, mark size=2pt, cLin, thick, text=cLin]
+  table[x=instr, y=faults, meta=label, col sep=comma] {\figdata/tradeoff_sampled.csv};
+\addplot[only marks, mark=triangle, mark size=2.3pt, cHeavy, thick, text=cInk]
+  table[x=instr, y=faults, meta=label, col sep=comma] {\figdata/tradeoff_heavy.csv};
+\end{axis}
+\end{tikzpicture}
+% data: figures/data/tradeoff_*.csv from report/results2/tradeoff.csv (S4; make_figdata.py)
+\caption{What each policy costs and saves in the kernel at 10\% memory. Filled markers:
+all 14 workloads (squares: accessed-bit ARC, LHD, S3-FIFO). Open markers cover fewer:
+the sampled linear score 3 and 2 workloads, the heavier models (triangles) 10. The
+heavier models cost 20--150$\times$ the linear score without saving more faults.}
 \label{fig:tradeoff}
 \end{figure}
 
@@ -1049,9 +1200,6 @@ so nothing leaks from training (Appendix~\ref{app:results}); refitting on datase
 with other seeds moves the result by at most 0.0005.
 % src: week-15 report "Transfer to unseen workloads" (simulator; every online policy within
 % 0.0003 of the analytical miss rate on uniform; MRU matches Belady on loop) and "Noise floor"
-
-\todo{5\% and 20\% use one stream per variant (51 streams); more seeds would tighten the
-intervals}
 
 % -----------------------------------------------------------------------------
 \subsection{Ablations}
@@ -1091,16 +1239,17 @@ $\rightarrow$ 0.973 at 2 scans). One round of DAgger did not help.
 The failures are specific and repeat across memory sizes.
 \textbf{Tiny memory:} matrix multiply at 5\% (two frames) is 1.72 of \clock.
 \textbf{Indirect access:} SpMV is 1.10 and 1.12 at 5\% and 10\%.
-\textbf{One set of weights for every program:} graph is 1.01 and 1.60 at 5\% and 20\%,
+\textbf{One set of weights for every program:} graph is 1.01 and 1.40 at 5\% and 20\%,
 though graph's own weights reach 0.60 at 10\%; choosing weights per program automatically
 is open. \textbf{Nothing to learn:} on the Bloom filter every policy is 1.00.
 \textbf{No write marks:} on the real Redis trace the score is 1.11 of \clock in simulation,
 where the dirty bit carries no signal (LRU: 0.93). \textbf{Writes:} 4.75$\times$ \clock on
-matmul and 4.22$\times$ on SpMV at 10\%. \textbf{Fast storage:} on flash the btree score
-costs more time than it saves. The kernel runs have no guard; the simulator prototype cuts
-the worst case from 1.86 to 1.36 (\S\ref{sec:design-wrong}).
-% src: AUSTRA_HANDOFF START HERE section 0; kmain_A_005/01/02; kmain_WA_01; tables/transfer.tex
-% (redis-real linear K+ 1.106, LRU 0.929); week-15 break-even and guard sections
+matmul and 4.22$\times$ on SpMV at 10\%. \textbf{Fast storage, slow core:} on the SSD with
+1\,ns per instruction, the scan over btree's 230 candidates makes the score cost 1.96 of
+\clock's time.
+% src: AUSTRA_HANDOFF START HERE section 0; kmain_A_005/01/02 (graph global 20% = 1.40 after
+% round 5); kmain_WA_01; tables/transfer.tex (redis-real linear K+ 1.106, LRU 0.929);
+% cost_benefit_measured_devices.csv (btree: 230 frames, time vs Clock on the SSD 1.964 at 1 ns)
 %==============================================================================
 % ----- 6 RELATED WORK -----
 %==============================================================================
@@ -1113,48 +1262,65 @@ the worst case from 1.86 to 1.36 (\S\ref{sec:design-wrong}).
 % references.bib must be checked before submission.
 % =============================================================================
 
-\finding{Page replacement heuristics.}
-\plan{\belady's optimum~\citep{belady1966study}; the working-set
-model~\citep{denning1968working}; stack distance~\citep{mattson1970evaluation};
-\clock~\citep{corbato1968paging} and WSClock~\citep{carr1981wsclock};
+% Sources: related-work-notes.md (search 2026-10-12) and the literature review
+% ML_Page_Replacement_Literature_Review.pdf (2026-10-12). Every cited entry was checked on its
+% publisher page (2026-10-13); see references.bib. The MLSys 2026 YPS poster version of
+% LearnedCache is non-archival: cite the arXiv version only.
+\finding{Page replacement heuristics.} Beyond \belady's
+optimum~\citep{belady1966study}, the working set~\citep{denning1968working} and stack
+distance~\citep{mattson1970evaluation}, \clock~\citep{corbato1968paging},
+WSClock~\citep{carr1981wsclock},
 LRU-K~\citep{oneil1993lruk}, 2Q~\citep{johnson1994twoq}, LIRS~\citep{jiang2002lirs},
 ARC~\citep{megiddo2003arc}, CAR~\citep{bansal2004car},
-CLOCK-Pro~\citep{jiang2005clockpro}; LHD~\citep{beckmann2018lhd}; recent simple
-policies SIEVE~\citep{zhang2024sieve} and S3-FIFO~\citep{yang2023s3fifo}; in Linux,
-MGLRU~\citep{linux_mglru}, refault distance~\citep{linux_workingset} and
-DAMON~\citep{linux_damon}.}
-\emph{Difference:} each fixes one rule for combining recency, frequency and
-dirtiness, and most assume they see every hit; we run ARC, LHD and S3-FIFO in the form a
-kernel can run and compare against them there. The learned score learns the combination
-from the same kernel signals, and its features are the ones the Linux mechanisms already
-maintain.
+CLOCK-Pro~\citep{jiang2005clockpro} and LHD~\citep{beckmann2018lhd} each add a
+hand-chosen signal to recency; SIEVE~\citep{zhang2024sieve} and
+S3-FIFO~\citep{yang2023s3fifo} show that simple FIFO queues rival them. Linux combines
+MGLRU generations~\citep{linux_mglru}, refault distance~\citep{linux_workingset} and
+DAMON's sampled access counts~\citep{linux_damon}.
+\emph{Difference:} each fixes one rule for combining recency, frequency and dirtiness, and
+most assume they see every hit; we run ARC, LHD and S3-FIFO in accessed-bit form and
+compare against them there. The learned score learns the combination from the same
+kernel signals, which the Linux mechanisms already maintain.
 
-\finding{Learned cache replacement.}
-\plan{CPU caches: Hawkeye~\citep{jain2016hawkeye} and Glider~\citep{shi2019glider} learn
-from \belady's decisions; Parrot~\citep{liu2020parrot} imitates \belady with a neural
-policy. CDNs: LRB~\citep{song2020lrb}. Storage caches: LeCaR~\citep{vietri2018lecar} and
-CACHEUS~\citep{rodriguez2021cacheus} weigh LRU and LFU with online regret
-minimisation.}
-\emph{Difference:} these observe every access and are judged per request; \sys sees only
-sampled accessed/dirty bits and refaults, computes in integers on the eviction path, and
-is evaluated inside a kernel. \sys shares Parrot's imitation-of-\belady formulation, and
-our oracle tier plays the role of its full-information features.
-\plan{Add in-kernel work (related-work-notes.md): LearnedCache~\citep{qi2026learnedcache}
-on cache\_ext~\citep{zussman2025cacheext}; PageFlex~\citep{yelam2025pageflex}; learned
-heuristic tuning~\citep{xia2026lah}; paging with predictions and robust
-fallback~\citep{lykouris2021jacm,wei2020,chledowski2021robust}.}
+\finding{Learned cache replacement.} In CPU caches, Hawkeye~\citep{jain2016hawkeye},
+Glider~\citep{shi2019glider} and Mockingjay~\citep{shah2022mockingjay} learn from
+\belady's past decisions, Parrot~\citep{liu2020parrot} imitates \belady with a neural
+policy, and reinforcement learning designs a policy offline in
+RLR~\citep{sethumurugan2021rlr} and decides replacement and bypass online in
+CHROME~\citep{lu2024chrome}. In software caches, LeCaR~\citep{vietri2018lecar} and
+CACHEUS~\citep{rodriguez2021cacheus} weigh experts by regret, LRB~\citep{song2020lrb}
+learns a relaxed \belady boundary, GL-Cache~\citep{yang2023glcache} learns over groups
+of objects, 3L-Cache~\citep{zhou2025threelcache} cuts the cost of learning,
+HALP~\citep{song2023halp} re-ranks a heuristic's candidates in YouTube's CDN, and
+learning-augmented heuristics~\citep{xia2026lah} tune only the parameters of a FIFO-based
+policy. \emph{Difference:} these observe every access and are judged per request; our
+policy sees only sampled accessed/dirty bits and refaults, computes in integers on the
+fault path, and is evaluated inside a kernel. It shares Parrot's imitation of \belady;
+our oracle tier plays the role of Parrot's full-information features.
 
-\finding{Learned operating-system components.}
-\plan{In-kernel models: LinnOS~\citep{hao2020linnos} (I/O latency, a small NN in the
-block layer); learned allocation~\citep{maas2020llama}; learned memory-access
-prediction~\citep{hashemi2018learning}; the learned-OS vision~\citep{zhang2019learned}.
-At MLSys, learned policies sit above the kernel: VM
-allocation~\citep{barbalho2023vmalloc,ling2025lava}, vCPU
-oversubscription~\citep{wang2025protorail}, storage placement~\citep{yang2025byom} and
-NUMA placement~\citep{zhao2026catur}, and work on making them safe or
-adaptive~\citep{mallick2022matchmaker,tan2023ouroboros,qiu2024flash,gohil2026uncertain}.}
-\emph{Difference:} \sys puts a learned policy in the kernel's paging path, where the
-budget is microseconds, the inputs are hardware bits, and the model must be integer-only.
+\finding{Learning inside operating systems.} Closest to us,
+LearnedCache~\citep{qi2026learnedcache} ranks file pages with a perceptron in the Linux
+page cache through the eBPF hooks of cache\_ext~\citep{zussman2025cacheext}, and
+LPR~\citep{kim2025lpr} uses a bandit to choose between LRU and MRU in a user-level graph
+engine. Other learned memory policies place data across
+tiers~\citep{doudali2019kleio,singh2022sibyl,ramaswamy2026xtier}, tune
+parameters~\citep{lagarcavilla2019farmemory,akgun2021kml}, or predict accesses and
+lifetimes~\citep{hashemi2018learning,maas2020llama,qiu2021rmt}; LinnOS~\citep{hao2020linnos}
+runs a small network in the block layer, LAKE~\citep{fingler2023lake} offloads kernel
+inference to accelerators, and SOL~\citep{wang2022sol} guards on-node agents against bad
+models. At MLSys, learned policies sit above the kernel, in VM allocation and
+oversubscription~\citep{barbalho2023vmalloc,ling2025lava,wang2025protorail} and storage
+and NUMA placement~\citep{yang2025byom,zhao2026catur}, with work on making them safe or
+adaptive~\citep{mallick2022matchmaker,tan2023ouroboros,qiu2024flash,gohil2026uncertain}.
+\emph{Difference:} our policy chooses every victim for a program's own memory on the
+kernel's fault path, where a decision must cost far less than a fault, the inputs are
+hardware bits, and the model must be integer-only.
+
+\finding{Paging with predictions.} Learning-augmented paging bounds the cost of wrong
+predictions~\citep{lykouris2021jacm,rohatgi2020,wei2020,im2022parsimonious}, also when
+pages cost different amounts to fetch~\citep{bansal2022weighted}. \emph{Difference:}
+these analyses assume a prediction at every request, which a kernel that sees only
+faults cannot make.
 %==============================================================================
 % ----- 7 DISCUSSION AND LIMITATIONS -----
 %==============================================================================
@@ -1176,34 +1342,38 @@ batch with the same whole-number dot product. The only Linux evidence so far is
 indirect: Redis and SQLite traces recorded on Linux with
 Valgrind~\citep{nethercote2007valgrind}, replayed in the simulator (\S\ref{sec:eval-info}).
 
-\finding{Why a teaching kernel?} \plan{The whole fault path is small and visible, runs
-repeat exactly, and every decision can be traced and replayed, which is what made the
-kernel-to-simulator comparison possible. What differs from Linux: per-process (local)
-replacement rather than global or cgroup reclaim; one benchmark process at a time on one
-hart, so no lock contention on the eviction path; no page cache competing for memory;
-timing in QEMU.}
+\finding{Why a teaching kernel?} The whole fault path is small and visible, runs repeat
+exactly, and every decision can be traced and replayed, which is what made the
+victim-by-victim comparison of kernel and simulator possible. Three things differ from
+Linux: replacement is per process rather than global or per cgroup; one benchmark
+process runs at a time on one hart, so the eviction path sees no lock contention; and no
+page cache competes for memory. QEMU serves only to count instructions; device and CPU
+times were measured natively (\S\ref{sec:eval-cost}).
+% src: kernel/vmpage.c (page_is_candidate: owner == p); QEMU -smp 1; kernel/bio.c (fixed NBUF
+% buffer cache); vmrun -v and tools/ml2/victims_cmp.py (victim-by-victim comparison)
 
 \finding{Limitations.}
 \begin{itemize}
-\item \textbf{The fault cost is assumed.} Instruction counts are measured; the time a real
-  page-in and write-back take is not, so the break-even results rest on assumed fault
-  costs (8\,ms disk, 100\,\textmu s flash) and one instruction per nanosecond.
-\item \textbf{Fourteen workloads, some close variants; six for training.} 5\% and 20\%
-  memory use one stream per variant (51 streams), and the heavier models ran on ten; most
-  differences between the best policies are inside the intervals.
-\item \textbf{Adapted classical policies.} ARC, LHD and S3-FIFO ran in the form a kernel
-  can run (accessed bits read at evictions), not as published. A per-hit form is
-  impossible in a kernel that does not see hits; S3-FIFO's result in particular should not
-  be read as the algorithm's.
+\item \textbf{A fault's cost is measured only in parts.} Instruction counts are exact, and
+  device reads (one SSD, one hard disk) and the scoring code's speed (one desktop core)
+  are measured; a whole xv6 fault on real hardware is not, so the break-even results add
+  the parts.
+\item \textbf{Fourteen workloads, some close variants; six for training.} The heavier
+  models ran on ten streams; most differences between the best policies are inside the
+  intervals.
+\item \textbf{Adapted classical policies.} ARC, LHD and S3-FIFO ran in accessed-bit form,
+  not as published. A per-hit form is impossible in a kernel that does not see hits;
+  S3-FIFO's result in particular should not be read as the algorithm's.
 \item \textbf{Faults, not writes.} The label is \belady's fault-optimal choice; the learned
   score does not reduce page writes on average, and writes 4--5$\times$ \clock on matmul
-  and SpMV. A label that counts write-backs is future work.
-\item \textbf{No guard in the kernel.} The learned score can be worse than \clock; the
-  fallback guard exists only as a simulator prototype.
+  and SpMV. A label that also counts write-backs is future work.
+\item \textbf{It can lose to \clock.} Nothing switches the learned score off at run time;
+  \S\ref{sec:eval-loss} lists where it loses.
 \item \textbf{Traced data only.} Reference strings cover each workload's data, not its code
   and stack pages (3--9 always-hot frames).
 \end{itemize}
-% src: week_16 report section "Limits and what is not claimed"; AUSTRA_HANDOFF START HERE sections 1, 4
+% src: week_16 report section "Limits and what is not claimed" (its "fault cost is assumed" line
+% predates S1/S2); AUSTRA_HANDOFF START HERE sections 1, 2, 4; GAWWY_HANDOFF_PAPER.md S1, S2
 %==============================================================================
 % ----- 8 CONCLUSION -----
 %==============================================================================
@@ -1211,14 +1381,15 @@ timing in QEMU.}
 \section{Conclusion}
 \label{sec:conclusion}
 % One paragraph. Restate the insight sentence, the main result with its baseline, and
-% code status. No new claims. Draft NINTH (Step 5.9). Claim PENDING D2.
+% code status. No new claims. Claim decided in D2.
 % =============================================================================
 
-A learned page-replacement policy is implementable inside a kernel: \textbf{the kernel
-already sees enough}. In xv6, a small whole-number score over accessed-bit history and
-refault bookkeeping incurs 8.6\% fewer faults than \clock at 10\% memory across 14
-workloads and is level with ARC; heavier models cost 20--150$\times$ more without clear
-gains. Decision time, 55$\times$ \clock's, is the price. \todo{claim pending D2; code link}
+A learned page-replacement policy can work inside a kernel: \textbf{the kernel already
+sees enough}. In xv6, a small whole-number score over accessed-bit history and refault
+bookkeeping incurs 8.6\% fewer faults than \clock at 10\% memory across 14 workloads and
+is level with ARC; heavier models are level with it at 20--150$\times$ the cost. Decision
+time, 55$\times$ \clock's, is the price, and with the devices we measured it pays on a
+hard disk, and on an SSD with a fast core. \todo{anonymized code link}
 
 % No acknowledgements in the blind version.
 
@@ -1239,20 +1410,67 @@ gains. Decision time, 55$\times$ \clock's, is the price. \todo{claim pending D2;
 
 \section{Dataset}
 \label{app:data}
-\plan{Per-workload table: variants, streams, references, held-out streams (generated:
-report/week\_15\_update/tables/dataset.tex). Trace format; integrity checks; independent
-program models; how held-out variants were chosen; Twitter replay sampling (1,024 keys).}
+
+Table~\ref{tab:dataset} lists the simulator dataset. Each stream is a complete reference
+string: every access to the workload's data, marked \texttt{R} or \texttt{W}, with its
+page number (\S\ref{sec:impl}). A stream is accepted only if the run passes, the
+kernel's reference and byte counts match the extracted file, repeated runs are
+byte-identical, and an independent model of the program, run on the host, produces the
+same string. The real Redis and SQLite traces were recorded on Linux with
+Valgrind~\citep{nethercote2007valgrind} and carry no read/write marks.
+
+\finding{Splits.} For the six training workloads, whole variants are held out and used
+only for testing (\texttt{btree-scan}, \texttt{graph-bfs2000}, \texttt{kv-F},
+\texttt{lzw-r30}, \texttt{matmul-*128}, \texttt{sort-n60000}); within every other
+variant, the last seed is the test stream, the second-to-last the validation stream,
+and the rest are training streams. Every stream of the other eight workloads, and the
+real traces, is held out.
+
+\finding{Twitter replays.} The key-value store holds at most 1,024 keys, so each of the
+six clusters is sampled by key hash to about 1,000 keys, keeping each kept key's whole
+request sequence, and cut to 4,751--40,000 requests. Only key ids and read/write flags
+are kept; the original traces are CC~BY~4.0~\citep{yang2020twitter}.
+% src: tools/stream_dataset.py (HELD_OUT, split rule); tools/gen_tw_keys.py (KEYS_MAX 1024,
+% m = ceil(unique/1000)); GAWWY_HANDOFF_PAPER.md "Twitter licence"; ML_REPORT 2.2-2.3
+
+\begin{table}[h]
+\caption{The simulator dataset: 199 streams, 77 of them held out. \texttt{patb} is a
+second, independently written pattern suite.}
+% src: column sums of report/week_15_update/tables/dataset.tex (its week-15 caption says 176,
+% written before the chase/heap/join/spmv/bloom/patb streams were imported)
+\label{tab:dataset}
+\vskip 0.05in
+\begin{center}
+\resizebox{\linewidth}{!}{\input{\wfifteen/dataset}}
+\end{center}
+\end{table}
 
 \section{Simulator Validation}
 \label{app:sim}
-\plan{All checks: 534 cells against an independent implementation; kernel logic re-implemented
-naively; features on 11,792 evictions; 570 traces for ARC/LHD/S3-FIFO; filled-memory start.}
+
+Feature selection needs tens of thousands of full replays, so it runs in a C simulator,
+which we checked in five ways. (1) FIFO, LRU and \belady match an independent
+implementation on all 534 stream--capacity cells. (2) FIFO, \clock, Aging and LFU match a
+naive re-implementation of the kernel's logic in faults and write-backs. (3) Every \tierK
+and \tierKp feature matches that re-implementation on 11,792 evictions $\times$ 53
+candidates, and the C scorer reproduces each trained model's predictions. (4) The
+simulator versions of the accessed-bit ARC, LHD and S3-FIFO match independent reference
+implementations on 570 traces, and both LeCaR forms match theirs on 95, with identical
+faults and evictions. (5) Against the kernel at 10\% memory, kernel faults divided by
+simulator faults are 0.995 (ARC), 1.014 (S3-FIFO) and 0.984 (LHD), geometric mean over
+74 streams, with the median stream within 1.5\%; FIFO, Aging, LFU and the linear score
+agree within about 4\%. This holds only when the simulator starts from filled memory, as
+the kernel's benchmarks do: started empty, it misjudges some models, set-attention by up
+to 14$\times$.
+% src: ML_REPORT 5.1; week-16 report "Does the simulator predict the kernel?" and the LeCaR
+% paragraph; GAWWY_HANDOFF_PAPER.md reply S3 (95 traces); week-15 report "Why the kernel and the
+% simulator disagree"
 
 \section{Full Results}
 \label{app:results}
 
 \begin{table*}[h]
-\caption{5\% memory (51 streams), same layout as Table~\ref{tab:kernel}.}
+\caption{5\% memory (74 streams), same layout as Table~\ref{tab:kernel}.}
 \vskip 0.05in
 \begin{center}
 \resizebox{\textwidth}{!}{\input{\wsixteen/kmain_A_005}}
@@ -1260,7 +1478,7 @@ naively; features on 11,792 evictions; 570 traces for ARC/LHD/S3-FIFO; filled-me
 \end{table*}
 
 \begin{table*}[h]
-\caption{20\% memory (51 streams), same layout as Table~\ref{tab:kernel}.}
+\caption{20\% memory (74 streams), same layout as Table~\ref{tab:kernel}.}
 \vskip 0.05in
 \begin{center}
 \resizebox{\textwidth}{!}{\input{\wsixteen/kmain_A_02}}
@@ -1298,24 +1516,79 @@ relative to \clock).}
 
 \begin{figure}[h]
 \centering
-\figbox{1.4in}{Median change in faults from adding each kernel feature to a subset that
-lacks it, per workload.}{report/figures2/marginal.pdf is pre-refit; regenerate, re-plot
-for one column}
-\caption{\plan{Takeaway: \feat{idle} is worth 20--71\% fewer faults; most other features
-are worth a few percent.}}
+\begin{tikzpicture}
+\begin{axis}[paperplot, colormap={div}{rgb255=(42,120,214) rgb255=(240,239,236) rgb255=(227,73,72)},
+  width=0.7\linewidth, height=1.1in, scale only axis, enlargelimits=false,
+  xmin=-0.5, xmax=7.5, ymin=-0.5, ymax=5.5, y dir=reverse,
+  xtick={0,...,7}, xticklabels={ref,aging,sfreq,idle,age,dirty,refaults,rdist},
+  xticklabel style={font=\tiny\ttfamily, rotate=40, anchor=north east, inner sep=1pt},
+  ytick={0,...,5}, yticklabels={btree,graph,kv,lzw,matmul,sort},
+  yticklabel style={font=\tiny}, tick style={draw=none}, axis line style={draw=none},
+  point meta min=-75, point meta max=75,
+  colorbar, colorbar style={width=4pt, ytick={-70,0,70}, font=\tiny,
+    yticklabel style={font=\tiny}, axis line style={cAxis}}]
+\addplot[matrix plot*, mesh/cols=8, point meta=explicit]
+  table[x=col, y=row, meta=pct, col sep=comma] {\figdata/marginal.csv};
+\addplot[only marks, mark=none, nodes near coords, point meta=explicit symbolic,
+  every node near coord/.append style={anchor=center, font=\tiny}]
+  table[x=col, y=row, meta=label, col sep=comma] {\figdata/marginal.csv};
+\end{axis}
+\end{tikzpicture}
+% data: figures/data/marginal.csv from report/results2/summary_marginal.csv (make_figdata.py)
+\caption{Median change in faults, in percent, when a kernel feature is added to a feature
+subset that lacks it (per-workload models, test streams; matmul held-out). Blue: fewer
+faults; cells of 10\% or more are labelled. \feat{idle} is worth 19--71\% on kv, btree and
+graph and about 1\% on LZW.}
 \label{fig:marginal}
 \end{figure}
 
-\plan{Controls (simulator): on the uniform pattern every online policy is within 0.0003 of
-the analytical miss rate and no model gains; on the loop pattern MRU matches \belady and
-the recency policies miss every time (week-15 report, transfer section).}
+\begin{table}[h]
+\caption{LeCaR in the simulator, faults relative to \clock, on the cells of
+Table~\ref{tab:info}. ``As published'': experts exact LRU and exact LFU, which needs every
+access. ``Kernel form'': experts \clock and the kernel's decayed frequency count on the
+same accessed-bit snapshot, time in evictions. Both use LeCaR's original parameters
+(learning rate 0.45, a history of half the cache per expert).}
+\label{tab:lecar}
+\vskip 0.05in
+\begin{center}
+\resizebox{\linewidth}{!}{\input{\wsixteen/lecar}}
+\end{center}
+\end{table}
 
-\plan{Also: transfer to unseen streams in simulation (tables/transfer.tex); the break-even
-table (week-15 report); intervals per workload; kernel/simulator ratios per policy.}
+\begin{table}[h]
+\caption{Workloads no model was trained on, in the simulator: faults relative to \clock,
+geometric mean over streams and the three memory sizes. ARC and S3-FIFO here are the
+per-hit versions; LHD is the accessed-bit form.}
+\label{tab:transfer}
+\vskip 0.05in
+\begin{center}
+\resizebox{\linewidth}{!}{\input{\wsixteen/transfer}}
+\end{center}
+\end{table}
+% src: GAWWY_HANDOFF_PAPER.md reply M2 (which ARC/S3-FIFO/LHD the simulator columns are)
+
+\finding{Controls (simulator).} The pattern suite has known answers. On the cyclic loop,
+FIFO, LRU, \clock, ARC and LHD miss every access and MRU matches \belady; on the uniform
+pattern, every online policy is within 0.0003 of the analytical miss rate $1-C/P$ and no
+learned model gains, so nothing leaks from training (Table~\ref{tab:transfer}).
+% src: week-15 report, "patbench known answers hold" and the classical-baselines paragraph
 
 \section{Reproducing the Results}
 \label{app:repro}
-\plan{Command sequence and run times (week-16 report appendix), anonymized.}
+
+All kernel runs are resumable and finished runs are skipped. (1) Run the policies in
+the kernel at each memory size with \texttt{tools/ml2/kernel\_eval.py} (the pattern and
+application programs with \texttt{--accesses 50000}); graph streams take 2--25 minutes
+each, the others at most about 3. (2) Merge every result file into one with
+\texttt{merge\_kernel\_results.py}, compute the intervals with
+\texttt{kernel\_ci\_classic.py}, and regenerate every table with \texttt{report\_w15.py}
+and \texttt{report\_w16.py}. (3) Decision cost comes from \texttt{cost\_grid.py} under
+QEMU's instruction-counting mode, native timing from \texttt{native\_timing.c}, and the
+break-even from \texttt{cost\_benefit.py} with the measured device latencies. The
+simulator checks (\texttt{validate.py}, \texttt{validate\_kernel.py},
+\texttt{test\_baselines.py}) must pass after any change.
+% src: AUSTRA_HANDOFF.md START HERE section 7 and sections 6-7 of the week-14 part; week-16
+% report appendix "How to reproduce"; GAWWY_HANDOFF_PAPER.md S1-S2 (tools). Keep it anonymous.
 \fi
 
 \end{document}
