@@ -146,6 +146,11 @@ def main_nets_all():
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the all-workloads models")
 
 
+CLASSIC_POLS = ("arck", "s3fifo", "lhd")      # --lecar: ("lecar",)
+CLASSIC_TAG = "classic"
+NOTEBOOKS = (1, 2, 3, 4)
+
+
 def costs_classic(skip=()):
     """5% / 20% runs of ARC, S3-FIFO and LHD (round 3). One item = one (stream, memory size) = three runs, each costed like the Clock run of the
     same cell: Kaggle's own wall time if it ran there, else this machine's times KAGGLE_SLOWDOWN."""
@@ -161,14 +166,14 @@ def costs_classic(skip=()):
                 if r["accesses"]:
                     short.add(r["stem"])
     done = set()
-    for f in R.glob("kaggle_*_classic.csv"):
+    for f in R.glob(f"kaggle_*_{CLASSIC_TAG}.csv"):
         done |= {(r["stem"], r["fraction"], r["policy"]) for r in csv.DictReader(open(f)) if r["status"] == "ok"}
     items = {}
     for (st, fr), w in loc.items():
         if fr not in ("0.05", "0.2") or f"{st}@{fr}" in skip or st in skip:
             continue
         w = kag.get((st, fr), w * KAGGLE_SLOWDOWN)
-        n = sum((st, fr, p) not in done for p in ("arck", "s3fifo", "lhd"))
+        n = sum((st, fr, p) not in done for p in CLASSIC_POLS)
         if n:
             items[("classic", (st, fr))] = (w * n / 3600, w / 3600)
     return items, short
@@ -178,7 +183,7 @@ def main_classic():
     argv = __import__("sys").argv
     skip = tuple(argv[argv.index("--skip") + 1].split(",")) if "--skip" in argv else ()
     items, short = costs_classic(skip)
-    bins = {n: {"lanes": 4, "work": 0.0, "classic": []} for n in ("k1", "k2", "k3", "k4")}
+    bins = {f"k{n}": {"lanes": 4, "work": 0.0, "classic": []} for n in NOTEBOOKS}
     for (kind, st), (h, one) in sorted(items.items(), key=lambda kv: -kv[1][0]):
         b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
         b["work"] += h
@@ -202,8 +207,9 @@ def main_classic():
         t.add(ROOT / "traces2/ML/index.json", arcname="xv6/traces2/ML/index.json")
     exp = json.load(open(PK / "plan.json"))["selftest"]
     tpl = (Path(__file__).parent / "notebook_template.py").read_text()
-    for i in (1, 2, 3, 4):
+    for i in NOTEBOOKS:
         cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "classic": [list(x) for x in bins[f"k{i}"]["classic"]],
+                          "classic_policies": ",".join(CLASSIC_POLS), "classic_tag": CLASSIC_TAG,
                           "short": sorted(short), "selftest": exp}, indent=1)
         (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for ARC / S3-FIFO / LHD")
@@ -363,6 +369,10 @@ def main_models():
 
 
 def main():
+    global CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS
+    if "--lecar" in __import__("sys").argv:
+        CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS = ("lecar",), "lecar", (1, 2, 3, 4)
+        return main_classic()
     if "--models-all" in __import__("sys").argv:
         return main_models()
     if "--more-streams" in __import__("sys").argv:

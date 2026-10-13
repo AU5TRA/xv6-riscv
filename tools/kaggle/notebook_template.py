@@ -118,8 +118,8 @@ if CONFIG.get("classic"):
         for is_short in (False, True):
             sts = [st + "$" for st, f in CONFIG["classic"] if f == fr and (st in CONFIG["short"]) == is_short]
             if sts:
-                keval(f"kaggle_{i}_classic.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
-                      f"--nonml arck,s3fifo,lhd --timeout 40000")
+                keval(f"kaggle_{i}_{CONFIG.get('classic_tag', 'classic')}.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
+                      f"--nonml {CONFIG.get('classic_policies', 'arck,s3fifo,lhd')} --timeout 40000")
                 save()
 if CONFIG.get("more"):
     for fr in ("0.05", "0.2"):

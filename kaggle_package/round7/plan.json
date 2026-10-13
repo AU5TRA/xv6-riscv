@@ -1,0 +1,87 @@
+{
+ "selftest": {
+  "stem": "kv-A-s5",
+  "faults": 10511,
+  "frames": 53
+ },
+ "bins": {
+  "local": {
+   "standard": [
+    "bloom-k3-s1",
+    "chase-tree-s1",
+    "heap-churn-s1",
+    "spmv-rand-s1",
+    "btree-scan-s1",
+    "join-uni-s1",
+    "join-zipf-s1",
+    "join-r4-s1",
+    "kv-Avsize-s5",
+    "kv-A-s5",
+    "kv-B-s5",
+    "kv-T17-s1",
+    "kv-T18-s1",
+    "kv-T35-s1"
+   ],
+   "nets": [
+    "sort-n40000-s3"
+   ],
+   "patapp": false
+  },
+  "k1": {
+   "standard": [
+    "bloom-k7-s1",
+    "graph-bfs2000-s1",
+    "heap-small-s1",
+    "matmul-naive128-s1",
+    "btree-lookup-s5",
+    "btree-mixedwal-s5",
+    "kv-C-s5",
+    "kv-T4-s1",
+    "sort-n20000-s3"
+   ],
+   "nets": [
+    "kv-A-s5"
+   ],
+   "patapp": false
+  },
+  "k2": {
+   "standard": [
+    "lzw-r20-s5",
+    "heap-mixed-s1",
+    "btree-insert-s5",
+    "btree-mixed-s5",
+    "kv-F-s1",
+    "kv-D-s5",
+    "kv-T24-s1",
+    "kv-T52-s1"
+   ],
+   "nets": [
+    "bloom-k7-s1",
+    "join-zipf-s1"
+   ],
+   "patapp": false
+  },
+  "k3": {
+   "standard": [
+    "chase-list-s1",
+    "chase-n256-s1",
+    "kv-Arehash-s5",
+    "spmv-band-s1",
+    "sort-n60000-s1"
+   ],
+   "nets": [
+    "chase-tree-s1",
+    "btree-mixed-s5",
+    "kv-T17-s1"
+   ],
+   "patapp": false
+  },
+  "k4": {
+   "standard": [
+    "sort-n40000-s3"
+   ],
+   "nets": [],
+   "patapp": true
+  }
+ }
+}
