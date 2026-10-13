@@ -211,7 +211,7 @@ and capacity cliffs explain most of the remaining differences. Earlier work foun
 
 \begin{itemize}
 \item \textbf{One operating system.} xv6 on QEMU, a teaching kernel with a single-threaded benchmark process at a time. Nothing here says what happens in Linux.
-\item \textbf{The fault cost is assumed.} Whether a saved fault pays for the extra selection work depends on how long a real page-in takes; no real device was measured. Instruction counts are measured, times are not.
+\item \textbf{Time is measured only in parts.} Instruction counts are exact. Device read latency was measured on one SSD and one hard disk (a device read, not a full xv6 fault, and for the hard disk over a 1\,GB file), and the speed of the scoring code on one desktop core, without the kernel's page-table walk, so it is a lower bound. How long a real xv6 fault takes on real hardware was not measured.
 \item \textbf{Fourteen workloads.} Some are close variants of each other, and the five heavier models were run on only ten streams. The intervals show the resulting uncertainty; most differences between the best policies are inside it.
 \item \textbf{Adapted forms.} ARC, LHD and S3-FIFO ran in the form a kernel can run (accessed bits read at evictions), not as published; S3-FIFO's result in particular should not be quoted as the algorithm's.
 \item \textbf{``All workloads'' means the six original ones} (btree, graph, kv, LZW, matmul, sort), for the global linear model and the five heavier kinds alike; the heap, hash join, SpMV, pointer chase, Bloom filter, pattern and application programs were not in training. The heavier models were run on only ten streams, so their intervals are the widest.

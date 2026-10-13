@@ -20,7 +20,10 @@ R = ps.ROOT / "report" / "results2"
 PAIRS = [("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"),
          ("ml:global", "arck"), ("ml:global", "lhd"),
          ("ml:cnn-all", "arck"), ("ml:mlp-all", "arck"), ("ml:attention-all", "arck"), ("ml:trees-all", "arck"),
-         ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global")]
+         ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global"),
+         ("ml:global@32", "clock"), ("ml:global@16", "clock"), ("ml:global@32", "ml:global"), ("ml:global@16", "ml:global"),
+         ("ml:attention-all", "ml:global"), ("ml:trees-all", "ml:global"), ("ml:ranktrees-all", "ml:global"),
+         ("ml:cnn-all", "clock"), ("ml:mlp-all", "clock")]
 
 
 def group(stem):
