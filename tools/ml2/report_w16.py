@@ -101,6 +101,132 @@ def breakeven_tables():
     (OUT / "breakeven_by_workload.tex").write_text(tab(body, head))
 
 
+def gmean(xs):
+    import math
+    xs = list(xs)
+    return math.exp(sum(math.log(max(x, 1e-12)) for x in xs) / len(xs))
+
+
+def wl_of(stem):
+    return "kv-T" if stem.startswith("kv-T") else stem.split("-")[0]
+
+
+def fmt_int(v):
+    return f"{v:,.0f}".replace(",", "\\,")
+
+
+GRID_ROWS = [(("fifo", ""), "FIFO"), (("clock", ""), "Clock"), (("aging", ""), "Aging"), (("lfu", ""), "LFU"), (("s3fifo", ""), "S3-FIFO"),
+             (("arck", ""), "ARC"), (("lhd", ""), "LHD"), (("lecar", ""), "LeCaR"), (("ml", "global"), "linear score, all pages"),
+             (("ml", "global@32"), "linear score, 32 sampled"), (("ml", "global@16"), "linear score, 16 sampled"),
+             (("ml", "trees-all"), "boosted trees"), (("ml", "ranktrees-all"), "ranking trees"), (("ml", "attention-all"), "set-attention"),
+             (("ml", "cnn-all"), "CNN"), (("ml", "mlp-all"), "deeper MLP")]
+
+
+def cost_sizes_table():
+    """Exact instructions to choose one victim at every size of the cost grid (patbench uniform), and the cost of one more page."""
+    d = {}
+    for r in csv.DictReader(open(R / "cost_grid.csv")):
+        d[(r["policy"], r["model"], int(r["frames"]))] = float(r["select_instructions_per_eviction"])
+    body = []
+    for (p, m), name in GRID_ROWS:
+        if (p, m, 64) not in d:
+            continue
+        cells = [fmt_int(d[(p, m, n)]) if (p, m, n) in d else "--" for n in (16, 64, 256, 512)]
+        slope = (d[(p, m, 512)] - d[(p, m, 64)]) / (516 - 68) if (p, m, 512) in d else None
+        body.append([name] + cells + [f"{slope:,.0f}".replace(",", "\\,") if slope is not None else "--"])
+    (OUT / "cost_sizes.tex").write_text(tab(body, ["policy", "20 pages", "68 pages", "260 pages", "516 pages", "per extra page"]))
+
+
+def cost_runs_table():
+    """The rough check on the real programs (cost_from_runs.py): time spent choosing, relative to Aging on the same streams, 10% memory."""
+    rows = [r for r in csv.DictReader(open(R / "cost_from_runs.csv")) if r["fraction"] == "0.1"]
+    d = {(r["workload"], r["policy"]): r for r in rows}
+    exact = {}
+    for r in csv.DictReader(open(R / "cost_grid.csv")):
+        if r["frames"] == "64":
+            exact[r["policy"] + (":" + r["model"] if r["model"] else "")] = float(r["select_instructions_per_eviction"])
+    cols = [("clock", "Clock"), ("lecar", "LeCaR"), ("arck", "ARC"), ("lhd", "LHD"), ("ml:global", "linear")]
+    body = [["patbench uniform (exact count)", "68"] + [f"{exact[c] / exact['aging']:.2f}" for c, _ in cols]]
+    for wl in sorted({w for w, _ in d}):
+        if (wl, "aging") not in d:
+            continue
+        body.append([wl, d[(wl, "aging")]["pages_to_choose_from"]] + [f"{float(d[(wl, c)]['relative_to_aging']):.2f}" if (wl, c) in d and d[(wl, c)]["relative_to_aging"] else "--" for c, _ in cols])
+    (OUT / "cost_runs.tex").write_text(tab(body, ["workload", "pages to choose from"] + [n for _, n in cols]))
+
+
+def sampling_sweep_table():
+    """The first simulator sweep (exp_sampling.py): global linear model, k random pages, 3 seeds; faults relative to scoring every page."""
+    rows = [r for r in csv.DictReader(open(R / "sampling_sweep.csv")) if r["model"] == "ml_global" and r["aborted"] == "0"]
+    full = {(r["stem"], r["fraction"]): int(r["faults"]) for r in rows if r["mode"] == "all"}
+    acc = defaultdict(list)
+    for r in rows:
+        if r["mode"] != "all" and (r["stem"], r["fraction"]) in full:
+            acc[(r["mode"], int(r["k"]), r["fraction"], r["stem"])].append(int(r["faults"]) / full[(r["stem"], r["fraction"])])
+    cells = defaultdict(lambda: defaultdict(list))
+    for (mode, k, fr, stem), v in acc.items():
+        cells[(mode, k, fr)][wl_of(stem)].append(gmean(v))
+    body = []
+    for k in (4, 8, 16, 32, 64):
+        line = [str(k)]
+        for mode in ("score", "scan"):
+            for fr in ("0.05", "0.1", "0.2"):
+                c = cells.get((mode, k, fr))
+                line.append(f"{gmean(gmean(v) for v in c.values()):.3f}" if c else "--")
+        body.append(line)
+    n = {fr: len({s for (s, f) in full if f == fr}) for fr in ("0.05", "0.1", "0.2")}
+    (OUT / "sampling_sweep.tex").write_text(tab(body, ["pages looked at", "5\\%", "10\\%", "20\\%", "5\\%", "10\\%", "20\\%"]))
+    (OUT / "sampling_sweep_n.txt").write_text(" ".join(f"{fr}:{v}" for fr, v in n.items()))
+
+
+def sampling_heur_table():
+    """Ways of choosing the sampled pages (exp_sampling_heur.py): simulator, the kernel's 74 streams at 10%; vs the full score and vs Clock."""
+    rows = list(csv.DictReader(open(R / "sampling_heuristics.csv")))
+    cell = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        cell[r["stem"]][(r["variant"], int(r["k"]))].append(int(r["faults"]))
+    def score(name, k, base):
+        by = defaultdict(list)
+        for s, c in cell.items():
+            by[wl_of(s)].append(gmean(c[(name, k)]) / c[base][0])
+        return gmean(gmean(v) for v in by.values())
+    names = [("random", "random (as in the kernel runs)"), ("newest", "the quarter newest loaded, rest random"), ("spread", "evenly spread over the load order"),
+             ("window", "a window in load order that moves on"), ("unseen", "pages not seen at their latest scan first"), ("oldest", "the oldest loaded pages")]
+    body = [["all pages (no sampling)", "1.000", "1.000", f"{score('full', 0, ('clock', 0)):.3f}", ""]]
+    for v, label in names:
+        body.append([label, f"{score(v, 32, ('full', 0)):.3f}", f"{score(v, 16, ('full', 0)):.3f}", f"{score(v, 32, ('clock', 0)):.3f}", f"{score(v, 16, ('clock', 0)):.3f}"])
+    (OUT / "sampling_heur.tex").write_text(tab(body, ["which pages", "32: vs all pages", "16: vs all pages", "32: vs Clock", "16: vs Clock"]))
+
+
+def native_timing_table():
+    """The kernel's scoring code compiled for the thesis PC (native_timing.c), 68 pages: microseconds per decision."""
+    def load(f):
+        return {r["policy"].split(" + ")[0]: float(r["ns_per_decision_median"]) for r in csv.DictReader(open(R / f)) if r["candidates"] == "68"}
+    a, b, c = load("native_timing.csv"), load("native_timing_walk.csv"), load("native_timing_cold.csv")
+    body = []
+    for k in a:
+        body.append([k, f"{a[k] / 1000:.2f}", f"{b.get(k, 0) / 1000:.2f}", f"{c.get(k, 0) / 1000:.2f}"])
+    (OUT / "native_timing.tex").write_text(tab(body, ["policy", "scoring only", "+ page-table walk", "+ walk, cold caches"]))
+
+
+def compiler_flags_table():
+    d = {(r["variant"], r["policy"] + (":" + r["model"] if r["model"] else "")): r["select_instructions_per_eviction"] for r in csv.DictReader(open(R / "compiler_flags.csv"))}
+    names = [("O1_baseline", "-O (what every run used)"), ("O2", "-O2"), ("O2_nofp", "-O2 without frame pointer"), ("O3", "-O3"), ("Os", "-Os (smallest code)")]
+    cols = ["clock", "aging", "ml:global", "ml:global@32"]
+    body = [[n] + [fmt_int(float(d[(v, c)])) for c in cols] for v, n in names]
+    (OUT / "compiler_flags.tex").write_text(tab(body, ["kernel built with", "Clock", "Aging", "linear, all pages", "linear, 32 sampled"]))
+
+
+def dagger_table():
+    rows = list(csv.DictReader(open(R / "r3_dagger_v1.csv")))
+    d = defaultdict(dict)
+    for r in rows:
+        d[r["model"]][int(r["dagger_round"])] = (r["faults_over_clock"], r["stopped_at_3x"])
+    body = []
+    for m in ("best of 300", "median of 300", "all features"):
+        body.append([m] + [(f"{float(d[m][i][0]):.2f}" + (" (stopped)" if d[m][i][1] == "1" else "")) for i in range(4)])
+    (OUT / "dagger.tex").write_text(tab(body, ["model", "round 0", "round 1", "round 2", "round 3"]))
+
+
 def copies():
     for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer", "lecar"]:
         shutil.copy(W15 / f"{n}.tex", OUT / f"{n}.tex")
@@ -109,4 +235,5 @@ def copies():
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     ci_table(); cost_table(); breakeven_tables(); copies()
+    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table()
     print("written", OUT)

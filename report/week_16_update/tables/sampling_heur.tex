@@ -1,0 +1,13 @@
+\begin{tabular}{lrrrr}
+\toprule
+which pages & 32: vs all pages & 16: vs all pages & 32: vs Clock & 16: vs Clock \\
+\midrule
+all pages (no sampling) & 1.000 & 1.000 & 0.912 &  \\
+random (as in the kernel runs) & 1.002 & 1.019 & 0.914 & 0.929 \\
+the quarter newest loaded, rest random & 1.002 & 1.021 & 0.913 & 0.931 \\
+evenly spread over the load order & 1.015 & 1.019 & 0.925 & 0.929 \\
+a window in load order that moves on & 1.056 & 1.086 & 0.963 & 0.990 \\
+pages not seen at their latest scan first & 1.058 & 1.089 & 0.964 & 0.993 \\
+the oldest loaded pages & 1.149 & 1.198 & 1.048 & 1.092 \\
+\bottomrule
+\end{tabular}

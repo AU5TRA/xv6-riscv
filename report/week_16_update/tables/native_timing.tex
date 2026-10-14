@@ -1,0 +1,14 @@
+\begin{tabular}{lrrr}
+\toprule
+policy & scoring only & + page-table walk & + walk, cold caches \\
+\midrule
+linear score (global) & 1.35 & 1.52 & 2.11 \\
+linear score (global) 32 sampled & 0.86 & 0.89 & 1.45 \\
+linear score (global) 16 sampled & 0.43 & 0.45 & 0.91 \\
+boosted trees & 32.52 & 31.78 & 33.85 \\
+ranking trees & 30.11 & 27.93 & 29.80 \\
+set-attention & 105.77 & 107.94 & 108.09 \\
+CNN & 106.94 & 106.47 & 109.97 \\
+deeper MLP & 206.19 & 200.91 & 205.03 \\
+\bottomrule
+\end{tabular}

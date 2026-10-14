@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  15 OCT 2026 01:01
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  15 OCT 2026 01:35
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -572,8 +572,8 @@ LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 4
 (/usr/share/texmf/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 7
-3.
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 6
+7.
 
 (/usr/share/texmf/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
@@ -592,21 +592,57 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <5> on input line 1.
 )
-(./tables/kmain_A_01.tex) (./tables/kmain_A_02.tex)
+(./tables/kmain_A_01.tex) (./tables/kmain_A_02.tex) [2] (./tables/ci_main.tex)
+(./tables/kmain_B_005.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[2] (./tables/ci_main.tex) [3] (./tables/kmain_B_005.tex)
-(./tables/kmain_B_01.tex) (./tables/kmain_B_02.tex) (./tables/trainedall.tex
+(./tables/kmain_B_01.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/kmain_B_02.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/trainedall.tex
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <9> on input line 1.
-)
-(./tables/cost.tex)
+) [3]
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <10> on input line 166.
+ (./tables/sampling_sweep.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[4] (./tables/breakeven_summary.tex) [5] [6]
-(./tables/breakeven_by_workload.tex) (./tables/model_comparison.tex)
+(./tables/sampling_heur.tex) [4{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathit.e
+nc}] (./tables/cost_sizes.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[5] (./tables/cost_runs.tex) [6] (./tables/native_timing.tex)
+(./tables/breakeven_summary.tex) (./tables/compiler_flags.tex) [7{/usr/share/te
+xmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy
+.enc}] (./tables/breakeven_by_workload.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/kmain_WA_005.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/kmain_WA_01.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+(./tables/kmain_WA_02.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[8] (./tables/dagger.tex) (./tables/model_comparison.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
 (./tables/transfer.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -615,36 +651,106 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[7{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/share/texmf/fonts/en
-c/dvips/lm/lm-mathsy.enc}] [8] [9] (./week_16_update_report.aux)
+
+Underfull \hbox (badness 10000) in paragraph at lines 405--406
+[]\T1/lmtt/m/n/7 r3_first_version.*\T1/lmr/m/n/7 (+20) ,
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 412--412
+[]\T1/lmr/m/n/7 (+20) xv6, count-ing
+ []
+
+
+Underfull \hbox (badness 6157) in paragraph at lines 415--415
+[]\T1/lmr/m/n/7 (+20) this PC (Win-
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 417--417
+[]\T1/lmr/m/n/7 (+20) xv6, count-ing
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 421--421
+[]\T1/lmr/m/n/7 (+20) xv6, count-ing
+ []
+
+
+Overfull \hbox (8.16626pt too wide) in paragraph at lines 392--424
+ [] 
+ []
+
+[9]
+Underfull \hbox (badness 6316) in paragraph at lines 430--431
+[]\T1/lmr/m/n/10 (+20) Kernel runs: \T1/lmtt/m/n/10 python3 tools/ml2/kernel_ev
+al.py --fracs 0.1 --nonml clock,arck --models
+ []
+
+
+Overfull \hbox (55.4056pt too wide) in paragraph at lines 430--431
+\T1/lmtt/m/n/10 global,global@32\T1/lmr/m/n/10 (-20) ; re-sults go to \T1/lmtt/
+m/n/10 report/results2/\T1/lmr/m/n/10 (-20) ; the Kag-gle pack-ages are in \T1/
+lmtt/m/n/10 kaggle_package/round1..round9
+ []
+
+
+Underfull \hbox (badness 1147) in paragraph at lines 431--432
+[]\T1/lmr/m/n/10 (+20) Merge: \T1/lmtt/m/n/10 merge_kernel_results.py\T1/lmr/m/
+n/10 (+20) ; in-ter-vals: \T1/lmtt/m/n/10 kernel_ci_classic.py \T1/lmr/m/n/10 (
++20) (and \T1/lmtt/m/n/10 writes\T1/lmr/m/n/10 (+20) ); ta-bles:
+ []
+
+
+Overfull \hbox (13.29263pt too wide) in paragraph at lines 432--433
+[]\T1/lmr/m/n/10 (-20) Costs: \T1/lmtt/m/n/10 cost_grid.py \T1/lmr/m/n/10 (-20)
+ (count-ing mode), \T1/lmtt/m/n/10 cost_from_runs.py\T1/lmr/m/n/10 (-20) , \T1/
+lmtt/m/n/10 native_timing.c\T1/lmr/m/n/10 (-20) , \T1/lmtt/m/n/10 tools/io_late
+ncy.ps1\T1/lmr/m/n/10 (-20) ,
+ []
+
+[10]
+Overfull \hbox (16.91965pt too wide) in paragraph at lines 433--434
+[]\T1/lmr/m/n/10 (-20) Simulator stud-ies: \T1/lmtt/m/n/10 exp_sampling.py\T1/l
+mr/m/n/10 (-20) , \T1/lmtt/m/n/10 exp_sampling_heur.py\T1/lmr/m/n/10 (-20) , \T
+1/lmtt/m/n/10 r3_first_version.py\T1/lmr/m/n/10 (-20) , \T1/lmtt/m/n/10 r3_dagg
+er_v1.py\T1/lmr/m/n/10 (-20) . 
+ []
+
+[11] [12] (./week_16_update_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
 Package rerunfilecheck Info: File `week_16_update_report.out' has not changed.
-(rerunfilecheck)             Checksum: 5897F0F79271E79A7C8BB23CACDB5BEB;2283.
+(rerunfilecheck)             Checksum: 2CAAA2F416683A42BF120F42CDF4F00D;3526.
  ) 
 Here is how much of TeX's memory you used:
- 14469 strings out of 476182
- 232540 string characters out of 5795595
- 1975975 words of memory out of 5000000
- 35990 multiletter control sequences out of 15000+600000
- 637386 words of font info for 180 fonts, out of 8000000 for 9000
+ 14626 strings out of 476182
+ 235599 string characters out of 5795595
+ 2002975 words of memory out of 5000000
+ 36064 multiletter control sequences out of 15000+600000
+ 647519 words of font info for 204 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 75i,10n,79p,1952b,586s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,10n,79p,1018b,582s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
 pe1/public/lm/lmbx12.pfb></usr/share/texmf/fonts/type1/public/lm/lmbx8.pfb></us
 r/share/texmf/fonts/type1/public/lm/lmbx9.pfb></usr/share/texmf/fonts/type1/pub
-lic/lm/lmmi7.pfb></usr/share/texmf/fonts/type1/public/lm/lmr10.pfb></usr/share/
-texmf/fonts/type1/public/lm/lmr12.pfb></usr/share/texmf/fonts/type1/public/lm/l
-mr5.pfb></usr/share/texmf/fonts/type1/public/lm/lmr7.pfb></usr/share/texmf/font
-s/type1/public/lm/lmr8.pfb></usr/share/texmf/fonts/type1/public/lm/lmr9.pfb></u
-sr/share/texmf/fonts/type1/public/lm/lmri10.pfb></usr/share/texmf/fonts/type1/p
-ublic/lm/lmsy5.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
-Output written on week_16_update_report.pdf (9 pages, 391758 bytes).
+lic/lm/lmmi10.pfb></usr/share/texmf/fonts/type1/public/lm/lmmi7.pfb></usr/share
+/texmf/fonts/type1/public/lm/lmmi9.pfb></usr/share/texmf/fonts/type1/public/lm/
+lmr10.pfb></usr/share/texmf/fonts/type1/public/lm/lmr12.pfb></usr/share/texmf/f
+onts/type1/public/lm/lmr5.pfb></usr/share/texmf/fonts/type1/public/lm/lmr7.pfb>
+</usr/share/texmf/fonts/type1/public/lm/lmr8.pfb></usr/share/texmf/fonts/type1/
+public/lm/lmr9.pfb></usr/share/texmf/fonts/type1/public/lm/lmri10.pfb></usr/sha
+re/texmf/fonts/type1/public/lm/lmri7.pfb></usr/share/texmf/fonts/type1/public/l
+m/lmsy10.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy5.pfb></usr/share/texm
+f/fonts/type1/public/lm/lmsy7.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt1
+0.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt8.pfb></usr/share/texmf/fonts
+/type1/public/lm/lmtt9.pfb>
+Output written on week_16_update_report.pdf (12 pages, 481066 bytes).
 PDF statistics:
- 196 PDF objects out of 1000 (max. 8388607)
- 153 compressed objects within 2 object streams
- 34 named destinations out of 1000 (max. 500000)
- 47705 words of extra memory for PDF output out of 51595 (max. 10000000)
+ 293 PDF objects out of 1000 (max. 8388607)
+ 231 compressed objects within 3 object streams
+ 49 named destinations out of 1000 (max. 500000)
+ 52881 words of extra memory for PDF output out of 61914 (max. 10000000)
 

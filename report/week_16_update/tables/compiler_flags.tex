@@ -1,0 +1,11 @@
+\begin{tabular}{lrrrr}
+\toprule
+kernel built with & Clock & Aging & linear, all pages & linear, 32 sampled \\
+\midrule
+-O (what every run used) & 410 & 8\,123 & 22\,803 & 11\,292 \\
+-O2 & 427 & 8\,400 & 22\,655 & 11\,228 \\
+-O2 without frame pointer & 411 & 7\,992 & 20\,379 & 10\,150 \\
+-O3 & 289 & 6\,487 & 20\,224 & 10\,078 \\
+-Os (smallest code) & 504 & 8\,881 & 26\,766 & 13\,171 \\
+\bottomrule
+\end{tabular}
