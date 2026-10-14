@@ -205,3 +205,21 @@ compiler settings, the cost caveat) are kept in git: `git show 42e4b48:GAWWY_HAN
 * **R3:** the DAgger sentence is not reproduced: three rounds rescued the all-features model (3.0 -> 0.87 of Clock), left the best one unchanged and did not settle the median one (`r3_dagger_v1.csv`).
 * **Cost caveat:** `cost_grid.csv` is from patbench uniform only. A rough check on the real programs (`cost_from_runs.py`, timer ticks in normal runs, relative to Aging) agrees for the linear score (2.6–3.1x Aging against 2.81) but shows ARC and LHD cost 1.6–4.0x Aging on real programs against 1.47 and 1.75 on patbench, so their cost (and the gap you describe under "The problem") is understated by up to ~2x. Exact counts on one stream per workload are planned.
 * **A is already started:** A1 (stored logs) and A2 (one pass) are written in a separate copy and being counted; A3 next.
+
+**A, first results (2026-10-15; measured on a copy of the kernel, not yet in the kernel):** exact instructions to choose one victim (patbench, QEMU counting mode), fault counts identical to today's in every row, other policies unchanged:
+
+| change | 68 pages | 260 pages | 68 pages, 32 sampled |
+|---|---|---|---|
+| none (today) | 22,803 | 91,720 | 11,292 |
+| A1 stored logs | 21,608 (−5%) | 87,506 | 10,691 |
+| A2 one pass | 22,986 (+1%) | 90,169 | 11,374 |
+| A3 inlined feature code | 18,193 (−20%) | 72,862 | 9,132 |
+| A1 + A3 | 17,174 (−25%) | 69,260 | 8,620 |
+| **A1 + A3 + A4** (A4 = faster highest-bit search inside the log, identical values on 67M inputs) | **16,817 (−26%)** | **67,163 (−27%)** | **8,466 (−25%)** |
+| A1 + A3 + A5 (features written out one by one) | 18,595 | 75,277 | 9,307 |
+| A1 + A2 + A3 | 18,027 | 71,531 | 9,016 |
+
+A2 and A5 make it worse, so I propose A1 + A3 + A4 (A3 = an always-inlined copy of `ml_feature` used only by the linear path; `mlfeat.h` untouched; the net path untouched).
+Patch: `tools/ml2/choose_ml_fast.patch` (switches `ML_FAST_*`); counts: `report/results2/choose_ml_fast.csv`; script `tools/ml2/choose_ml_fast_test.py`; log check `tools/ml2/check_fastlog.c`.
+Not done yet (needs GawwyG's go-ahead for the runs): putting it in the kernel, your checks 1–5, `native_timing.c`.
+**Intervals:** your caution is implemented — published cells are computed first in the original order (`kernel_ci_*_published.txt`), new pairs in a second loop with its own `default_rng(7)`; all 57 published intervals (faults and writes) come out identical. LeCaR at 5/20% and the new `global@32` pairs are in the second loop.

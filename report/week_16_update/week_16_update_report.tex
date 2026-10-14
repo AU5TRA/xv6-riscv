@@ -49,7 +49,7 @@ Memory is 5, 10 or 20\% of each program's own pages. Intervals are 95\% interval
   and ranking trees (1.476) are worse. They cost 20 to 150 times as many instructions.
 \item \textbf{Looking at fewer pages costs little.} Scoring 32 randomly chosen pages instead of all of them is level with scoring all (0.998), and 16 is 1.3\% worse (1.013), at 10\% memory on 74 streams.
   The cost then stops growing with memory size (Table~\ref{tab:costsizes}). None of five other ways of choosing the pages beat random (simulator).
-\item \textbf{LeCaR}, a published learning policy, is worse than Clock in the form a kernel can run (1.113 at 10\%).
+\item \textbf{LeCaR}, a published learning policy, is worse than Clock in the form a kernel can run, at every memory size (1.051, 1.113 and 1.212 at 5, 10 and 20\%; all intervals above 1).
 \item \textbf{Cost.} Choosing a victim with the linear score costs about 340--360 instructions per page looked at (22\,800 with 68 pages, 183\,000 with 516). In time, that is about 1.5--2.1\,\textmu s per eviction on this PC's processor,
   small against a measured SSD read (63\,\textmu s) and tiny against a hard-disk read (8.9\,ms), so on this PC it pays for itself. \textbf{But the instruction counts come from one synthetic benchmark};
   a rough check on the real programs (Section~\ref{sec:costreal}) shows that this is fair for the linear score but underestimates ARC and LHD by up to about 2 times. Exact counts on the real programs are planned.
@@ -64,7 +64,7 @@ others (Appendix~\ref{app:first}). (2) An earlier estimate that an evenly spread
 
 \textbf{Kernel runs.} Each run is one program in xv6 with its resident memory limited, so every eviction goes through the policy under test. The program first sets itself up (its code, stack
 and other fixed pages, typically 4), then limits itself to those pages plus 5, 10 or 20\% of the pages its data needs (for PageRank: 83, 167 or 333 of 1\,667). xv6 runs are exactly repeatable:
-the same program, memory size and policy always give the same faults. 3\,257 runs are merged in \code{report/results2/kernel\_eval\_all.csv} (more LeCaR runs are being added); they were split between the thesis PC and
+the same program, memory size and policy always give the same faults. 3\,405 runs are merged in \code{report/results2/kernel\_eval\_all.csv}; they were split between the thesis PC and
 Kaggle notebooks (CPU only), and 180 runs repeated on both gave identical results.
 
 \textbf{Workloads (14).} B-tree, graph (PageRank, BFS), key-value store (\code{kv}) and the same store driven by recorded Twitter traffic (\code{kv-T}), LZW compression, matrix multiply, sort,
@@ -111,7 +111,7 @@ Everything else follows the original. LeCaR's two advisers (LRU and LFU in the p
 \item \textbf{The linear score} does best on btree and kv (0.82--0.96 at all sizes), heap and pointer chase, and the hash join at 20\% (0.55).
   It fails in specific places that repeat across sizes: matmul at 5\% (1.72; only 2 pages of memory), SpMV at 5 and 10\% (1.10, 1.12), graph at 5 and 20\% (1.01 and 1.40).
 \item \textbf{LHD} wins clearly on graph at 10\% (0.63) and on LZW and matmul at 20\%, and is the most uneven.
-\item \textbf{LeCaR} (10\% memory, 74 streams) is \textbf{worse than Clock}: 1.113 of its faults (interval 1.04 to 1.23) and 1.20 of its page writes; it is worst on graph (1.60) and SpMV (1.47).
+\item \textbf{LeCaR} (74 streams at each size) is \textbf{worse than Clock} at every size: 1.051, 1.113 and 1.212 of its faults at 5, 10 and 20\% (intervals 1.02--1.09, 1.04--1.23, 1.05--1.43), and 1.26, 1.20 and 1.39 of its page writes; it is worst on graph and SpMV, and on the hash join at 20\% (2.32).
 \item \textbf{No policy helps} on the Bloom filter (all 1.00) or on the application programs at 5\%.
 \item Page writes to disk (a changed page must be written before it is thrown out) are in Appendix~\ref{app:writes}.
 \end{itemize}
@@ -119,12 +119,12 @@ Everything else follows the original. LeCaR's two advisers (LRU and LFU in the p
 \begin{table}[h]
 \centering\footnotesize
 \input{tables/ci_main}
-\caption{The main comparisons, with 95\% intervals. Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the heavier models (CNN, MLP, set-attention, trees) have only ten streams, and LeCaR and the sampled scores were run at 10\% only.}
+\caption{The main comparisons, with 95\% intervals. Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the heavier models (CNN, MLP, set-attention, trees) have only ten streams, and the sampled scores were run at 10\% only.}
 \label{tab:ci}
 \end{table}
 
 \textbf{Reading the intervals.} They are wide because the workloads differ a lot and there are only 14. ``Better'' (bold) holds for: ARC against Clock at 5 and 10\%; the linear score, its 32- and 16-page
-versions, the CNN and the MLP against Clock at 10\%; the CNN and MLP against Clock at 20\% and set-attention against ARC at 5\% on ten streams only. ``Worse'' holds for LeCaR against Clock and for boosted and ranking trees against the linear score at 10\%.
+versions, the CNN and the MLP against Clock at 10\%; the CNN and MLP against Clock at 20\% and set-attention against ARC at 5\% on ten streams only. ``Worse'' holds for LeCaR against Clock at every size, and for boosted and ranking trees against the linear score at 10\%.
 Everything else is level or too uncertain.
 
 \section{The heavier models}
@@ -263,11 +263,17 @@ choosing a victim; the rest of a fault and the program's own work are left out.
 
 \code{-O3} cuts the linear score by 11\% and Aging by 20\%; \code{-Os} makes everything dearer. These are not applied: a different build changes every result slightly, so all runs would have to be repeated.
 
-\IfFileExists{tables/fast_code.tex}{\textbf{Code changes that pick exactly the same victims.} \input{tables/fast_code_text}
+\textbf{Code changes that pick exactly the same victims} (asked for by the paper side). We changed only the linear score's code and counted again; in every row the fault count is identical to the original,
+so the victims are unchanged, and the other policies cost the same:
 
 \begin{center}\small
-\input{tables/fast_code}
-\end{center}}{}
+\resizebox{\linewidth}{!}{\input{tables/fast_code}}
+\end{center}
+
+The biggest saving is A3: with the kernel's \code{-O} setting the feature function is called as a separate function five times per page; inlining it removes about 70 instructions per page.
+A1 (keep the logarithms of the two counters that change only when a page comes back from disk) and A4 (find the highest bit of a number with a byte table instead of six tests; checked to give the same
+logarithm for 67 million inputs) add about 6\%. A2 and A5 make it slightly worse and are dropped. The best version (A1 + A3 + A4) costs 16\,800 instead of 22\,800 instructions with 68 pages, and 8\,500 instead of
+11\,300 with 32 sampled. It is not yet in the kernel the results came from: putting it there needs the checks in Section~\ref{sec:limits}.
 
 \section{Does the simulator predict the kernel?}
 \label{sec:gap}
@@ -304,6 +310,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 \item \textbf{Adapted forms:} ARC, LHD, S3-FIFO and LeCaR ran in the form a kernel can run, not as published.
 \item \textbf{``All workloads'' means the six training workloads;} the other eight were never seen in training.
 \item \textbf{Sampling:} only random sampling at $k$ = 32 and 16, at 10\% memory, ran in the kernel, with one random seed.
+\item \textbf{The cheaper linear-score code} (Section~\ref{sec:reduce}) was measured on a copy of the kernel; before it replaces the kernel's code it needs: the data check, the same victims on one stream of each workload, and every instruction count redone in one build.
 \item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph at 20\%); the tables show where.
 \end{itemize}
 
@@ -383,7 +390,7 @@ DAgger rescued the model that uses all features, changed nothing for the good mo
 \end{table}
 
 LeCaR picks one of two advisers at random at each eviction, in proportion to how much it trusts each, and remembers which adviser threw out each page; when a thrown-out page is needed again soon, that adviser loses trust.
-As published it does well on btree and kv (0.90 to 0.92) and ties ARC and LRU on graph; in the kernel form it is worse than Clock in the simulator (1.06 to 1.33) and in the kernel (1.113 at 10\%, 74 streams).
+As published it does well on btree and kv (0.90 to 0.92) and ties ARC and LRU on graph; in the kernel form it is worse than Clock in the simulator (1.06 to 1.33) and in the kernel (1.05, 1.11 and 1.21 at 5, 10 and 20\%, 74 streams).
 
 \section{Every experiment}
 \label{app:inventory}
@@ -406,8 +413,8 @@ first version and DAgger (3 rounds), rerun & simulator & 300 models, 1 stream & 
 sampling, $k$ = 4 to 64 & simulator & 33 streams $\times$ 3 sizes $\times$ 3 seeds & \code{sampling\_sweep.csv} \\
 ways of choosing the sample & simulator & 74 streams, 10\% & \code{sampling\_heuristics.csv} \\
 LeCaR & simulator & & \code{baselines\_ext.csv} \\
-every policy and model in the kernel & xv6 (PC + Kaggle rounds 1--6) & 3\,257 runs & \code{kernel\_eval\_all.csv} \\
-LeCaR in the kernel & xv6 (PC) & 74 streams $\times$ 3 sizes (5\% running) & \code{kernel\_eval\_lecar.csv} \\
+every policy and model in the kernel & xv6 (PC + Kaggle rounds 1--6) & 3\,405 runs & \code{kernel\_eval\_all.csv} \\
+LeCaR in the kernel & xv6 (PC) & 74 streams $\times$ 3 sizes & \code{kernel\_eval\_lecar.csv} \\
 kernel against simulator & both & 74 streams & \code{kernel\_vs\_sim*.csv} \\
 instruction counts (cost grid) & xv6, counting mode & 28 policies $\times$ 4 sizes & \code{cost\_grid.csv} \\
 time spent choosing, real programs (rough) & from the xv6 runs & 2\,764 PC runs & \code{cost\_from\_runs.csv} \\

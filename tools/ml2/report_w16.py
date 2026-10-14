@@ -227,6 +227,26 @@ def dagger_table():
     (OUT / "dagger.tex").write_text(tab(body, ["model", "round 0", "round 1", "round 2", "round 3"]))
 
 
+def fast_code_table():
+    """Code changes to choose_ml that keep every victim (choose_ml_fast_test.py; exact counts, patbench uniform; faults identical in every row)."""
+    d = {}
+    for r in csv.DictReader(open(R / "choose_ml_fast.csv")):
+        d[(r["variant"], r["frames"], r["policy"] + (":" + r["model"] if r["model"] else ""))] = int(r["select_instr"])
+    rows = [("plain", "none (what every run used)"), ("logcache", "A1: store the two logs that rarely change"), ("onepass", "A2: one pass instead of two"),
+            ("inline", "A3: feature code inlined"), ("log_inline", "A1 + A3"), ("log_inline_msb", "A1 + A3 + A4: faster highest-bit search in the log"),
+            ("log_inline_unroll", "A1 + A3 + A5: features written out one by one"), ("all3", "A1 + A2 + A3"),
+            ("both_O3_vm", "A1 + A2, page code at -O3 (also speeds up other policies)")]
+    base = {k: d[("plain",) + k] for k in [("64", "ml:global"), ("256", "ml:global"), ("64", "ml:global@32")]}
+    body = []
+    for v, label in rows:
+        cells = []
+        for k in [("64", "ml:global"), ("256", "ml:global"), ("64", "ml:global@32")]:
+            x = d.get((v,) + k)
+            cells.append(f"{fmt_int(x)} ({100 * (x / base[k] - 1):+.0f}\\%)" if x is not None and v != "plain" else (fmt_int(x) if x is not None else "--"))
+        body.append([label] + cells)
+    (OUT / "fast_code.tex").write_text(tab(body, ["change", "68 pages", "260 pages", "68 pages, 32 sampled"]))
+
+
 def copies():
     for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer", "lecar"]:
         shutil.copy(W15 / f"{n}.tex", OUT / f"{n}.tex")
@@ -235,5 +255,5 @@ def copies():
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     ci_table(); cost_table(); breakeven_tables(); copies()
-    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table()
+    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table()
     print("written", OUT)

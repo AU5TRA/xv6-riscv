@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  15 OCT 2026 01:35
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  15 OCT 2026 01:44
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -592,8 +592,11 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <5> on input line 1.
 )
-(./tables/kmain_A_01.tex) (./tables/kmain_A_02.tex) [2] (./tables/ci_main.tex)
-(./tables/kmain_B_005.tex)
+(./tables/kmain_A_01.tex) (./tables/kmain_A_02.tex)
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[2] (./tables/ci_main.tex) (./tables/kmain_B_005.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
@@ -605,10 +608,10 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-(./tables/trainedall.tex
+[3] (./tables/trainedall.tex
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <9> on input line 1.
-) [3]
+)
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <10> on input line 166.
  (./tables/sampling_sweep.tex)
@@ -623,26 +626,13 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 [5] (./tables/cost_runs.tex) [6] (./tables/native_timing.tex)
 (./tables/breakeven_summary.tex) (./tables/compiler_flags.tex) [7{/usr/share/te
 xmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy
-.enc}] (./tables/breakeven_by_workload.tex)
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-(./tables/kmain_WA_005.tex)
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-(./tables/kmain_WA_01.tex)
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
+.enc}] (./tables/fast_code.tex) [8] (./tables/breakeven_by_workload.tex)
+(./tables/kmain_WA_005.tex) (./tables/kmain_WA_01.tex)
 (./tables/kmain_WA_02.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[8] (./tables/dagger.tex) (./tables/model_comparison.tex)
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
+[9] (./tables/dagger.tex) (./tables/model_comparison.tex)
 (./tables/transfer.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -651,73 +641,73 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-
-Underfull \hbox (badness 10000) in paragraph at lines 405--406
+[10]
+Underfull \hbox (badness 10000) in paragraph at lines 412--413
 []\T1/lmtt/m/n/7 r3_first_version.*\T1/lmr/m/n/7 (+20) ,
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 412--412
+Underfull \hbox (badness 10000) in paragraph at lines 419--419
 []\T1/lmr/m/n/7 (+20) xv6, count-ing
  []
 
 
-Underfull \hbox (badness 6157) in paragraph at lines 415--415
+Underfull \hbox (badness 6157) in paragraph at lines 422--422
 []\T1/lmr/m/n/7 (+20) this PC (Win-
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 417--417
+Underfull \hbox (badness 10000) in paragraph at lines 424--424
 []\T1/lmr/m/n/7 (+20) xv6, count-ing
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 421--421
+Underfull \hbox (badness 10000) in paragraph at lines 428--428
 []\T1/lmr/m/n/7 (+20) xv6, count-ing
  []
 
 
-Overfull \hbox (8.16626pt too wide) in paragraph at lines 392--424
+Overfull \hbox (8.16626pt too wide) in paragraph at lines 399--431
  [] 
  []
 
-[9]
-Underfull \hbox (badness 6316) in paragraph at lines 430--431
+[11]
+Underfull \hbox (badness 6316) in paragraph at lines 437--438
 []\T1/lmr/m/n/10 (+20) Kernel runs: \T1/lmtt/m/n/10 python3 tools/ml2/kernel_ev
 al.py --fracs 0.1 --nonml clock,arck --models
  []
 
 
-Overfull \hbox (55.4056pt too wide) in paragraph at lines 430--431
+Overfull \hbox (55.4056pt too wide) in paragraph at lines 437--438
 \T1/lmtt/m/n/10 global,global@32\T1/lmr/m/n/10 (-20) ; re-sults go to \T1/lmtt/
 m/n/10 report/results2/\T1/lmr/m/n/10 (-20) ; the Kag-gle pack-ages are in \T1/
 lmtt/m/n/10 kaggle_package/round1..round9
  []
 
 
-Underfull \hbox (badness 1147) in paragraph at lines 431--432
+Underfull \hbox (badness 1147) in paragraph at lines 438--439
 []\T1/lmr/m/n/10 (+20) Merge: \T1/lmtt/m/n/10 merge_kernel_results.py\T1/lmr/m/
 n/10 (+20) ; in-ter-vals: \T1/lmtt/m/n/10 kernel_ci_classic.py \T1/lmr/m/n/10 (
 +20) (and \T1/lmtt/m/n/10 writes\T1/lmr/m/n/10 (+20) ); ta-bles:
  []
 
 
-Overfull \hbox (13.29263pt too wide) in paragraph at lines 432--433
+Overfull \hbox (13.29263pt too wide) in paragraph at lines 439--440
 []\T1/lmr/m/n/10 (-20) Costs: \T1/lmtt/m/n/10 cost_grid.py \T1/lmr/m/n/10 (-20)
  (count-ing mode), \T1/lmtt/m/n/10 cost_from_runs.py\T1/lmr/m/n/10 (-20) , \T1/
 lmtt/m/n/10 native_timing.c\T1/lmr/m/n/10 (-20) , \T1/lmtt/m/n/10 tools/io_late
 ncy.ps1\T1/lmr/m/n/10 (-20) ,
  []
 
-[10]
-Overfull \hbox (16.91965pt too wide) in paragraph at lines 433--434
+
+Overfull \hbox (16.91965pt too wide) in paragraph at lines 440--441
 []\T1/lmr/m/n/10 (-20) Simulator stud-ies: \T1/lmtt/m/n/10 exp_sampling.py\T1/l
 mr/m/n/10 (-20) , \T1/lmtt/m/n/10 exp_sampling_heur.py\T1/lmr/m/n/10 (-20) , \T
 1/lmtt/m/n/10 r3_first_version.py\T1/lmr/m/n/10 (-20) , \T1/lmtt/m/n/10 r3_dagg
 er_v1.py\T1/lmr/m/n/10 (-20) . 
  []
 
-[11] [12] (./week_16_update_report.aux)
+[12] (./week_16_update_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
@@ -726,13 +716,13 @@ Package rerunfilecheck Info: File `week_16_update_report.out' has not changed.
 (rerunfilecheck)             Checksum: 2CAAA2F416683A42BF120F42CDF4F00D;3526.
  ) 
 Here is how much of TeX's memory you used:
- 14626 strings out of 476182
- 235599 string characters out of 5795595
- 2002975 words of memory out of 5000000
- 36064 multiletter control sequences out of 15000+600000
- 647519 words of font info for 204 fonts, out of 8000000 for 9000
+ 14634 strings out of 476182
+ 235762 string characters out of 5795595
+ 1976975 words of memory out of 5000000
+ 36067 multiletter control sequences out of 15000+600000
+ 647602 words of font info for 205 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 75i,10n,79p,1018b,582s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,10n,79p,1018b,584s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
 pe1/public/lm/lmbx12.pfb></usr/share/texmf/fonts/type1/public/lm/lmbx8.pfb></us
 r/share/texmf/fonts/type1/public/lm/lmbx9.pfb></usr/share/texmf/fonts/type1/pub
@@ -747,10 +737,10 @@ m/lmsy10.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy5.pfb></usr/share/texm
 f/fonts/type1/public/lm/lmsy7.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt1
 0.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt8.pfb></usr/share/texmf/fonts
 /type1/public/lm/lmtt9.pfb>
-Output written on week_16_update_report.pdf (12 pages, 481066 bytes).
+Output written on week_16_update_report.pdf (12 pages, 484043 bytes).
 PDF statistics:
- 293 PDF objects out of 1000 (max. 8388607)
- 231 compressed objects within 3 object streams
+ 295 PDF objects out of 1000 (max. 8388607)
+ 233 compressed objects within 3 object streams
  49 named destinations out of 1000 (max. 500000)
  52881 words of extra memory for PDF output out of 61914 (max. 10000000)
 

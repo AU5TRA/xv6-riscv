@@ -25,6 +25,29 @@ PAIRS = [("lecar", "clock"), ("ml:global", "lecar"), ("arck", "clock"), ("lhd", 
          ("ml:attention-all", "ml:global"), ("ml:trees-all", "ml:global"), ("ml:ranktrees-all", "ml:global"),
          ("ml:cnn-all", "clock"), ("ml:mlp-all", "clock")]
 
+# added after publication (computed in the second loop, so they never shift the published intervals)
+NEW_PAIRS = [("ml:global@32", "arck"), ("ml:global@32", "lhd"), ("ml:global@32", "s3fifo"), ("ml:global@32", "lecar"),
+             ("ml:cnn-all", "ml:global@32"), ("ml:mlp-all", "ml:global@32"), ("ml:attention-all", "ml:global@32"),
+             ("ml:trees-all", "ml:global@32"), ("ml:ranktrees-all", "ml:global@32"), ("lecar", "arck")]
+
+
+def interval(d, fr, a, b, rng):
+    va, vb = d.get((fr, a), {}), d.get((fr, b), {})
+    by = defaultdict(list)
+    for s in va:
+        if s in vb:
+            by[group(s)].append(math.log(max(va[s], 1) / max(vb[s], 1)))
+    if len(by) < 3:
+        return None
+    groups = [np.array(v) for v in by.values()]
+    point = float(np.mean([g.mean() for g in groups]))
+    bs = []
+    for _ in range(10000):
+        pick = rng.integers(0, len(groups), len(groups))
+        bs.append(np.mean([groups[i][rng.integers(0, len(groups[i]), len(groups[i]))].mean() for i in pick]))
+    bs = np.sort(bs)
+    return [fr, a, b, len(by), sum(len(g) for g in groups), round(math.exp(point), 3), round(math.exp(bs[250]), 3), round(math.exp(bs[9749]), 3)]
+
 
 def group(stem):
     return "kv-T" if stem.startswith("kv-T") else stem.split("-")[0]
@@ -37,26 +60,28 @@ def main():
     d = defaultdict(dict)                      # (fraction, policy) -> stem -> faults
     for r in rows:
         d[(r["fraction"], r["policy"] + (":" + r["model"] if r["model"] else ""))][r["stem"]] = f(r)
-    rng = np.random.default_rng(7)
+    # Published intervals must not move when new comparisons or new runs are added: every draw comes from one random generator in a
+    # fixed order, so a comparison computed earlier in the loop shifts every later one. The first loop therefore computes exactly the
+    # (memory size, comparison) cells that were published (kernel_ci_<metric>_published.txt, frozen 2026-10-15) in the original order;
+    # everything else goes to a second loop with its own generator.
+    name = "classic" if metric == "faults" else "writes"
+    published = [tuple(l.strip().split(",")) for l in open(R / f"kernel_ci_{name}_published.txt") if l.strip()]
+    pub = set(published)
     out = []
+    rng = np.random.default_rng(7)
     for fr in ("0.05", "0.1", "0.2"):
         for a, b in PAIRS:
-            va, vb = d.get((fr, a), {}), d.get((fr, b), {})
-            by = defaultdict(list)
-            for s in va:
-                if s in vb:
-                    by[group(s)].append(math.log(max(va[s], 1) / max(vb[s], 1)))
-            if len(by) < 3:
-                continue
-            groups = [np.array(v) for v in by.values()]
-            point = float(np.mean([g.mean() for g in groups]))
-            bs = []
-            for _ in range(10000):
-                pick = rng.integers(0, len(groups), len(groups))
-                bs.append(np.mean([groups[i][rng.integers(0, len(groups[i]), len(groups[i]))].mean() for i in pick]))
-            bs = np.sort(bs)
-            out.append([fr, a, b, len(by), sum(len(g) for g in groups), round(math.exp(point), 3),
-                        round(math.exp(bs[250]), 3), round(math.exp(bs[9749]), 3)])
+            if (fr, a, b) in pub:
+                row = interval(d, fr, a, b, rng)
+                if row:
+                    out.append(row)
+    rng2 = np.random.default_rng(7)
+    for fr in ("0.05", "0.1", "0.2"):
+        for a, b in PAIRS + NEW_PAIRS:
+            if (fr, a, b) not in pub:
+                row = interval(d, fr, a, b, rng2)
+                if row:
+                    out.append(row)
     with open(R / ("kernel_ci_classic.csv" if metric == "faults" else "kernel_ci_writes.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["fraction", "policy", "against", "workloads", "streams", "faults_ratio" if metric == "faults" else "writes_ratio", "ci95_low", "ci95_high"])
