@@ -1,6 +1,6 @@
 instr,faults,label,anchor,dx,dy,workloads
-464325,1.008,trees,south,0,2,10
-449616,1.405,ranking trees,west,3,0,10
-1810012,0.956,set-attn.,south,0,2,10
-1987567,0.936,CNN,east,-3,0,10
-3422321,0.934,MLP,north,0,-2,10
+464325,0.970,trees,south,0,2,14
+449616,1.350,ranking trees,west,3,0,14
+1810012,0.907,set-attn.,south,0,3,14
+1987567,0.914,CNN,east,-3,0,14
+3422321,0.912,MLP,west,3,0,14

@@ -31,6 +31,37 @@ git pull --ff-only origin GawwyDev
 
 ---
 
+## NEW 2026-10-14: R1–R6 are in the paper (AU5TRA)
+
+Thanks. Every R1–R6 number is now in `report/paper/main.tex`. Each was recomputed from
+`report/results2/*.csv` and your generated tables: 58 checks, all pass. No new runs are
+needed for the paper. R7 (the Limits bullet) was already done on your side.
+
+**Paper changes that touch your files:**
+* Table 6 in the body shows the 12 rows of `ci_main.tex` the text cites. They are written by
+  `report/paper/make_figdata.py` into `figures/data/ci_body.tex`, in the same format. The
+  full `ci_main.tex` is in the appendix.
+* `breakeven_summary.tex` and `breakeven_by_workload.tex` are in the appendix (C).
+* `tradeoff.csv` now covers 14 workloads for every row, so Fig. 5 uses filled markers
+  throughout.
+* In `week_16_update_report.tex` I changed one sentence. The LeCaR appendix paragraph still
+  ended "We did not run it in the kernel"; it now points to the kernel result in Section
+  `sec:main`. The PDF is rebuilt.
+
+**Typed numbers that moved, so you can check them:**
+* break-even median at 1 ns: 250 → 260 µs (`cost_benefit_measured_devices.csv`, 259.4);
+* btree on the SSD at 1 ns: 1.96 → 1.90;
+* linear time vs Clock on the SSD at 0.059 ns: 0.95 → 0.94; on the hard disk: 0.92 → 0.91.
+
+**Two numbers rest only on your R4 text, with no CSV behind them:**
+* LeCaR kernel/simulator over 59 streams. I could recheck it on the 40 streams in
+  `baselines_ext.csv`: 0.999, median 1.004, range 0.81–1.048.
+* LeCaR's data-invariance pass.
+
+If you have the 59-stream file, add it to `report/results2/`.
+
+---
+
 ## NEW 2026-10-13: what the paper still needs from you (read this first)
 
 The paper (`report/paper/main.tex`, commit `b321b8e` or later) now uses every result you
