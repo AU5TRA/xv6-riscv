@@ -31,11 +31,109 @@ git pull --ff-only origin GawwyDev
 
 ---
 
+## NEW 2026-10-15: R8, runs for the 32-sample version (AU5TRA; read this first)
+
+**Decision.** The paper's learned policy becomes the linear score that scores 32 randomly
+sampled candidates (`ml global@32`). Scoring every candidate (`ml global`, "the full scan")
+becomes a variant. I will update the paper myself once your data is in; please don't edit
+`main.tex`.
+
+**Why.** It costs half as much and makes the same faults:
+* 11,293 instructions per eviction at 68 candidates, against 22,803 (`cost_grid.csv`).
+* The cost stops growing with memory: 11,813 and 11,907 at 260 and 516 candidates, against
+  91,720 and 183,311.
+* At 10% memory it makes 0.998 of the full scan's faults, interval 0.975–1.017
+  (`kernel_ci_classic.csv`).
+
+**Already there, nothing to run:**
+* faults and writes at 10% on all 74 streams (R1);
+* cost at all four sizes (`cost_grid.csv`);
+* native timing at 68 candidates: 856 ns, 892 ns with the page-table walk, 1,447 ns with cold
+  caches (`native_timing*.csv`);
+* the `tradeoff.csv` row.
+
+**Missing:** the 5% and 20% memory sizes. Today the paper can only show the full scan there.
+
+### Runs (cut-off 25 Oct as agreed)
+
+**R8a (must). `global@32` at 5% and 20% on all 74 streams: 148 runs.**
+* Flags as in R1, with the sizes changed: `--fracs 0.05,0.2 --models global@32 --splits
+  test,heldout`. The pattern and application streams take `--accesses 50000`, as in every
+  other round.
+* Package it the way you did rounds 6 and 7. If the output is not a `kaggle_*.csv` file (those
+  are merged automatically), add it to `SOURCES` in `merge_kernel_results.py`.
+* Cost: about the same as the full-scan linear runs at those sizes, since sampling makes each
+  decision cheaper.
+* **A free check.** The kernel samples only when a process has more than 32 candidates
+  (`kernel/vmpage.c:313`). At 5% several workloads have very little memory: matmul 2 frames,
+  sort 2–6, lzw 17–23, kv / kv-T / bloom 25–37 (`kernel_eval_all.csv`). Any stream that never
+  has more than 32 candidates must give exactly the faults of `ml:global` on the same stream.
+  Please run those streams anyway, so every table covers all 74.
+
+**R8b (must, small). A correctness check of the sampled path.**
+* `vmtest data-invariance` runs every policy at a limit of the baseline + 8 frames
+  (`user/vmtest.c:1135`), so the learned policy never samples there. The check (checksum
+  `AB0C8578`, 0 fallbacks) therefore covers only the full scan.
+* Please run the same workload under `ml global@32` at a limit with more than 32 candidates,
+  with prefetch both sync and async. Report the checksum and the fallback count. How you set
+  it up (a vmtest option or a vmrun wrapper) is your call.
+
+**R8c (should). Graph's own weights with 32 samples at 10%: `--models graph@32 --only graph`,
+the 6 graph streams.** The paper's sentence "graph's own weights reach 0.60 at 10%" is a
+full-scan number.
+* **Please also check that number.** It comes from your START HERE section. But
+  `kernel_eval_all.csv` (`ml:graph` against `clock` at 10%, geometric mean over the 6 graph
+  streams) gives 0.578. If 0.60 came from an older build or different streams, say which
+  value the paper should use.
+
+**R8d (optional).** LeCaR at 5% and 20%: Kaggle round 7 is already packaged and was not run.
+It could ride along with R8a, so that LeCaR's rows cover every size. `global@16` at 5% and 20%
+is not needed.
+
+### Tables from your scripts (no runs; so the paper can `\input` them)
+
+**G1. Intervals (`kernel_ci_classic.py`, faults and writes).**
+* New comparisons: `ml:global@32` against `clock`, `arck`, `lhd`, `s3fifo`, `lecar` and
+  `ml:global`, and the five heavier models against `ml:global@32`.
+* **Caution:** the loop runs "for each memory size, for each pair" with one random generator
+  (seed 7). Adding pairs to `PAIRS` therefore shifts the random draws of every later memory
+  size, and would change intervals that are already published. Please compute the new pairs
+  in a second loop after the existing one, with its own `default_rng(7)`, so the existing rows
+  stay identical.
+
+**G2. `ci_main.tex` (`report_w16.py`, `ci_table`):** the same new rows.
+
+**G3. Per-workload tables (`report_w15.py`, `kernel_main`, list `A`):** add
+`("ml:global@32", "linear, 32 sampled")` for faults and writes.
+* Do this **after R8a**. The function keeps only the streams every listed policy ran, and at a
+  memory size where one policy has no runs it writes no table at all, so the old file would
+  stay in place unnoticed (`report_w15.py:371-374`).
+
+**G4. Break-even at each policy's own measured speed (`cost_benefit.py`).**
+* Today every policy is charged the same time per instruction. `cost_benefit_measured_all.csv`
+  uses 0.0592 ns, which is 1,350 ns / 22,803; I checked that it reproduces exactly.
+* The 32-sample score is slower per instruction natively: 856 / 11,293 = 0.076 ns, 0.079 ns
+  with the walk, and 0.128 ns with cold caches. So its `breakeven_summary.tex` row understates
+  its time.
+* Please add a per-policy native time, or at least rows for the 32-sample score at 0.079 and
+  0.128 ns.
+* Check values: I ran `cost_benefit.py --ssd-us 63 --hdd-us 8921 --ns-per-instr 0.1281` into a
+  scratch file (not committed). Time vs Clock was 0.931 on the SSD (faster on 10 of 14
+  workloads) and 0.913 on the hard disk. At 0.079 ns it was 0.924 and 0.912.
+
+**G5. `breakeven_by_workload.tex`:** add the 32-sample score's columns.
+
+**Reply below** with item, result, files, and anything that failed. I'll fold it into the
+paper.
+
+---
+
 ## NEW 2026-10-14: R1–R6 are in the paper (AU5TRA)
 
 Thanks. Every R1–R6 number is now in `report/paper/main.tex`. Each was recomputed from
-`report/results2/*.csv` and your generated tables: 58 checks, all pass. No new runs are
-needed for the paper. R7 (the Limits bullet) was already done on your side.
+`report/results2/*.csv` and your generated tables: 58 checks, all pass. No new runs were
+needed for R1–R6 (R8, above, asks for new ones). R7 (the Limits bullet) was already done on
+your side.
 
 **Paper changes that touch your files:**
 * Table 6 in the body shows the 12 rows of `ci_main.tex` the text cites. They are written by
