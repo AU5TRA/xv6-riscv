@@ -1,0 +1,9 @@
+#!/bin/bash
+# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_sizes.csv
+cd "$(dirname "$0")/../../tools/ml2"
+export KERNEL_EVAL_OUT=kernel_eval_sizes.csv KERNEL_EVAL_LANES=/tmp/xv6sizes
+PY=${PY:-python3}
+$PY -u kernel_eval.py --lanes 6 --fracs 0.05 --only "graph-bfs2000-s3$,graph-bfs2000-s1$,chase-n256-s1$,lzw-r30-s0$,lzw-r30-s4$,graph-pr2000x2-s3$,heap-mixed-s1$,graph-both2000x1-s5$,graph-both1000x3-s3$,bloom-k3-s1$,graph-bfs2000-s2$,matmul-naive128-s1$,spmv-rand-s1$,btree-scan-s4$,btree-scan-s2$,heap-churn-s1$,btree-mixedwal-s5$,btree-scan-s3$,join-r4-s1$,join-uni-s1$,kv-D-s5$,kv-C-s5$,kv-F-s4$,kv-T4-s1$,kv-B-s5$,sort-n60000-s1$,kv-T18-s1$,kv-T35-s1$,sort-n60000-s3$,sort-n60000-s2$" --splits test,heldout --models cnn-all,mlp-all,attention-all,trees-all,ranktrees-all --timeout 40000
+$PY -u kernel_eval.py --lanes 6 --fracs 0.05 --accesses 50000 --only "pat-loop-s5$,pat-uniform-s5$,app-chase-s1$,pat-scanhot-s5$,pat-zipf099-s5$,app-hashjoin-s1$,pat-scanhotlo-s5$,pat-zipf060-s5$,pat-switch-s1$,pat-zipf080-s5$,pat-phaseshort-s5$" --splits test,heldout --models cnn-all,mlp-all,attention-all,trees-all,ranktrees-all --timeout 40000
+$PY -u kernel_eval.py --lanes 6 --fracs 0.2 --only "chase-list-s1$,chase-n256-s1$,heap-mixed-s1$,graph-bfs2000-s3$,btree-scan-s4$,heap-churn-s1$,graph-bfs2000-s2$,graph-pr2000x2-s3$,lzw-r30-s0$,lzw-r30-s4$,lzw-r30-s2$,btree-lookup-s5$,graph-both1000x3-s3$,btree-scan-s1$,kv-F-s4$,kv-C-s5$,kv-T24-s1$,kv-Avsize-s5$,kv-T52-s1$,sort-n60000-s1$,kv-B-s5$,join-uni-s1$,sort-n20000-s3$,join-r4-s1$,kv-T18-s1$" --splits test,heldout --models cnn-all,mlp-all,attention-all,trees-all,ranktrees-all --timeout 40000
+$PY -u kernel_eval.py --lanes 6 --fracs 0.2 --accesses 50000 --only "app-bloom-s1$,pat-uniform-s5$,app-chase-s1$,pat-zipf099-s5$,pat-zipf060-s5$,pat-phase-s5$,app-spmv-s1$" --splits test,heldout --models cnn-all,mlp-all,attention-all,trees-all,ranktrees-all --timeout 40000

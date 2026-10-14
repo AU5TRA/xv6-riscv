@@ -14,7 +14,7 @@ import glob
 from pathlib import Path
 
 R = Path(__file__).resolve().parents[2] / "report" / "results2"
-SOURCES = ["kernel_eval.csv"] + [f"kernel_eval_w16{s}.csv" for s in ("", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o")] + ["kernel_eval_classic.csv", "kernel_eval_more.csv", "kernel_eval_models.csv", "kernel_eval_lecar.csv"]
+SOURCES = ["kernel_eval.csv"] + [f"kernel_eval_w16{s}.csv" for s in ("", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o")] + ["kernel_eval_classic.csv", "kernel_eval_more.csv", "kernel_eval_models.csv", "kernel_eval_lecar.csv", "kernel_eval_sizes.csv"]
 OLD = "kernel_eval.csv"       # the week-14 build of the programs; later files use the current build
 
 

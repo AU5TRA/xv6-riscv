@@ -371,8 +371,82 @@ def main_models():
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the sampled linear scores and the heavier models")
 
 
+SIZE_RATIO = {"cnn-all": 1.71, "mlp-all": 2.17, "attention-all": 1.71, "trees-all": 1.13, "ranktrees-all": 1.17}   # as MODEL_RATIO
+
+
+def costs_sizes():
+    """The five heavier models at 5% and 20% memory on every stream that does not have them yet. One item = one (stream, memory size) with the
+    models it still lacks, costed like the Clock run of the same cell times SIZE_RATIO."""
+    loc, short, have = {}, set(), set()
+    for r in csv.DictReader(open(R / "kernel_eval_all.csv")):
+        if r["status"] != "ok":
+            continue
+        if r["policy"] == "clock" and r["wall_s"]:
+            loc[(r["stem"], r["fraction"])] = float(r["wall_s"])
+            if r["accesses"]:
+                short.add(r["stem"])
+        if r["policy"] == "ml":
+            have.add((r["stem"], r["fraction"], r["model"]))
+    for f in R.glob("kaggle_*_sizes.csv"):
+        for r in csv.DictReader(open(f)):
+            if r["status"] == "ok":
+                have.add((r["stem"], r["fraction"], r["model"]))
+    items = {}
+    for (st, fr), w in loc.items():
+        if fr not in ("0.05", "0.2"):
+            continue
+        miss = [m for m in SIZE_RATIO if (st, fr, m) not in have]
+        if miss:
+            items[(st, fr)] = (sum(w * SIZE_RATIO[m] for m in miss) * KAGGLE_SLOWDOWN / 3600, miss)
+    return items, short
+
+
+def main_sizes():
+    argv = __import__("sys").argv
+    nb = int(argv[argv.index("--notebooks") + 1]) if "--notebooks" in argv else 6
+    items, short = costs_sizes()
+    bins = {f"k{n}": {"lanes": 4, "work": 0.0, "sizes": []} for n in range(1, nb + 1)}
+    bins["local"] = {"lanes": 6 * KAGGLE_SLOWDOWN, "work": 0.0, "sizes": []}
+    for (st, fr), (h, miss) in sorted(items.items(), key=lambda kv: -kv[1][0]):
+        b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
+        b["work"] += h
+        b["sizes"].append([st, fr, miss])
+    for n, b in bins.items():
+        print(f"{n} {b['lanes']:.1f} lanes, {b['work']:6.1f} lane-h at Kaggle speed -> at least {b['work'] / b['lanes']:.1f} h; {len(b['sizes'])} cells, {sum(len(m) for _, _, m in b['sizes'])} runs")
+    print("total", round(sum(b["work"] for b in bins.values()) / KAGGLE_SLOWDOWN, 1), "core-hours at this PC's speed")
+    g = collections.defaultdict(list)
+    for st, fr, miss in bins["local"]["sizes"]:
+        g[(fr, tuple(miss), st in short)].append(st)
+    sh = ["#!/bin/bash", "# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_sizes.csv", "cd \"$(dirname \"$0\")/../../tools/ml2\"",
+          "export KERNEL_EVAL_OUT=kernel_eval_sizes.csv KERNEL_EVAL_LANES=/tmp/xv6sizes", "PY=${PY:-python3}"]
+    for (fr, miss, is_short), sts in sorted(g.items()):
+        sh.append(f'$PY -u kernel_eval.py --lanes 6 --fracs {fr} {"--accesses 50000 " if is_short else ""}--only "{",".join(x + "$" for x in sts)}" --splits test,heldout --models {",".join(miss)} --timeout 40000')
+    (PK / "local_run.sh").write_text("\n".join(sh) + "\n")
+    out = PK / "xv6_package.tar.gz"
+    skip_ext = {".o", ".d", ".asm", ".sym", ".img", ".pyc"}
+    def keep(ti):
+        n = ti.name
+        if "__pycache__" in n or Path(n).suffix in skip_ext or n.endswith("/kernel/kernel") or "/user/_" in n or n.endswith("fs.img") or n.endswith("/mkfs/mkfs"):
+            return None
+        return ti
+    with tarfile.open(out, "w:gz") as t:
+        for p in ("Makefile", "kernel", "user", "mkfs", "tools/ml2/kernel_eval.py", "tools/run_xv6_tests.py", "tools/extract_file.py",
+                  "tools/streams_manifest.tsv", "README", "corpus.txt", "corpus1.txt", "corpus2.txt", "corpus3.txt", "corpus4.txt", "corpus5.txt"):
+            if (ROOT / p).exists():
+                t.add(ROOT / p, arcname=f"xv6/{p}", filter=keep)
+        t.add(ROOT / "traces2/ML/index.json", arcname="xv6/traces2/ML/index.json")
+    exp = json.load(open(PK / "plan.json"))["selftest"]
+    tpl = (Path(__file__).parent / "notebook_template.py").read_text()
+    for i in range(1, nb + 1):
+        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "sizes": bins[f"k{i}"]["sizes"], "short": sorted(short), "selftest": exp}, indent=1)
+        (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
+    print("package", out, round(out.stat().st_size / 1e6, 1), "MB;", nb, "notebooks")
+
+
 def main():
     global CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS, SAMPLING, MODELS_TAG, MODEL_RATIO
+    if "--sizes" in __import__("sys").argv:
+        return main_sizes()
     if "--sampling" in __import__("sys").argv:
         SAMPLING, MODELS_TAG = True, "sampling"
         MODEL_RATIO = {m: 1.0 if m.startswith("global@32") else 1.1 for m in ("global@32", "global@32n", "global@32s", "global@16", "global@16n", "global@16s")}
