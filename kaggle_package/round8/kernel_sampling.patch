@@ -1,0 +1,127 @@
+--- kernel/vmstats.h	2026-10-13 23:32:38.869651142 +0600
++++ kernel/vmstats.h	2026-10-15 00:25:44.520018648 +0600
+@@ -51,6 +51,7 @@
+   int protect_age;          // probation, in scans
+   int sample_k;             // 0 = scan and score every candidate; k > 0 = a random sample of k per eviction
+   int model_id;             // 0 = the linear weights above; k > 0 = built-in network / trees number k (mlnets.h)
++  int sample_mode;          // which k: 0 random, 1 the k/4 newest loaded + random rest, 2 evenly spread over the load order
+ };
+ 
+ 
+--- kernel/vmstate.h	2026-10-11 00:23:08.422538653 +0600
++++ kernel/vmstate.h	2026-10-15 00:25:44.520178878 +0600
+@@ -34,6 +34,7 @@
+   struct vm_ml_weights ml;
+   uint64 ml_scans;
+   int log_victims;          // VM_LOG_VICTIMS: print every victim (debugging the policies)
++  uint64 ml_hand;           // sampler: where the evenly spread sample starts
+   uint64 ml_rng;            // xorshift state of the candidate sampler (0 = unseeded)
+   // Head/tail of this process's owned-frame list (vm_page.owner_next/prev).
+   // Protected by vmpage.c's frame_table.lock, NOT this struct's own .lock --
+--- kernel/vmstate.c	2026-10-11 00:23:08.422417930 +0600
++++ kernel/vmstate.c	2026-10-15 00:25:44.520328859 +0600
+@@ -45,6 +45,7 @@
+   p->vm.ml = ml_default_weights;
+   p->vm.ml_scans = 0;
+   p->vm.ml_rng = 0;
++  p->vm.ml_hand = 0;
+ #ifdef VM_DEBUG
+   p->vm.invalid_policy_once = 0;
+ #endif
+@@ -67,6 +68,7 @@
+   child->vm.ml = parent->vm.ml;
+   child->vm.ml_scans = 0;
+   child->vm.ml_rng = 0;
++  child->vm.ml_hand = 0;
+   child->vm.prefetch_head = 0;
+   child->vm.prefetch_count = 0;
+   child->vm.next_prefetch_id = 1;
+@@ -98,7 +100,7 @@
+   if(copyin(p->pagetable, p->sz, (char *)&w, addr, sizeof(w)) < 0)
+     return -1;
+   if(w.n < 1 || w.n > ML_NFEAT || w.protect_age < 0 || w.protect_age > 1024 ||
+-     w.sample_k < 0 || w.sample_k > 4096 || w.model_id < 0 || w.model_id > 16)
++     w.sample_k < 0 || w.sample_k > 4096 || w.model_id < 0 || w.model_id > 16 || w.sample_mode < 0 || w.sample_mode > 2)
+     return -1;
+   for(int j = 0; j < w.n; j++)
+     if(w.feat[j] < 0 || w.feat[j] >= ML_NFEAT)
+--- kernel/vmpage.c	2026-10-13 23:32:38.870580100 +0600
++++ kernel/vmpage.c	2026-10-15 00:25:44.520673660 +0600
+@@ -284,10 +284,31 @@
+ // look only at those. Pages outside the sample are neither scanned nor scored
+ // this time, so their accessed bits keep accumulating until a later sample.
+ static void
+-ml_sample(struct proc *p, struct vm_page **candidates, int count, int k)
++ml_sample(struct proc *p, struct vm_page **candidates, int count, int k, int mode)
+ {
++  // The candidates come in load order (the owner's list appends at the tail), so the newest are at the end.
++  if(mode == 2){                       // evenly spread: every (count/k)-th page, the start moves on by one each eviction
++    int stride = count / k;
++    int start = (int)(p->vm.ml_hand++ % (uint64)stride);
++    for(int i = 0; i < k; i++){
++      int j = start + i * stride;
++      struct vm_page *t = candidates[i];
++      candidates[i] = candidates[j];
++      candidates[j] = t;
++    }
++    return;
++  }
++  int fixed = 0;
++  if(mode == 1){                       // the k/4 newest loaded pages first, the rest of the sample random
++    fixed = k / 4 > 0 ? k / 4 : 1;
++    for(int i = 0; i < fixed; i++){
++      struct vm_page *t = candidates[i];
++      candidates[i] = candidates[count - 1 - i];
++      candidates[count - 1 - i] = t;
++    }
++  }
+   uint64 x = p->vm.ml_rng ? p->vm.ml_rng : 0x9E3779B97F4A7C15ULL;
+-  for(int i = 0; i < k; i++){
++  for(int i = fixed; i < k; i++){
+     x ^= x << 13;
+     x ^= x >> 7;
+     x ^= x << 17;
+@@ -311,7 +332,7 @@
+   if(net && (k == 0 || k > MLNET_MAXN))
+     k = MLNET_MAXN;
+   if(k > 0 && count > k){
+-    ml_sample(p, candidates, count, k);
++    ml_sample(p, candidates, count, k, w->sample_mode);
+     count = k;
+   }
+   uint64 now = p->vm.ml_scans;
+--- user/vmrun.c	2026-10-13 23:32:38.870101603 +0600
++++ user/vmrun.c	2026-10-15 00:25:44.520832609 +0600
+@@ -50,18 +50,22 @@
+   if(policy == VM_POLICY_ML){
+     // "model@k": the same model, scanning and scoring only k random candidates per eviction
+     char name[32];
+-    int sample_k = 0;
++    int sample_k = 0, sample_mode = 0;   // "model@32" random, "model@32n" newest + random, "model@32s" evenly spread
+     strcpy(name, argv[2]);
+     for(char *at = name; *at; at++)
+       if(*at == '@'){
+         *at = 0;
+         sample_k = atoi(at + 1);
++        for(char *c = at + 1; *c; c++){
++          if(*c == 'n') sample_mode = 1;
++          if(*c == 's') sample_mode = 2;
++        }
+         break;
+       }
+     for(int i = 0; i < ML_NET_NAMES; i++){
+       if(strcmp(name, ml_net_names[i].name) == 0){
+         // built-in network or trees: probation 2 as in the simulator runs; the weights field is only a stub
+-        struct vm_ml_weights w = { 1, { 0 }, { 0 }, 2, sample_k, ml_net_names[i].id };
++        struct vm_ml_weights w = { 1, { 0 }, { 0 }, 2, sample_k, ml_net_names[i].id, sample_mode };
+         if(vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0){
+           fprintf(2, "vmrun: vmctl VM_SET_ML_WEIGHTS failed\n");
+           exit(1);
+@@ -75,6 +79,7 @@
+       if(strcmp(name, ml_models[i].name) == 0){
+         struct vm_ml_weights w = ml_models[i].w;
+         w.sample_k = sample_k;
++        w.sample_mode = sample_mode;
+         if(vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0){
+           fprintf(2, "vmrun: vmctl VM_SET_ML_WEIGHTS failed\n");
+           exit(1);
