@@ -1,0 +1,1 @@
+app-bloom-s1$,app-chase-s1$,app-hashjoin-s1$,app-spmv-s1$,pat-loop-s5$,pat-phase-s5$,pat-phaseshort-s5$,pat-scanhot-s5$,pat-scanhotlo-s5$,pat-switch-s1$,pat-uniform-s5$,pat-zipf060-s5$,pat-zipf080-s5$,pat-zipf099-s5$,pat-zipf120-s1$

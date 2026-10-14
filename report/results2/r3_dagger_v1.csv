@@ -1,0 +1,13 @@
+model,features,dagger_round,training_rows,faults_over_clock,stopped_at_3x
+best of 300,rec+freq+ref+aging+sfreq+idle+age+dirty+refaults+rdist,0,601760,0.762,0
+median of 300,aging+sfreq+idle+age+dirty+refaults+rdist,0,601760,3.000,1
+all features,rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist,0,601760,3.000,1
+best of 300,rec+freq+ref+aging+sfreq+idle+age+dirty+refaults+rdist,1,1162944,0.765,0
+median of 300,aging+sfreq+idle+age+dirty+refaults+rdist,1,1382816,2.005,0
+all features,rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist,1,1376000,0.914,0
+best of 300,rec+freq+ref+aging+sfreq+idle+age+dirty+refaults+rdist,2,1702656,0.763,0
+median of 300,aging+sfreq+idle+age+dirty+refaults+rdist,2,1981952,2.488,0
+all features,rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist,2,2076576,0.879,0
+best of 300,rec+freq+ref+aging+sfreq+idle+age+dirty+refaults+rdist,3,2226976,0.759,0
+median of 300,aging+sfreq+idle+age+dirty+refaults+rdist,3,2601920,3.000,1
+all features,rec+freq+sd+wr+ref+aging+sfreq+idle+age+dirty+refaults+rdist,3,2747456,0.871,0

@@ -99,6 +99,10 @@ struct model {
   int sample_k;
   int sample_scan;
   int sample_seed;
+  // Which k pages: 0 random (cache_ext's way), 1 the k/4 newest loaded + random rest, 2 a window of k in load order that moves on by k at
+  // every eviction, 3 the k oldest loaded, 4 every (count/k)-th page in load order (a spread over all ages, the start moves on),
+  // 5 pages not seen at their latest scan first (random among them), then random.
+  int sample_mode;
   // Callback scorer (kind 3): cb(n, feat[n][NF], hist[n][GRU_K], out[n]) scores
   // the whole candidate set at once (set / sequence models run in Python).
   void *cb;
@@ -229,7 +233,7 @@ struct state {
   int64_t seq, scans, distinct_seen;
   int32_t *order; int order_n; int64_t hand;   // Clock candidate list
   int32_t ring[EMB_W]; int ring_i;             // last EMB_W pages referenced
-  uint64_t srng; int32_t *samp;                // sampled-scoring rng / chosen indices
+  uint64_t srng; int32_t *samp, *ord; int64_t win_hand;                // sampled-scoring rng / chosen indices
   // doubly linked lists over page ids (ARC, S3-FIFO); head = MRU / newest
   int32_t *lnx, *lpv; int8_t *lin; int32_t lhead[4], ltail[4]; int llen[4];
   int arc_p;                                   // ARC target size of T1
@@ -542,11 +546,48 @@ static int choose(struct state *s, int policy, const struct model *m,
 }
 
 // Draw k distinct resident indices (partial Fisher-Yates) into s->samp.
-static void draw_sample(struct state *s, int k) {
-  for (int i = 0; i < s->count; i++) s->samp[i] = i;
-  for (int i = 0; i < k; i++) {
+static const struct state *g_cmp_state;
+static int cmp_load(const void *a, const void *b) {
+  int64_t x = g_cmp_state->load_seq[g_cmp_state->res[*(const int32_t *)a]], y = g_cmp_state->load_seq[g_cmp_state->res[*(const int32_t *)b]];
+  return (x > y) - (x < y);
+}
+static void shuffle_prefix(struct state *s, int from, int to) {     // partial Fisher-Yates of samp[from..to) over samp[from..count)
+  for (int i = from; i < to; i++) {
     int j = i + (int)(xs(&s->srng) % (uint64_t)(s->count - i));
     int32_t tmp = s->samp[i]; s->samp[i] = s->samp[j]; s->samp[j] = tmp;
+  }
+}
+static void draw_sample(struct state *s, int k, int mode) {
+  int n = s->count;
+  if (mode == 0 || mode == 5) {
+    if (mode == 0) { for (int i = 0; i < n; i++) s->samp[i] = i; shuffle_prefix(s, 0, k); return; }
+    int m = 0, o = n;                                // not seen at the latest scan first, the others at the back
+    for (int i = 0; i < n; i++) if (!(s->aging[s->res[i]] & 0x80)) s->samp[m++] = i; else s->samp[--o] = i;
+    if (m >= k) { s->count = m; shuffle_prefix(s, 0, k); s->count = n; return; }
+    int32_t *t = s->samp + m;                        // fewer than k unseen: all of them, then random among the seen
+    int rest = n - m;
+    for (int i = 0; i < k - m; i++) {
+      int j = i + (int)(xs(&s->srng) % (uint64_t)(rest - i));
+      int32_t tmp = t[i]; t[i] = t[j]; t[j] = tmp;
+    }
+    return;
+  }
+  for (int i = 0; i < n; i++) s->ord[i] = i;
+  g_cmp_state = s;
+  qsort(s->ord, n, sizeof(int32_t), cmp_load);       // load order: the kernel's candidate list already is in this order
+  if (mode == 1) {
+    int nn = k / 4 > 0 ? k / 4 : 1;
+    for (int i = 0; i < n; i++) s->samp[i] = s->ord[n - 1 - i];      // newest first
+    shuffle_prefix(s, nn, k);
+  } else if (mode == 2) {
+    int start = (int)(s->win_hand % n);
+    for (int i = 0; i < k; i++) s->samp[i] = s->ord[(start + i) % n];
+    s->win_hand += k;
+  } else if (mode == 3) {
+    for (int i = 0; i < k; i++) s->samp[i] = s->ord[i];
+  } else {
+    int stride = n / k > 0 ? n / k : 1, start = (int)(s->win_hand++ % stride);
+    for (int i = 0; i < k; i++) s->samp[i] = s->ord[(start + i * stride) % n];
   }
 }
 
@@ -1002,7 +1043,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
            ALLOC(s->has_copy, n_pages) && ALLOC(s->seen_now, n_pages) &&
            ALLOC(s->hist, (int64_t)n_pages * GRU_K) &&
            ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1) &&
-           ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1);
+           ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1) && ALLOC(s->ord, cap + 1);
   int listpol = policy == P_ARC || policy == P_ARCK || policy == P_S3FIFO || policy == P_S3SCAN || policy == P_MGLRU || policy == P_LHD;
   if (ok && listpol)
     ok = ALLOC(s->lnx, n_pages) && ALLOC(s->lpv, n_pages) && ALLOC(s->lin, n_pages) &&
@@ -1072,7 +1113,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         if (gclock) {
           o->guard_clock_evictions++;
         } else if (sampled) {
-          draw_sample(s, m->sample_k);
+          draw_sample(s, m->sample_k, m->sample_mode);
           if (m->sample_scan) {
             for (int i = 0; i < m->sample_k; i++) scan_one(s, s->res[s->samp[i]]);
             o->scanned += m->sample_k;
@@ -1186,7 +1227,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   free(s->sfreq); free(s->kfreq); free(s->refaults); free(s->abit);
   free(s->dbit); free(s->aging); free(s->has_copy); free(s->seen_now);
   free(s->hist); free(s->order); free(score); free(s->bit); free(pick);
-  free(s->gru_cache); free(s->gru_dirty); free(s->samp);
+  free(s->gru_cache); free(s->gru_dirty); free(s->samp); free(s->ord);
   free(s->gen); free(s->gst); free(s->la1); free(s->la2);
   free(s->lnx); free(s->lpv); free(s->lin); free(s->s3freq); free(s->s3fresh);
   free(s->lc_t); free(s->lc_who); free(s->lc_snap); free(s->lc_q[0]); free(s->lc_q[1]); free(s->lc_qt[0]); free(s->lc_qt[1]);

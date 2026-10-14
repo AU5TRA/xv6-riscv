@@ -59,7 +59,7 @@ program's pages. Intervals are 95\% intervals from resampling the workloads, the
   (Section~\ref{sec:cost}), so we found no reason to prefer them.
 \item \textbf{Looking at fewer candidates costs little.} The linear score scanning only 32 randomly chosen candidates per eviction is level with scanning all of them
   (0.998 of the full score, interval 0.975 to 1.017) and still beats Clock (0.912, interval 0.86 to 0.97) at about half the cost (11\,300 instead of 22\,800 instructions at 68 candidates). With 16 candidates it is 1.3\% worse than the full score (1.013, 0.98 to 1.04) and still beats Clock
-  (0.926, 0.88 to 0.98) at a quarter of the cost (5\,700 instructions). All 74 streams, 10\% memory.
+  (0.926, 0.88 to 0.98) at a quarter of the cost (5\,700 instructions). All 74 streams, 10\% memory. Appendix~\ref{app:sampling} compares other ways of choosing the pages.
 \item \textbf{Training on all workloads is the fair test.} Trained on one workload, the five kinds are mostly worse than when trained on all (set-attention 1.48 against 0.90 in the simulator);
   models trained on one workload answer a different question and are kept only as a side result.
 \item \textbf{The kernel agrees with the simulator.} For the three new policies, kernel faults divided by simulator faults are 0.995 (ARC), 1.014 (S3-FIFO) and 0.984 (LHD), geometric mean over 74 streams at 10\% memory; the median stream is within 1.5\%.
@@ -251,6 +251,28 @@ The simulator replays the same streams much faster and was used to choose models
 \end{table}
 
 LeCaR mixes two experts and learns, from the pages each expert evicted too early, which one to trust. As published it does well on btree and kv (0.90 to 0.92, against 0.95 to 0.99 for ARC and LRU), ties them on graph (0.97 to 0.98; LHD is better there), loses on LZW (1.04), and does not reach the linear score on the kernel's signals (0.80 to 0.90 on the same four scopes). In the form a kernel can run it is worse than Clock on most scopes (1.06 to 1.33 on btree, graph, kv and LZW), and the same in the kernel: 1.113 of Clock's faults over 74 streams at 10\% memory (interval 1.04 to 1.23), only on the 10\% memory size. On the two streams we looked at, the two experts were penalised about equally often, so the weights drift instead of settling on Clock, and the frequency expert, a count that can only be updated at evictions, is a poor expert on its own (the kernel's frequency policy is worse than Clock on average: 1.07 to 1.27). Both versions were checked against independent reference implementations (95 traces, identical faults and evictions). We did not run it in the kernel.
+
+\section{Which pages should a sampled eviction look at?}
+\label{app:sampling}
+
+The kernel runs sample the pages at random. To see whether a cheap rule does better, we replayed the same 74 streams in the simulator at the kernel's memory sizes, with the kernel's global linear score, scanning only the sampled pages (as the kernel does). Faults relative to the full linear score (below 1 is better; workload-weighted geometric mean):
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+which pages & 32 sampled & 16 sampled \\
+\midrule
+random (the kernel runs; mean of 3 seeds) & 1.002 & 1.019 \\
+the quarter newest loaded, rest random & 1.002 & 1.021 \\
+evenly spread over the load order & 1.015 & 1.019 \\
+a window in load order that moves on & 1.056 & 1.086 \\
+pages not seen at their latest scan first & 1.058 & 1.089 \\
+the oldest loaded pages & 1.149 & 1.198 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Random is as good as anything we tried, and the three seeds agree to within 0.001. Taking the pages from one end of the load order, or the pages that looked idle, is clearly worse. The even spread ties random at 16 and costs nothing extra (the kernel's candidate list is already in load order, so no random numbers are drawn; we estimate this saves about 5\% of the instructions, not measured), but it is slightly worse at 32. The simulator and the kernel agree on the same streams: the kernel's sampled score is 0.998 and 1.013 of the full score at 32 and 16, the simulator's 1.002 and 1.019, and kernel faults divided by simulator faults average 1.000 over the 74 streams. An earlier sweep in the simulator found 1.017 and 1.04; it used only 33 streams (those streams alone give 1.016 and 1.039 now), so the difference was the choice of streams, not the kernel.
 
 \section{How to reproduce}
 \label{app:repro}

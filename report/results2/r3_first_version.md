@@ -13,6 +13,15 @@ Clock 53,782 faults). Per-model results: report/results2/r3_first_version.csv.
   Belady's choice was last used a median of 270 and 234 references earlier (old text: about 300);
   167 resident pages.
 * The best of the 300 (rec+freq+ref+aging+sfreq+idle+age+dirty+refaults+rdist) does not do this: 0.9% of its victims were loaded at the previous fault.
-* DAgger: not rerun on the first-version data. The DAgger table in tables.md (one round, per-workload linear models) was produced with
-  extras.py dagger on the current datasets (commit 8228ea7, deterministic seeds); it shows no consistent gain (e.g. btree held-out kernel tier
-  0.875 -> 0.904, graph test 0.872 -> 0.898). The "three rounds on the first version" statement stays labelled "first version of the study".
+* DAgger, three rounds on the first-version data (tools/ml2/r3_dagger_v1.py; report/results2/r3_dagger_v1.csv; graph only, validation stream
+  graph-pr2000x2-s2 at 10%, faults / Clock; each round records under the previous model, adds those rows to all earlier ones, refits):
+
+  | model | round 0 | 1 | 2 | 3 |
+  |---|---|---|---|---|
+  | best of the 300 | 0.762 | 0.765 | 0.763 | 0.759 |
+  | median of the 300 | 3.00 (stopped) | 2.01 | 2.49 | 3.00 (stopped) |
+  | all 12 features | 3.00 (stopped) | 0.914 | 0.879 | 0.871 |
+
+  So "DAgger did not help" is NOT reproduced as a general statement: the all-features model goes from failing to 0.87 of Clock, the best model
+  does not change (already good), the median model moves around without settling. With the current deterministic seeds the honest wording is:
+  DAgger helped some of the failing models and not others (first version of the study, graph only).
