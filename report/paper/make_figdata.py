@@ -17,9 +17,6 @@ result CSVs change; the files are small and committed with the paper).
   marginal.csv      Appendix figure: median change in faults when a kernel feature is
                     added to a subset that lacks it (summary_marginal.csv; per-workload
                     models, test streams, matmul held-out), as a percentage.
-  ci_body.tex       Table 6: the rows of report_w16.py's ci_main.tex that the body cites,
-                    in the same format (kernel_ci_classic.csv); the full table is in the
-                    appendix. Generated so no interval is typed by hand.
 """
 import csv
 import math
@@ -90,7 +87,7 @@ write("diagnostics.csv", ["col", "row", "rho", "label"], rows)
 GROUPS = {
     "FIFO": ("classic", "FIFO", "west", 3, 0),
     "Clock": ("classic", "Clock", "north west", 1, -1),
-    "Aging": ("classic", "Aging", "west", 3, 0),
+    "Aging": ("classic", "Aging", "east", -3, 0),
     "LFU": ("classic", "LFU", "east", -3, 0),
     "S3-FIFO (adapted)": ("adapted", "S3-FIFO", "south", 0, 2),
     "ARC (adapted)": ("adapted", "ARC", "south east", -1, 2),
@@ -100,9 +97,9 @@ GROUPS = {
     "linear score, global, 16 sampled candidates": ("sampled", "$k{=}16$", "east", -3, 0),
     "boosted trees": ("heavy", "trees", "south", 0, 2),
     "ranking trees": ("heavy", "ranking trees", "west", 3, 0),
-    "set-attention": ("heavy", "set-attn.", "south", 0, 3),
+    "set-attention": ("heavy", "set-attn.", "south", 0, 2),
     "CNN": ("heavy", "CNN", "east", -3, 0),
-    "deeper MLP": ("heavy", "MLP", "west", 3, 0),
+    "deeper MLP": ("heavy", "MLP", "north", 0, -2),
 }
 groups = {}
 for r in read("tradeoff.csv"):
@@ -125,33 +122,5 @@ for i, w in enumerate(WORKLOADS):
         # label only the cells that matter (|change| >= 10%); the rest stay unlabelled
         rows.append([j, i, f"{pct:.1f}", f"${pct:.0f}$" if abs(pct) >= 10 else ""])
 write("marginal.csv", ["col", "row", "pct", "label"], rows)
-
-# ---- Table 6: the interval rows the body cites (same format as report_w16.py ci_main) ---
-NAME = {"arck": "ARC", "clock": "Clock", "lecar": "LeCaR", "ml:global": "linear, global",
-        "ml:global@32": "linear, 32 sampled", "ml:global@16": "linear, 16 sampled",
-        "ml:cnn-all": "CNN", "ml:mlp-all": "deeper MLP", "ml:attention-all": "set-attention",
-        "ml:trees-all": "boosted trees", "ml:ranktrees-all": "ranking trees"}
-PAIRS = [("arck", "clock"), ("ml:global", "clock"), ("ml:global", "arck"),
-         ("lecar", "clock"), ("ml:global", "lecar"),
-         ("ml:global@32", "ml:global"), ("ml:global@16", "ml:global"),
-         ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global"),
-         ("ml:attention-all", "ml:global"), ("ml:trees-all", "ml:global"),
-         ("ml:ranktrees-all", "ml:global")]
-ci = {(r["policy"], r["against"], r["fraction"]): r for r in read("kernel_ci_classic.csv")}
-lines = ["\\begin{tabular}{lrrr}", "\\toprule",
-         "comparison & 5\\% memory & 10\\% memory & 20\\% memory \\\\", "\\midrule"]
-for a, b in PAIRS:
-    cells = [f"{NAME[a]} against {NAME[b]}"]
-    for fr in ("0.05", "0.1", "0.2"):
-        r = ci.get((a, b, fr))
-        if not r:
-            cells.append("--")
-            continue
-        cell = (f"{float(r['faults_ratio']):.3f} [{float(r['ci95_low']):.2f}, "
-                f"{float(r['ci95_high']):.2f}]")
-        cells.append(f"\\best{{{cell}}}" if float(r["ci95_high"]) < 1 else cell)
-    lines.append(" & ".join(cells) + " \\\\")
-lines += ["\\bottomrule", "\\end{tabular}", ""]
-(OUT / "ci_body.tex").write_text("\n".join(lines), encoding="utf-8")
 
 print("wrote", ", ".join(sorted(p.name for p in OUT.iterdir())))
