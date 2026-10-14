@@ -1,0 +1,175 @@
+--- kernel/vmpage.c	2026-10-13 23:32:38.870580100 +0600
++++ kernel/vmpage.c	2026-10-15 01:39:27.435357847 +0600
+@@ -273,11 +273,77 @@
+   case ML_F_IDLE:     return ml_log1p_q8(now - page->ml_last_seen);
+   case ML_F_AGE:      return ml_log1p_q8(now - page->ml_load_scan);
+   case ML_F_DIRTY:    return page->dirty_sample ? 256 : 0;
++#ifdef ML_FAST_LOGCACHE
++  case ML_F_REFAULTS: return page->ml_refaults_q8;
++  case ML_F_RDIST:    return page->ml_rdist_q8;
++#else
+   case ML_F_REFAULTS: return ml_log1p_q8(page->ml_refaults);
+   case ML_F_RDIST:    return ml_log1p_q8(page->ml_rdist);
++#endif
++  }
++  return 0;
++}
++
++
++#ifdef ML_FAST_MSB
++// ml_log1p_q8 (mlfeat.h) with the highest-bit search done by a byte table instead of six tests; gives the same value for every input
++// (tools/ml2/check_fastlog.c checks it). mlfeat.h itself is unchanged, since the simulator shares it.
++static const uint8 ml_msb8[256] = {
++#define R2(n) n, n
++#define R4(n) R2(n), R2(n)
++#define R8(n) R4(n), R4(n)
++#define R16(n) R8(n), R8(n)
++#define R32(n) R16(n), R16(n)
++#define R64(n) R32(n), R32(n)
++#define R128(n) R64(n), R64(n)
++  0, 0, R2(1), R4(2), R8(3), R16(4), R32(5), R64(6), R128(7)
++};
++static inline int
++ml_log1p_q8_fast(unsigned long long v)
++{
++  if(v < 256)
++    return ml_log1p_q8_small[v];
++  unsigned long long x = v + 1;
++  int e;
++  if(x >> 32){
++    e = x >> 48 ? (x >> 56 ? 56 + ml_msb8[x >> 56] : 48 + ml_msb8[x >> 48]) : (x >> 40 ? 40 + ml_msb8[x >> 40] : 32 + ml_msb8[x >> 32]);
++  } else {
++    e = x >> 16 ? (x >> 24 ? 24 + ml_msb8[x >> 24] : 16 + ml_msb8[x >> 16]) : 8 + ml_msb8[x >> 8];
++  }
++  int m = (int)((e >= 10 ? (x >> (e - 10)) : (x << (10 - e))) & 0x3FF);
++  return (int)(((long long)e * 45427 + 128) >> 8) + ml_ln_mant_q8[m];
++}
++#define ML_LOG ml_log1p_q8_fast
++#else
++#define ML_LOG ml_log1p_q8
++#endif
++#ifdef ML_FAST_INLINE
++// The same feature code, always inlined, for the linear score only (the networks keep the call).
++static inline __attribute__((always_inline)) int
++ml_feature_inl(struct proc *p, struct vm_page *page, int f)
++{
++  uint64 now = p->vm.ml_scans;
++  switch(f){
++  case ML_F_REF:      return page->ml_seen ? 256 : 0;
++  case ML_F_AGING:    return ml_aging_q8(page->aging_counter & 0xff);
++  case ML_F_SFREQ:    return ML_LOG(page->ml_sfreq);
++  case ML_F_IDLE:     return ML_LOG(now - page->ml_last_seen);
++  case ML_F_AGE:      return ML_LOG(now - page->ml_load_scan);
++  case ML_F_DIRTY:    return page->dirty_sample ? 256 : 0;
++#ifdef ML_FAST_LOGCACHE
++  case ML_F_REFAULTS: return page->ml_refaults_q8;
++  case ML_F_RDIST:    return page->ml_rdist_q8;
++#else
++  case ML_F_REFAULTS: return ML_LOG(page->ml_refaults);
++  case ML_F_RDIST:    return ML_LOG(page->ml_rdist);
++#endif
+   }
+   return 0;
+ }
++#define ML_LIN_FEATURE ml_feature_inl
++#else
++#define ML_LIN_FEATURE ml_feature
++#endif
+ 
+ // Sampled scoring, like cache_ext's bpf_cache_ext_list_sample: move k distinct
+ // random candidates to the front (partial Fisher-Yates) and let the policy
+@@ -317,6 +383,54 @@
+   uint64 now = p->vm.ml_scans;
+   int cleared = 0;
+   int any_old = 0;
++#ifdef ML_FAST_UNROLL
++  // weight per feature id (0 = unused); integer sums do not depend on the order of the terms
++  int qf[ML_NFEAT] = {0};
++  for(int j = 0; j < w->n; j++)
++    qf[w->feat[j]] += w->qa[j];
++#endif
++#ifdef ML_FAST_ONEPASS
++  // One pass for the linear score: scan, score and keep the best page twice, among all pages and among the pages past probation; the
++  // result is the same page the two-pass code below picks (same scores, same tie rule).
++  if(!net){
++    struct vm_page *best_all = 0, *best_old = 0;
++    long s_all = 0, s_old = 0;
++    for(int i = 0; i < count; i++){
++      struct vm_page *page = candidates[i];
++      int accessed = sample_page(page, 1);
++      cleared |= accessed;
++      page->ml_seen = accessed;
++      page->aging_counter = ((page->aging_counter & 0xff) >> 1) | (accessed ? 0x80 : 0);
++      if(accessed){
++        page->ml_sfreq++;
++        page->ml_last_seen = now;
++      }
++      long score = 0;
++#ifdef ML_FAST_UNROLL
++      for(int f = 0; f < ML_NFEAT; f++)
++        if(qf[f])
++          score += (long)qf[f] * ML_LIN_FEATURE(p, page, f);
++#else
++      for(int j = 0; j < w->n; j++)
++        score += (long)w->qa[j] * ML_LIN_FEATURE(p, page, w->feat[j]);
++#endif
++      if(best_all == 0 || score > s_all || (score == s_all && page->load_sequence < best_all->load_sequence)){
++        best_all = page;
++        s_all = score;
++      }
++      if(now - page->ml_load_scan >= (uint64)w->protect_age){
++        any_old = 1;
++        if(best_old == 0 || score > s_old || (score == s_old && page->load_sequence < best_old->load_sequence)){
++          best_old = page;
++          s_old = score;
++        }
++      }
++    }
++    if(cleared)
++      sfence_vma();
++    return any_old ? best_old : best_all;
++  }
++#endif
+   for(int i = 0; i < count; i++){
+     struct vm_page *page = candidates[i];
+     int accessed = sample_page(page, 1);
+@@ -352,8 +466,14 @@
+     if(net){
+       score = (long)ml_scores[i];
+     } else {
++#ifdef ML_FAST_UNROLL
++      for(int f = 0; f < ML_NFEAT; f++)
++        if(qf[f])
++          score += (long)qf[f] * ML_LIN_FEATURE(p, page, f);
++#else
+       for(int j = 0; j < w->n; j++)
+-        score += (long)w->qa[j] * ml_feature(p, page, w->feat[j]);
++        score += (long)w->qa[j] * ML_LIN_FEATURE(p, page, w->feat[j]);
++#endif
+     }
+     if(victim == 0 || score > best ||
+        (score == best && page->load_sequence < victim->load_sequence)){
+@@ -1214,6 +1334,10 @@
+   // evictions ago it was written out.
+   page->ml_refaults = slot_refaults[slot] + 1;
+   page->ml_rdist = page->owner->vm.ml_scans - slot_evict_scan[slot];
++#ifdef ML_FAST_LOGCACHE
++  page->ml_refaults_q8 = ml_log1p_q8(page->ml_refaults);
++  page->ml_rdist_q8 = ml_log1p_q8(page->ml_rdist);
++#endif
+   release(&frame_table.lock);
+   return 0;
+ }
+--- kernel/vmpage.h	2026-10-08 15:11:39.404559996 +0600
++++ kernel/vmpage.h	2026-10-15 01:32:09.465093420 +0600
+@@ -44,6 +44,10 @@
+   uint32 ml_sfreq;          // scans that found it accessed since load
+   uint32 ml_refaults;       // times evicted and faulted back in
+   uint8 ml_seen;            // accessed bit at the latest scan
++#ifdef ML_FAST_LOGCACHE
++  uint16 ml_refaults_q8;    // ml_log1p_q8(ml_refaults), kept up to date where ml_refaults changes
++  uint16 ml_rdist_q8;       // ml_log1p_q8(ml_rdist)
++#endif
+   // Intrusive doubly-linked list of this frame's owner's other owned
+   // frames (struct vmstate.owned_head/owned_tail). Protected by
+   // frame_table.lock, not p->vm.lock -- see vmpage.c.
