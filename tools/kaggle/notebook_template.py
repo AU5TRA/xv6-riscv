@@ -73,7 +73,7 @@ def keval(out, args, start=None):
 
 
 def save():
-    for f in glob.glob(f"{RES}/kaggle_*.csv"):
+    for f in glob.glob(f"{RES}/kaggle_*.csv") + glob.glob(f"{RES}/sampling_kaggle_*.csv"):
         shutil.copyfile(f, f"{OUTDIR}/{os.path.basename(f)}")
 
 
@@ -134,7 +134,7 @@ if CONFIG.get("models"):
     for st, miss in CONFIG["models"]:
         groups.setdefault((tuple(miss), st in CONFIG["short"]), []).append(st + "$")
     for (miss, is_short), sts in sorted(groups.items()):
-        keval(f"kaggle_{i}_models.csv", f"--fracs 0.1 {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
+        keval(CONFIG.get("models_file", f"kaggle_{i}_models.csv"), f"--fracs 0.1 {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
               f"--models {','.join(miss)} --timeout 40000")
         save()
 if CONFIG["patapp"]:

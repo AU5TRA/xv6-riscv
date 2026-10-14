@@ -294,6 +294,8 @@ def main_more():
 
 
 MODEL_RATIO = {"global@32": 1.0, "global@16": 1.1, "cnn-all": 1.71, "mlp-all": 2.17, "attention-all": 1.71, "trees-all": 1.13, "ranktrees-all": 1.17}
+SAMPLING = False     # --sampling: the six ways of sampling (random, newest + random, evenly spread; 32 and 16), all rerun in this build
+MODELS_TAG = "models"
 # kernel wall time of a run relative to the Clock run of the same stream at 10% memory (median over the ten streams the heavier models ran on;
 # global@32 / global@16 over the streams they ran on). Used only to balance the work.
 
@@ -319,7 +321,7 @@ def costs_models(skip=()):
     for st, w in loc.items():
         if st in skip:
             continue
-        miss = [m for m in MODEL_RATIO if (st, m) not in have]
+        miss = [m for m in MODEL_RATIO if SAMPLING or (st, m) not in have]
         if miss:
             items[st] = (sum(w * MODEL_RATIO[m] for m in miss) * KAGGLE_SLOWDOWN / 3600, miss)
     return items, short
@@ -342,8 +344,8 @@ def main_models():
         for st, miss in lst:
             g[(tuple(miss), st in short)].append(st)
         return g
-    sh = ["#!/bin/bash", "# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_models.csv", "cd \"$(dirname \"$0\")/../../tools/ml2\"",
-          "export KERNEL_EVAL_OUT=kernel_eval_models.csv KERNEL_EVAL_LANES=/tmp/xv6models", "PY=${PY:-python3}"]
+    sh = ["#!/bin/bash", f"# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_{MODELS_TAG}.csv", "cd \"$(dirname \"$0\")/../../tools/ml2\"",
+          f"export KERNEL_EVAL_OUT=kernel_eval_{MODELS_TAG}.csv KERNEL_EVAL_LANES=/tmp/xv6{MODELS_TAG}", "PY=${PY:-python3}"]
     for (miss, is_short), sts in sorted(groups(bins["local"]["models"]).items()):
         sh.append(f'$PY -u kernel_eval.py --lanes 6 --fracs 0.1 {"--accesses 50000 " if is_short else ""}--only "{",".join(x + "$" for x in sts)}" --splits test,heldout --models {",".join(miss)} --timeout 40000')
     (PK / "local_run.sh").write_text("\n".join(sh) + "\n")
@@ -363,13 +365,18 @@ def main_models():
     exp = json.load(open(PK / "plan.json"))["selftest"]
     tpl = (Path(__file__).parent / "notebook_template.py").read_text()
     for i in (1, 2, 3, 4):
-        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "models": bins[f"k{i}"]["models"], "short": sorted(short), "selftest": exp}, indent=1)
+        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "models": bins[f"k{i}"]["models"], "short": sorted(short), "selftest": exp,
+                          "models_file": f"sampling_kaggle_{i}.csv" if SAMPLING else f"kaggle_{i}_models.csv"}, indent=1)
         (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB; notebooks rewritten for the sampled linear scores and the heavier models")
 
 
 def main():
-    global CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS
+    global CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS, SAMPLING, MODELS_TAG, MODEL_RATIO
+    if "--sampling" in __import__("sys").argv:
+        SAMPLING, MODELS_TAG = True, "sampling"
+        MODEL_RATIO = {m: 1.0 if m.startswith("global@32") else 1.1 for m in ("global@32", "global@32n", "global@32s", "global@16", "global@16n", "global@16s")}
+        return main_models()
     if "--lecar" in __import__("sys").argv:
         CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS = ("lecar",), "lecar", (1, 2, 3, 4)
         return main_classic()
