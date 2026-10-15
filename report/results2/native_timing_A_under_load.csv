@@ -1,0 +1,85 @@
+run,policy,candidates,decisions_timed,ns_per_decision_median,ns_per_decision_min,ns_per_candidate_median
+run1,linear score (global),68,500000,1114,751,16.4
+run1,linear score (global) 32 sampled,68,500000,682,507,21.3
+run1,linear score (global) 16 sampled,68,500000,297,257,18.5
+run1,linear score (global) 64 sampled,68,500000,1274,1025,19.9
+run1,linear score (global) 8 sampled,68,500000,137,136,17.2
+run1,linear score (global) 4 sampled,68,500000,70,69,17.6
+run1,linear score (global) [code before the change],68,500000,1542,1263,22.7
+run1,linear score (global) 32 sampled [code before the change],68,500000,923,796,28.9
+run1,linear score (global) 16 sampled [code before the change],68,500000,428,397,26.7
+run1,boosted trees,68,50000,42940,34839,631.5
+run1,ranking trees,68,50000,36379,31736,535.0
+run1,set-attention,68,7500,156326,110974,2298.9
+run1,CNN,68,7500,164060,119963,2412.7
+run1,deeper MLP,68,7500,275449,214924,4050.7
+run1,linear score (global),256,500000,3353,2852,13.1
+run1,linear score (global) 32 sampled,256,500000,600,484,18.8
+run1,linear score (global) 16 sampled,256,500000,343,243,21.5
+run1,linear score (global) 64 sampled,256,500000,1182,973,18.5
+run1,linear score (global) 8 sampled,256,500000,179,129,22.3
+run1,linear score (global) 4 sampled,256,500000,74,66,18.5
+run1,linear score (global) [code before the change],256,500000,5712,4863,22.3
+run1,linear score (global) 32 sampled [code before the change],256,500000,968,803,30.3
+run1,linear score (global) 16 sampled [code before the change],256,500000,532,399,33.3
+run1,boosted trees,256,50000,160776,136723,628.0
+run1,ranking trees,256,50000,165214,126340,645.4
+run1,set-attention,256,7500,617458,468957,2411.9
+run1,CNN,256,7500,627136,453167,2449.8
+run1,deeper MLP,256,7500,1227385,934078,4794.5
+run2,linear score (global),68,500000,947,744,13.9
+run2,linear score (global) 32 sampled,68,500000,695,501,21.7
+run2,linear score (global) 16 sampled,68,500000,274,252,17.1
+run2,linear score (global) 64 sampled,68,500000,2149,1072,33.6
+run2,linear score (global) 8 sampled,68,500000,158,136,19.8
+run2,linear score (global) 4 sampled,68,500000,85,68,21.3
+run2,linear score (global) [code before the change],68,500000,1495,1242,22.0
+run2,linear score (global) 32 sampled [code before the change],68,500000,988,795,30.9
+run2,linear score (global) 16 sampled [code before the change],68,500000,534,395,33.4
+run2,boosted trees,68,50000,42675,32884,627.6
+run2,ranking trees,68,50000,36653,31150,539.0
+run2,set-attention,68,7500,146327,110969,2151.9
+run2,CNN,68,7500,139301,109452,2048.5
+run2,deeper MLP,68,7500,333605,232692,4906.0
+run2,linear score (global),256,500000,3770,3160,14.7
+run2,linear score (global) 32 sampled,256,500000,722,528,22.6
+run2,linear score (global) 16 sampled,256,500000,654,256,40.8
+run2,linear score (global) 64 sampled,256,500000,1182,1019,18.5
+run2,linear score (global) 8 sampled,256,500000,163,135,20.3
+run2,linear score (global) 4 sampled,256,500000,95,72,23.7
+run2,linear score (global) [code before the change],256,500000,6287,5034,24.6
+run2,linear score (global) 32 sampled [code before the change],256,500000,874,755,27.3
+run2,linear score (global) 16 sampled [code before the change],256,500000,453,377,28.3
+run2,boosted trees,256,50000,153082,137489,598.0
+run2,ranking trees,256,50000,147278,128361,575.3
+run2,set-attention,256,7500,561400,443518,2193.0
+run2,CNN,256,7500,597332,471092,2333.3
+run2,deeper MLP,256,7500,1184036,936480,4625.1
+run3,linear score (global),68,500000,795,689,11.7
+run3,linear score (global) 32 sampled,68,500000,524,469,16.4
+run3,linear score (global) 16 sampled,68,500000,337,240,21.1
+run3,linear score (global) 64 sampled,68,500000,1213,941,19.0
+run3,linear score (global) 8 sampled,68,500000,161,126,20.1
+run3,linear score (global) 4 sampled,68,500000,88,82,22.1
+run3,linear score (global) [code before the change],68,500000,1396,1174,20.5
+run3,linear score (global) 32 sampled [code before the change],68,500000,881,784,27.5
+run3,linear score (global) 16 sampled [code before the change],68,500000,429,393,26.8
+run3,boosted trees,68,50000,38674,31290,568.7
+run3,ranking trees,68,50000,36915,30049,542.9
+run3,set-attention,68,7500,146166,111120,2149.5
+run3,CNN,68,7500,145450,110832,2139.0
+run3,deeper MLP,68,7500,309077,223660,4545.3
+run3,linear score (global),256,500000,3692,2890,14.4
+run3,linear score (global) 32 sampled,256,500000,652,527,20.4
+run3,linear score (global) 16 sampled,256,500000,280,265,17.5
+run3,linear score (global) 64 sampled,256,500000,1361,1071,21.3
+run3,linear score (global) 8 sampled,256,500000,150,140,18.8
+run3,linear score (global) 4 sampled,256,500000,99,71,24.7
+run3,linear score (global) [code before the change],256,500000,5617,4946,21.9
+run3,linear score (global) 32 sampled [code before the change],256,500000,903,788,28.2
+run3,linear score (global) 16 sampled [code before the change],256,500000,403,394,25.2
+run3,boosted trees,256,50000,159814,137222,624.3
+run3,ranking trees,256,50000,134293,114023,524.6
+run3,set-attention,256,7500,589818,439018,2304.0
+run3,CNN,256,7500,625628,446497,2443.9
+run3,deeper MLP,256,7500,1232727,915232,4815.3
