@@ -333,10 +333,31 @@ ml_feature_linear(struct proc *p, struct vm_page *page, int f)
 // look only at those. Pages outside the sample are neither scanned nor scored
 // this time, so their accessed bits keep accumulating until a later sample.
 static void
-ml_sample(struct proc *p, struct vm_page **candidates, int count, int k)
+ml_sample(struct proc *p, struct vm_page **candidates, int count, int k, int mode)
 {
+  // The candidates come in load order (the owner's list appends at the tail), so the newest are at the end.
+  if(mode == 2){                       // evenly spread: every (count/k)-th page, the start moves on by one each eviction
+    int stride = count / k;
+    int start = (int)(p->vm.ml_hand++ % (uint64)stride);
+    for(int i = 0; i < k; i++){
+      int j = start + i * stride;
+      struct vm_page *t = candidates[i];
+      candidates[i] = candidates[j];
+      candidates[j] = t;
+    }
+    return;
+  }
+  int fixed = 0;
+  if(mode == 1){                       // the k/4 newest loaded pages first, the rest of the sample random
+    fixed = k / 4 > 0 ? k / 4 : 1;
+    for(int i = 0; i < fixed; i++){
+      struct vm_page *t = candidates[i];
+      candidates[i] = candidates[count - 1 - i];
+      candidates[count - 1 - i] = t;
+    }
+  }
   uint64 x = p->vm.ml_rng ? p->vm.ml_rng : 0x9E3779B97F4A7C15ULL;
-  for(int i = 0; i < k; i++){
+  for(int i = fixed; i < k; i++){
     x ^= x << 13;
     x ^= x >> 7;
     x ^= x << 17;
@@ -360,7 +381,7 @@ choose_ml(struct proc *p, struct vm_page **candidates, int count)
   if(net && (k == 0 || k > MLNET_MAXN))
     k = MLNET_MAXN;
   if(k > 0 && count > k){
-    ml_sample(p, candidates, count, k);
+    ml_sample(p, candidates, count, k, w->sample_mode);
     count = k;
   }
   uint64 now = p->vm.ml_scans;

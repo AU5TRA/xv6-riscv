@@ -50,18 +50,22 @@ main(int argc, char **argv)
   if(policy == VM_POLICY_ML){
     // "model@k": the same model, scanning and scoring only k random candidates per eviction
     char name[32];
-    int sample_k = 0;
+    int sample_k = 0, sample_mode = 0;   // "model@32" random, "model@32n" newest + random, "model@32s" evenly spread
     strcpy(name, argv[2]);
     for(char *at = name; *at; at++)
       if(*at == '@'){
         *at = 0;
         sample_k = atoi(at + 1);
+        for(char *c = at + 1; *c; c++){
+          if(*c == 'n') sample_mode = 1;
+          if(*c == 's') sample_mode = 2;
+        }
         break;
       }
     for(int i = 0; i < ML_NET_NAMES; i++){
       if(strcmp(name, ml_net_names[i].name) == 0){
         // built-in network or trees: probation 2 as in the simulator runs; the weights field is only a stub
-        struct vm_ml_weights w = { 1, { 0 }, { 0 }, 2, sample_k, ml_net_names[i].id };
+        struct vm_ml_weights w = { 1, { 0 }, { 0 }, 2, sample_k, ml_net_names[i].id, sample_mode };
         if(vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0){
           fprintf(2, "vmrun: vmctl VM_SET_ML_WEIGHTS failed\n");
           exit(1);
@@ -75,6 +79,7 @@ main(int argc, char **argv)
       if(strcmp(name, ml_models[i].name) == 0){
         struct vm_ml_weights w = ml_models[i].w;
         w.sample_k = sample_k;
+        w.sample_mode = sample_mode;
         if(vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0){
           fprintf(2, "vmrun: vmctl VM_SET_ML_WEIGHTS failed\n");
           exit(1);
