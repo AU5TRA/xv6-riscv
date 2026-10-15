@@ -6,6 +6,7 @@ Each Kaggle round has its own folder; nothing in an older folder is ever changed
   round5/  more streams at 5% and 20% memory, eight policies each (N1 of the paper handoff; done)
   round6/  sampled linear scores and the five heavier models on all 74 streams at 10% (R1 and R2 of the paper handoff; done)
   round7/  LeCaR (kernel form) at 5% and 20% memory, 74 streams (extra for R4; replaced by a run on the PC; not run on Kaggle)
-  round8/  other ways of choosing the sampled pages (newest + random, evenly spread) in the kernel, six variants on 74 streams (needs the NEW kernel in the package)
+  round8/  other ways of choosing the sampled pages (newest + random, evenly spread) in the kernel, six variants on 74 streams (needs the NEW kernel in the package; 21 streams done)
+  round8b/ the other 53 streams of round 8, same package, new notebook files (notebook_5..8)
   round9/  the five heavier models at 5% and 20% memory on 74 streams (6 notebooks; queued after round 8)   <- current
 Build a new round with:  python3 tools/kaggle/make_package.py --lecar --round 7  (or --classic / --more-streams / --models-all)   (refuses to touch a folder that already has a package)
