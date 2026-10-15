@@ -74,7 +74,7 @@ Claim as in section 0; title "Learned Page Replacement from What the Kernel Alre
 | Kernel vs simulator: within ~2% on average for ARC, LHD, S3-FIFO, LeCaR, linear, sampled linear | both | FINAL | report "Does the simulator predict the kernel?" |
 | First version of the training data rerun: 203 of 300 linear models fail on PageRank; DAgger, 3 rounds: rescues one failing model, not others ("DAgger did not help" is NOT reproduced) | simulator | FINAL | `r3_first_version.*`, `r3_dagger_v1.csv`; report appendix |
 | Instruction counts per eviction, 20/68/260/516 pages, every policy | xv6, counting mode, **patbench uniform only** | FINAL for patbench | `cost_grid.csv`; report table "cost by size" |
-| Rough cost check on the real programs (timer ticks in normal runs, relative to Aging): fair for the linear score (2.6–3.1x Aging vs 2.81); **ARC and LHD cost 1.6–4.0x Aging on real programs vs 1.47 / 1.75 on patbench** | from the xv6 runs | PRELIMINARY (exact per-workload counts planned) | `cost_from_runs.csv` |
+| Exact instruction counts on one stream of each workload (QEMU counting mode, current kernel code): linear 241–255 instructions per page (patbench 247), ARC 162–230 (176), LHD 205–240 (212); only matmul and sort (8–9 pages) cost more per page. **Patbench is representative.** (An earlier timer-based check that said ARC/LHD cost up to 2x more on real programs was wrong: the timer measures emulated time, not instructions.) Break-even recomputed with these counts moves by at most 0.02 | xv6, counting mode | FINAL | `kernel_eval_icount.csv`, `cost_benefit_exact*.csv`; report "Exact counts on the real programs" |
 | Disk reads (SSD 63 µs, hard disk 8.9 ms) and scoring-code speed (linear 1.35 / 1.52 / 2.11 µs: no walk / walk / cold caches) | thesis PC | FINAL for this PC | `device_latency.csv`, `native_timing*.csv` |
 | Time vs Clock and break-even (uses the patbench counts) | computed | FINAL as computed; ARC/LHD too favourable | `cost_benefit_*.csv`, `breakeven_*.tex` |
 | Compiler settings: `-O3` cuts the linear score 11%, Aging 20% (not applied) | xv6, counting mode | FINAL | `compiler_flags.csv` |
@@ -97,7 +97,7 @@ Exact counts (patbench uniform; `cost_grid.csv`), by number of pages to choose f
 | CNN / MLP | 580,850 / 1,006,653 | 1,987,567 / 3,422,321 | 7.6M / 13.1M | 15.0M / 26.0M |
 
 Never quote one number as "the cost": it grows with the number of pages (linear about 340–360 instructions per page). Sampling stops the growth.
-These counts come from one synthetic benchmark; the real-program check says ARC and LHD are up to ~2x dearer than this table shows.
+These counts come from patbench; exact counts on one stream of each workload agree (linear within 3%, ARC/LHD within about 10%, up to 30% for ARC on SpMV). Since 2026-10-15 the kernel has the cheaper linear-score code: 16,818 at 68 pages (table above shows the earlier code's 22,803).
 
 ### 4. Not done / open
 * Exact instruction counts on the real programs (one stream per workload) — approved by GawwyG, planned.

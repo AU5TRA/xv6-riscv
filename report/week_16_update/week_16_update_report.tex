@@ -52,8 +52,7 @@ Memory is 5, 10 or 20\% of each program's own pages. Intervals are 95\% interval
   The cost then stops growing with memory size (Table~\ref{tab:costsizes}). None of five other ways of choosing the pages beat random (simulator).
 \item \textbf{LeCaR}, a published learning policy, is worse than Clock in the form a kernel can run, at every memory size (1.051, 1.113 and 1.212 at 5, 10 and 20\%; all intervals above 1).
 \item \textbf{Cost.} Choosing a victim with the linear score costs about 260 instructions per page looked at in the current kernel (16\,800 with 68 pages, 134\,000 with 516; 22\,800 and 183\,000 before the code change of Section~\ref{sec:reduce}, which keeps every victim). In time, that is about 0.8 to 1.6\,\textmu s per eviction on this PC's processor,
-  small against a measured SSD read (63\,\textmu s) and tiny against a hard-disk read (8.9\,ms), so on this PC it pays for itself. \textbf{But the instruction counts come from one synthetic benchmark};
-  a rough check on the real programs (Section~\ref{sec:costreal}) shows that this is fair for the linear score but underestimates ARC and LHD by up to about 2 times. Exact counts on the real programs are planned.
+  small against a measured SSD read (63\,\textmu s) and tiny against a hard-disk read (8.9\,ms), so on this PC it pays for itself. The counts were first measured on one synthetic benchmark (patbench), then checked exactly on one stream of each of the 14 workloads: the linear score costs 241--255 instructions per page on every workload with more than 40 pages, against 247 on patbench (Section~\ref{sec:costreal}).
 \end{itemize}
 
 \textbf{Corrections to earlier reports.} (1) ``Three DAgger rounds did not help'' (first version of the study) is not reproduced: rerun with the current seeds, DAgger rescued one failing model and not
@@ -228,21 +227,20 @@ The cost of the linear score, Aging, LFU, ARC, LHD, LeCaR and the heavier models
 updates the counters, computes five features, four of them logarithms done in whole numbers, and adds up the weighted features). Clock and S3-FIFO usually stop after a few pages, so they barely grow. The sampled scores
 stop growing once memory holds more pages than the sample. A single number such as ``16\,800 instructions'' is only the 68-page value. The table is from the kernel with the cheaper linear-score code; before it, the linear score cost 22\,803, 91\,720 and 183\,311 instructions at 68, 260 and 516 pages (\code{cost\_grid\_before\_A.csv}). Other policies moved by at most a few percent from the change of build (the networks 2--3\% lower, LHD 1.4\% higher); every fault count in this report is from before the change, and was checked to be identical after it (Section~\ref{sec:reduce}).
 
-\subsection{A rough check on the real programs}
+\subsection{Exact counts on the real programs}
 \label{sec:costreal}
 
-Every kernel run also recorded the time spent choosing victims and how many pages there were to choose from. These runs were not in instruction-counting mode, so the time is emulated time and depends on the PC's load;
-to cancel the machine's speed, each policy is divided by Aging on the same streams (Aging scans every page and does little else). Runs on the thesis PC only, 10\% memory:
+To check the patbench counts, one stream of each workload was run at 10\% memory in QEMU's instruction-counting mode for every policy (the heavier models on the nine shorter workloads), with the current kernel code. Instructions per page looked at (per eviction for Clock and the sampled scores):
 
 \begin{table}[h]
 \centering\small
-\resizebox{\linewidth}{!}{\input{tables/cost_runs}}
-\caption{Time spent choosing victims relative to Aging, median over each workload's streams (rough; \code{tools/ml2/cost\_from\_runs.py}). First row: the exact patbench ratio.}
+\resizebox{\linewidth}{!}{\input{tables/cost_exact}}
+\caption{Exact instructions per page looked at (Aging to the linear score) and per eviction (Clock and the sampled scores), one stream per workload (\code{kernel\_eval\_icount.csv}). First row: patbench at 68 pages.}
 \end{table}
 
-For the linear score patbench is fair: 2.6 to 3.1 times Aging on every workload with more than 40 pages, against 2.81 on patbench (lower on matmul and sort, which have only 9 and 16 pages, so the fixed part of each eviction weighs more).
-For ARC and LHD it is not: on the real programs they cost 1.6 to 4.0 times Aging, against 1.47 and 1.75 on patbench, so the patbench counts underestimate them by up to about 2 times, and Clock and LeCaR are also somewhat dearer.
-Exact counts on one stream of each workload are planned; until then the costs of ARC and LHD in this report are too low.
+Patbench is representative. The linear score costs 241--255 instructions per page on every workload with more than 40 pages (247 on patbench); Aging and LeCaR 118--123 (119, 120); ARC 162--230 (176) and LHD 205--240 (212), so patbench is within about 10\% for ARC and LHD on most workloads and up to 30\% low on one (ARC on SpMV). Only matmul and sort, with 8 and 9 pages, cost more per page, because the fixed part of each eviction weighs more there. The sampled scores cost what patbench says (8\,300--8\,600 for 32 pages when there are more than 32). The heavier models cost 28\,500 instructions per page on every workload. Recomputing every time and break-even figure below with these per-workload counts instead of patbench changes the time against Clock by at most 0.02 (\code{cost\_benefit\_exact*.csv}).
+
+\textbf{A correction.} An earlier version of this report estimated, from the timer in the ordinary (not instruction-counting) runs, that ARC and LHD cost up to twice as much on the real programs as on patbench. The exact counts show that this is not so: the timer measures emulated time, which also depends on how the emulator handles memory (ARC and LHD walk lists of pages and ghost entries spread over memory), not just on the number of instructions.
 
 \subsection{From instructions to time}
 
@@ -318,7 +316,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 
 \begin{itemize}
 \item \textbf{One operating system:} xv6 on QEMU, one benchmark process at a time. Nothing here says what happens in Linux.
-\item \textbf{Instruction counts come from one synthetic benchmark;} the rough check shows ARC and LHD are dearer on real programs. Exact counts on the real programs: planned.
+\item \textbf{Instruction counts}: exact, on patbench and on one stream of each workload; time is derived from them, not measured on a whole fault.
 \item \textbf{Time is measured only in parts:} exact instruction counts, a bare disk read, and the scoring code's speed on an x86 processor. A whole xv6 page fault on real hardware was never timed.
 \item \textbf{Fourteen workloads,} some close variants of each other; the heavier models have only ten streams at 5 and 20\% memory (round 9 prepared).
 \item \textbf{Adapted forms:} ARC, LHD, S3-FIFO and LeCaR ran in the form a kernel can run, not as published.
@@ -333,7 +331,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 \label{app:breakeven}
 
 The fault cost above which a policy beats Clock on one workload, at 10\% memory, on this PC's processor (0.047\,ns per instruction): the extra instructions spent choosing a victim divided by the faults saved per eviction.
-Compare with 63\,\textmu s (SSD) and 8.9\,ms (hard disk). ``never'': the policy does not save faults there. Uses the patbench instruction counts, so ARC is probably too favourable.
+Compare with 63\,\textmu s (SSD) and 8.9\,ms (hard disk). ``never'': the policy does not save faults there. Uses the patbench instruction counts (the exact per-workload counts change these by at most a few percent).
 
 \begin{table}[h]
 \centering\scriptsize
@@ -431,7 +429,8 @@ every policy and model in the kernel & xv6 (PC + Kaggle rounds 1--6) & 3\,405 ru
 LeCaR in the kernel & xv6 (PC) & 74 streams $\times$ 3 sizes & \code{kernel\_eval\_lecar.csv} \\
 kernel against simulator & both & 74 streams & \code{kernel\_vs\_sim*.csv} \\
 instruction counts (cost grid) & xv6, counting mode & 28 policies $\times$ 4 sizes & \code{cost\_grid.csv} \\
-time spent choosing, real programs (rough) & from the xv6 runs & 2\,764 PC runs & \code{cost\_from\_runs.csv} \\
+exact instruction counts on the real programs & xv6, counting mode & 14 workloads, 241 runs & \code{kernel\_eval\_icount.csv} \\
+time spent choosing, real programs (timer, superseded) & from the xv6 runs & 2\,764 PC runs & \code{cost\_from\_runs.csv} \\
 scoring code speed & this PC's processor & & \code{native\_timing*.csv} \\
 disk read time & this PC (Windows) & SSD, hard disk & \code{device\_latency.csv} \\
 time and break-even & computed & & \code{cost\_benefit\_*.csv} \\
@@ -440,7 +439,6 @@ compiler settings & xv6, counting mode & 5 builds & \code{compiler\_flags.csv} \
 sampling schemes in the kernel (cost; 1 stream) & xv6 & & Section~\ref{sec:sampling} \\
 \textit{prepared, not run:} sampling schemes on 74 streams & Kaggle round 8 + PC & 444 runs & \\
 \textit{prepared, not run:} heavier models, 5 and 20\%, 74 streams & Kaggle round 9 + PC & 540 runs & \\
-\textit{planned:} exact instruction counts on the real programs & xv6, counting mode & 14 workloads & \\
 \bottomrule
 \end{tabular}
 \end{center}

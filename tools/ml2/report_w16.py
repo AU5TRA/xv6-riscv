@@ -275,6 +275,31 @@ def sampling_more_table():
     (OUT / "sampling_more.tex").write_text(tab(body, ["scheme", "pages scored per eviction (10\\%)", "estimated instructions (10\\%)", "5\\%", "10\\%", "20\\%"]))
 
 
+def cost_exact_table():
+    """Exact instructions on one stream of each workload (QEMU counting mode, kernel_eval_icount.csv): per page looked at for policies that
+    look at every page, per eviction for Clock and the sampled scores; first row: patbench uniform at 68 pages (cost_grid.csv)."""
+    grid = {}
+    for r in csv.DictReader(open(R / "cost_grid.csv")):
+        if r["frames"] == "64":
+            grid[r["policy"] + (":" + r["model"] if r["model"] else "")] = float(r["select_instructions_per_eviction"])
+    d = defaultdict(dict)
+    pages = {}
+    for r in csv.DictReader(open(R / "kernel_eval_icount.csv")):
+        if r["status"] != "ok":
+            continue
+        ev = max(int(r["evictions"]), 1)
+        pol = r["policy"] + (":" + r["model"] if r["model"] else "")
+        d[wl_of(r["stem"])][pol] = (100 * int(r["select_ticks"]) / ev, int(r["candidates_scanned"]) / ev)
+        pages[wl_of(r["stem"])] = int(r["candidates_scanned"]) / ev
+    per_page = ["aging", "lecar", "arck", "lhd", "ml:global"]
+    per_ev = ["clock", "ml:global@32", "ml:global@16"]
+    body = [["patbench (68 pages)", "68"] + [f"{grid[p] / 68:.0f}" for p in per_page] + [fmt_int(grid[p]) for p in per_ev]]
+    for w in sorted(d):
+        body.append([w, f"{pages[w]:.0f}"] + [f"{d[w][p][0] / d[w][p][1]:.0f}" if p in d[w] else "--" for p in per_page] +
+                    [fmt_int(d[w][p][0]) if p in d[w] else "--" for p in per_ev])
+    (OUT / "cost_exact.tex").write_text(tab(body, ["workload", "pages", "Aging", "LeCaR", "ARC", "LHD", "linear", "Clock", "32 sampled", "16 sampled"]))
+
+
 def copies():
     for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer", "lecar"]:
         shutil.copy(W15 / f"{n}.tex", OUT / f"{n}.tex")
@@ -283,5 +308,5 @@ def copies():
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     ci_table(); cost_table(); breakeven_tables(); copies()
-    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table(); sampling_more_table()
+    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table(); sampling_more_table(); cost_exact_table()
     print("written", OUT)

@@ -26,6 +26,7 @@ R = ps.ROOT / "report" / "results2"
 SSD_US, HDD_US = 100.0, 8000.0     # assumed fault costs (the defaults of week 15); overridden by --ssd-us / --hdd-us
 NS_PER_INSTR = 1.0                 # assumed 1 ns per instruction; overridden by --ns-per-instr (measured, S2)
 OUT_NAME = "cost_benefit.csv"
+EXACT = False           # --exact: instruction counts measured on each workload (kernel_eval_icount.csv) instead of the patbench line
 OWN_SPEED = {}          # --own-speed: (policy, model) -> ns per instruction measured natively for that policy (the sampled scores run slower per instruction)
 for _i, _a in enumerate(__import__("sys").argv):
     if _a == "--ssd-us":
@@ -36,6 +37,8 @@ for _i, _a in enumerate(__import__("sys").argv):
         NS_PER_INSTR = float(__import__("sys").argv[_i + 1])
     elif _a == "--own-speed":
         OWN_SPEED = {("ml", "global@32"): 525 / 8465, ("ml", "global@16"): 255 / 4237, ("ml", "global@64"): 1016 / 16911}   # native ns / kernel instructions at 68 pages (native_timing_A.csv, cost_grid.csv)
+    elif _a == "--exact":
+        EXACT = True
     elif _a == "--out":
         OUT_NAME = __import__("sys").argv[_i + 1]
 POL = [("fifo", ""), ("aging", ""), ("lfu", ""), ("ml", "global"), ("ml", "own"), ("ml", "cnn-kv"), ("ml", "mlp-kv"),
@@ -66,8 +69,29 @@ def cost_model():
     return out
 
 
+FLAT = ("clock", "s3fifo")      # their cost hardly grows with the number of pages; so do the sampled scores (model@k)
+
+
+def exact_costs():
+    """(workload group, policy, model) -> function(pages to choose from) -> instructions per eviction, from one stream of each workload
+    in QEMU's instruction-counting mode (kernel_eval_icount.csv): instructions per page for policies that look at every page, per
+    eviction for Clock, S3-FIFO and the sampled scores."""
+    grp = lambda s: "kv-T" if s.startswith("kv-T") else s.split("-")[0]
+    out = {}
+    for r in csv.DictReader(open(R / "kernel_eval_icount.csv")):
+        if r["status"] != "ok":
+            continue
+        ev = max(int(r["evictions"]), 1)
+        per_ev = 100 * int(r["select_ticks"]) / ev
+        pages = max(int(r["candidates_scanned"]) / ev, 1)
+        flat = r["policy"] in FLAT or "@" in r["model"]
+        out[(grp(r["stem"]), r["policy"], r["model"])] = (lambda n, c=per_ev: c) if flat else (lambda n, c=per_ev / pages: c * n)
+    return out
+
+
 def main():
     cm = cost_model()
+    ex = exact_costs() if EXACT else {}
     rows = []
     for f in [str(R / "kernel_eval_all.csv")]:       # the merged file: every distinct kernel run, all streams
         rows += [r for r in csv.DictReader(open(f)) if r["status"] == "ok" and r["fraction"] == "0.1"]
@@ -92,7 +116,8 @@ def main():
             continue
         frames = int(c["frames"])
         cf, ce = fl(c), max(int(c["evictions"]), 1)
-        cc = cm[("clock", "")](frames)
+        pages = int(c["candidates_scanned"]) / ce if c["candidates_scanned"] else frames + 4      # pages to choose from, this stream
+        cc = ex[(g, "clock", "")](pages) if (g, "clock", "") in ex else cm[("clock", "")](frames)
         for (p, m), r in d.items():
             if (p, m) == ("clock", ""):
                 continue
@@ -103,7 +128,7 @@ def main():
             if ck not in cm:
                 continue
             ev = max(int(r["evictions"]), 1)
-            cost = cm[ck](frames)
+            cost = ex[(g,) + ck](pages) if (g,) + ck in ex else cm[ck](frames)
             fr = fl(r) / cf
             saved = (cf - fl(r)) / ce                    # faults saved per Clock eviction
             extra = cost - cc
