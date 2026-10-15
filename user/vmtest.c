@@ -1154,6 +1154,97 @@ data_invariance(void)
   return vmcheck();
 }
 
+// B2 of the paper handoff: data-invariance for the learned linear score (VM_POLICY_ML, the default global weights) with the sampled path.
+// data_invariance() runs at the baseline + 8 frames, so the policy never has more than 32 candidates and the sampled path (more than
+// sample_k candidates) never ran. Here the limit is the baseline + 40 frames (below the workload's 64 pages, so it still pages), with
+// sample_k = 32 and, as the control, sample_k = 0 (every candidate), both prefetch settings. Every run must return the right data with no
+// policy fallback. That the sampled path really ran is shown by the cost: the kernel's candidates_scanned counts the candidates collected,
+// not the ones scored, so instead the ticks spent choosing a victim must be lower with sampling than in the control, and the
+// victims must differ (the faults differ).
+struct sampling_result { uint64 evictions, faults, select_ticks, checksum, fallbacks; };
+
+static int
+sampling_child(int sample_k, int async, uint64 limit, int fd)
+{
+  struct vmstats before, stats;
+  uint checksum = 0;
+  struct vm_ml_weights w = { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 204, -107, 82, -135, 98, 0, 0, 0 }, 4, sample_k, 0 };
+
+  if(quiesce_prefetch(&before) < 0 ||
+     vmctl(VM_SET_LIMIT, VM_LIMIT_UNLIMITED) < 0 ||
+     vmctl(VM_SET_ML_WEIGHTS, (uint64)&w) < 0 ||
+     vmctl(VM_SET_POLICY, VM_POLICY_ML) < 0 ||
+     vmctl(VM_PREFETCH_MODE, async) < 0 ||
+     vmctl(VM_PREFETCH_ENABLE, 1) < 0 ||
+     vmctl(VM_PREFETCH_AUTOMATIC, 1) < 0 ||
+     vmctl(VM_RESET_STATS, 0) < 0)
+    return -1;
+  if(vmstats(&before) < 0 || before.resident_count > limit)
+    return -1;
+  if(run_invariant_workload(limit, &checksum, &stats) < 0)
+    return -1;
+  if(stats.evictions == 0 || stats.prefetch_accepted == 0)
+    return -1;
+  struct sampling_result r = { stats.evictions, stats.swap_faults, stats.select_ticks, checksum, stats.policy_fallbacks };
+  if(write(fd, &r, sizeof r) != sizeof r)
+    return -1;
+  return checksum == expected_workload_checksum() && stats.policy_fallbacks == 0 ? 0 : -1;
+}
+
+static int
+sampling_run(int sample_k, int async, uint64 limit, struct sampling_result *r)
+{
+  int fds[2];
+  if(pipe(fds) < 0)
+    return -1;
+  int pid = fork();
+  if(pid < 0)
+    return -1;
+  if(pid == 0){
+    close(fds[0]);
+    exit(sampling_child(sample_k, async, limit, fds[1]) == 0 ? 0 : 1);
+  }
+  close(fds[1]);
+  int status;
+  int n = read(fds[0], r, sizeof *r);
+  close(fds[0]);
+  if(wait(&status) != pid || status != 0 || n != sizeof *r){
+    printf("vmtest sampling-invariance: sample_k=%d async=%d FAILED\n", sample_k, async);
+    return -1;
+  }
+  return 0;
+}
+
+static int
+sampling_invariance(void)
+{
+  struct vmstats base;
+  if(vmstats(&base) < 0)
+    return -1;
+  uint64 limit = base.resident_count + 40;
+  if(limit > VM_MAX_RESIDENT_LIMIT)
+    return -1;
+  for(int async = 0; async < 2; async++){
+    struct sampling_result s, c;
+    if(sampling_run(32, async, limit, &s) < 0 || sampling_run(0, async, limit, &c) < 0)
+      return -1;
+    uint64 s_per = s.select_ticks * 100 / s.evictions, c_per = c.select_ticks * 100 / c.evictions;
+    printf("vmtest sampling-invariance: async=%d limit=%d checksum=%x/%x fallbacks=%d/%d evictions=%d/%d faults=%d/%d "
+           "ticks_per_eviction=%d.%d/%d.%d (sampled/control)\n",
+           async, (int)limit, (uint)s.checksum, (uint)c.checksum, (int)s.fallbacks, (int)c.fallbacks,
+           (int)s.evictions, (int)c.evictions, (int)s.faults, (int)c.faults,
+           (int)(s_per / 100), (int)(s_per % 100), (int)(c_per / 100), (int)(c_per % 100));
+    if(s.checksum != expected_workload_checksum() || c.checksum != expected_workload_checksum())
+      return -1;
+    if(s_per >= c_per || s.faults == c.faults){
+      printf("vmtest sampling-invariance: the sampled run does not look sampled (ticks per eviction %d against %d, faults %d against %d)\n",
+             (int)(s_per / 100), (int)(c_per / 100), (int)s.faults, (int)c.faults);
+      return -1;
+    }
+  }
+  return vmcheck();
+}
+
 // Phase 2 Step 9: the recorded per-policy baseline.  Same deterministic
 // workload as data-invariance, prefetch disabled, so the numbers isolate
 // victim selection from prefetch behaviour.  These are the counts a later
@@ -1485,6 +1576,8 @@ run(char *name)
     return policy_correctness(requested_policy);
   if(strcmp(name, "data-invariance") == 0)
     return data_invariance();
+  if(strcmp(name, "sampling-invariance") == 0)
+    return sampling_invariance();
   if(strcmp(name, "baseline") == 0)
     return policy_baseline();
   if(strcmp(name, "clock-reference") == 0)
