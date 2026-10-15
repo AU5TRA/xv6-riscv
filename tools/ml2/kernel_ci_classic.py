@@ -8,6 +8,7 @@ counts once, like one with 2). The interval resamples workloads, then streams in
     python3 kernel_ci_classic.py   -> report/results2/kernel_ci_classic.csv, and a short table on screen
 """
 import csv
+import zlib
 import math
 import sys
 from collections import defaultdict
@@ -60,28 +61,17 @@ def main():
     d = defaultdict(dict)                      # (fraction, policy) -> stem -> faults
     for r in rows:
         d[(r["fraction"], r["policy"] + (":" + r["model"] if r["model"] else ""))][r["stem"]] = f(r)
-    # Published intervals must not move when new comparisons or new runs are added: every draw comes from one random generator in a
-    # fixed order, so a comparison computed earlier in the loop shifts every later one. The first loop therefore computes exactly the
-    # (memory size, comparison) cells that were published (kernel_ci_<metric>_published.txt, frozen 2026-10-15) in the original order;
-    # everything else goes to a second loop with its own generator.
-    name = "classic" if metric == "faults" else "writes"
-    published = [tuple(l.strip().split(",")) for l in open(R / f"kernel_ci_{name}_published.txt") if l.strip()]
-    pub = set(published)
+    # Every comparison has its own random generator, seeded from (metric, memory size, policy, reference), so adding comparisons or runs
+    # never changes another comparison's interval. (Until 2026-10-15 one generator, seed 7, served all comparisons in turn, so new data in
+    # one comparison shifted the interval endpoints of every later one by up to about 0.01. Intervals were recomputed once with the
+    # per-comparison seeds; point estimates did not change.)
     out = []
-    rng = np.random.default_rng(7)
-    for fr in ("0.05", "0.1", "0.2"):
-        for a, b in PAIRS:
-            if (fr, a, b) in pub:
-                row = interval(d, fr, a, b, rng)
-                if row:
-                    out.append(row)
-    rng2 = np.random.default_rng(7)
     for fr in ("0.05", "0.1", "0.2"):
         for a, b in PAIRS + NEW_PAIRS:
-            if (fr, a, b) not in pub:
-                row = interval(d, fr, a, b, rng2)
-                if row:
-                    out.append(row)
+            seed = zlib.crc32(f"{metric}|{fr}|{a}|{b}".encode()) & 0xFFFFFFFF
+            row = interval(d, fr, a, b, np.random.default_rng(seed))
+            if row:
+                out.append(row)
     with open(R / ("kernel_ci_classic.csv" if metric == "faults" else "kernel_ci_writes.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["fraction", "policy", "against", "workloads", "streams", "faults_ratio" if metric == "faults" else "writes_ratio", "ci95_low", "ci95_high"])

@@ -29,10 +29,12 @@ def ci_table():
     d = {(r["policy"], r["against"], r["fraction"]): r for r in rows}
     pairs = [("arck", "clock"), ("lhd", "clock"), ("s3fifo", "clock"), ("ml:global", "clock"), ("ml:global", "arck"), ("ml:global", "lhd"), ("lecar", "clock"), ("ml:global", "lecar"),
              ("ml:global@32", "clock"), ("ml:global@16", "clock"), ("ml:global@32", "ml:global"), ("ml:global@16", "ml:global"),
+             ("ml:global@32", "arck"), ("ml:global@32", "lhd"), ("ml:global@32", "s3fifo"), ("ml:global@32", "lecar"),
              ("ml:cnn-all", "clock"), ("ml:mlp-all", "clock"),
              ("ml:cnn-all", "arck"), ("ml:mlp-all", "arck"), ("ml:attention-all", "arck"), ("ml:trees-all", "arck"),
              ("ml:cnn-all", "ml:global"), ("ml:mlp-all", "ml:global"), ("ml:attention-all", "ml:global"),
-             ("ml:trees-all", "ml:global"), ("ml:ranktrees-all", "ml:global")]
+             ("ml:trees-all", "ml:global"), ("ml:ranktrees-all", "ml:global"),
+             ("ml:cnn-all", "ml:global@32"), ("ml:mlp-all", "ml:global@32"), ("ml:attention-all", "ml:global@32"), ("ml:trees-all", "ml:global@32"), ("ml:ranktrees-all", "ml:global@32")]
     body = []
     for a, b in pairs:
         line = [f"{NAME[a]} against {NAME[b]}"]

@@ -362,7 +362,7 @@ def kernel_main(metric="faults"):
     for r in rows:
         d[(r["fraction"], r["policy"] + (":" + r["model"] if r["model"] else ""))][r["stem"]] = f(r)
     cols = ["btree", "graph", "kv", "kv-T", "lzw", "matmul", "sort", "heap", "join", "spmv", "chase", "bloom", "pat", "app"]
-    A = [("fifo", "FIFO"), ("aging", "Aging"), ("lfu", "LFU"), ("s3fifo", "S3-FIFO"), ("lecar", "LeCaR"), ("lhd", "LHD"), ("arck", "ARC"), ("ml:global", "linear, global")]
+    A = [("fifo", "FIFO"), ("aging", "Aging"), ("lfu", "LFU"), ("s3fifo", "S3-FIFO"), ("lecar", "LeCaR"), ("lhd", "LHD"), ("arck", "ARC"), ("ml:global", "linear, global"), ("ml:global@32", "linear, 32 sampled")]
     B = [("ml:global", "linear, global"), ("arck", "ARC"), ("lhd", "LHD"), ("ml:cnn-all", "CNN"), ("ml:mlp-all", "deeper MLP"),
          ("ml:attention-all", "set-attention"), ("ml:trees-all", "boosted trees"), ("ml:ranktrees-all", "ranking trees")]
     for tag, pols in (("A", A), ("B", B)):

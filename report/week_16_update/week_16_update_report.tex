@@ -47,7 +47,8 @@ Memory is 5, 10 or 20\% of each program's own pages. Intervals are 95\% interval
   \textbf{We have not shown that a learned policy beats the best classical policy on average.}
 \item \textbf{Heavier models are not better than the linear score.} At 10\% memory (74 streams) the CNN, deeper MLP and set-attention are level with it (1.000, 0.998, 0.992); boosted trees (1.061)
   and ranking trees (1.476) are worse. They cost 20 to 150 times as many instructions.
-\item \textbf{Looking at fewer pages costs little.} Scoring 32 randomly chosen pages instead of all of them is level with scoring all (0.998), and 16 is 1.3\% worse (1.013), at 10\% memory on 74 streams.
+\item \textbf{Looking at fewer pages costs little.} Scoring 32 randomly chosen pages instead of all of them is level with scoring all (0.998), and 16 is 1.3\% worse (1.013), on 74 streams at 10\% memory.
+  At 5\% and 20\% the 32-page score gives 0.995 (interval 0.985 to 1.004) and 1.023 (0.97 to 1.09) of the full score, and 0.972 and 0.902 of Clock's faults (the 20\% interval, 0.83 to 0.98, is below 1; the 5\% one is not). At 20\% it loses most on the hash join (0.75 against 0.55 with all pages) and on graph (1.22 against 1.40: better).
   The cost then stops growing with memory size (Table~\ref{tab:costsizes}). None of five other ways of choosing the pages beat random (simulator).
 \item \textbf{LeCaR}, a published learning policy, is worse than Clock in the form a kernel can run, at every memory size (1.051, 1.113 and 1.212 at 5, 10 and 20\%; all intervals above 1).
 \item \textbf{Cost.} Choosing a victim with the linear score costs about 260 instructions per page looked at in the current kernel (16\,800 with 68 pages, 134\,000 with 516; 22\,800 and 183\,000 before the code change of Section~\ref{sec:reduce}, which keeps every victim). In time, that is about 0.8 to 1.6\,\textmu s per eviction on this PC's processor,
@@ -119,7 +120,7 @@ Everything else follows the original. LeCaR's two advisers (LRU and LFU in the p
 \begin{table}[h]
 \centering\footnotesize
 \input{tables/ci_main}
-\caption{The main comparisons, with 95\% intervals. Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the heavier models (CNN, MLP, set-attention, trees) have only ten streams, and the sampled scores were run at 10\% only.}
+\caption{The main comparisons, with 95\% intervals. Bold: the whole interval is below 1. At 10\% memory every row uses all 74 streams. At 5 and 20\% the heavier models (CNN, MLP, set-attention, trees) had only ten streams until round 9 began adding the rest (the rows now use whatever has finished; the stream counts are in \code{kernel\_ci\_classic.csv}), the 16-page score was run at 10\% only.}
 \label{tab:ci}
 \end{table}
 
@@ -166,8 +167,8 @@ boosted trees and ranking trees. They ran on all 74 streams at 10\% memory and o
 and throws out the highest score. With sampling it first picks $k$ pages at random and does all of that only for those $k$; the victim is the best of the $k$. The other pages are not touched (their ``used'' bits keep
 accumulating until a later sample picks them). We measure how many more faults this causes over a whole run, and how many instructions it saves.
 
-\textbf{In the kernel} ($k$ = 32 and 16, random, 10\% memory, 74 streams): 32 pages are level with all pages (0.998, interval 0.975 to 1.017) and beat Clock (0.912); 16 pages are 1.3\% worse than all pages (1.013, 0.98 to 1.04) and still beat Clock (0.926).
-Other values of $k$, other memory sizes and other ways of choosing the pages were tried in the simulator only (below); the kernel runs for other ways of choosing are prepared (Kaggle round 8) but not run.
+\textbf{In the kernel} (random, 74 streams): at 10\% memory 32 pages are level with all pages (0.998, interval 0.975 to 1.017) and beat Clock (0.912); 16 pages are 1.3\% worse than all pages (1.013, 0.98 to 1.04) and still beat Clock (0.926). At 5\% and 20\% the 32-page score was also run (all 74 streams): 0.995 [0.985, 1.004] and 1.023 [0.972, 1.089] of all pages; against Clock 0.972 [0.90, 1.09] and 0.902 [0.83, 0.98]; against ARC 1.027 and 0.916 [0.83, 1.00]. Where a stream never has more than 32 pages to choose from, sampling never happens and the runs must equal the full-scan runs: they do on all 36 such streams at 5\%, all 8 at 10\% and all 7 at 20\%. The kernel agrees with the simulator on the sampled score at every size (0.995, 0.998, 1.023 against 0.996, 1.002, 1.031). A data check that really samples (the workload at a limit above 32 pages, both prefetch settings, with a control) passes (\code{vmtest sampling-invariance}).
+Other values of $k$ and other ways of choosing the pages were tried in the simulator only (below); the kernel runs for other ways of choosing are prepared (Kaggle round 8) but not run.
 
 \textbf{In the simulator, all sizes we tried} (the first sweep: global linear score, 33 streams of the original six workloads at each memory size, 3 random seeds each; faults relative to looking at all pages).
 ``Score only'': every page is still scanned, only the scoring is limited to the sample. ``Scan and score'': only the sampled pages are scanned and scored, as in the kernel.
@@ -322,7 +323,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 \item \textbf{Fourteen workloads,} some close variants of each other; the heavier models have only ten streams at 5 and 20\% memory (round 9 prepared).
 \item \textbf{Adapted forms:} ARC, LHD, S3-FIFO and LeCaR ran in the form a kernel can run, not as published.
 \item \textbf{``All workloads'' means the six training workloads;} the other eight were never seen in training.
-\item \textbf{Sampling:} only random sampling at $k$ = 32 and 16, at 10\% memory, ran in the kernel, with one random seed.
+\item \textbf{Sampling:} only random sampling ran in the kernel: $k$ = 32 at 5, 10 and 20\%, $k$ = 16 at 10\%, with one random seed.
 \item \textbf{The cheaper linear-score code} (Section~\ref{sec:reduce}) is in the kernel only since 2026-10-15; every fault count here comes from builds before it (checked identical on 28 runs, one stream per workload for the linear score and its 32-page version; not on every stream). Its native timing was taken on a quiet PC (three runs).
 \item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph at 20\%); the tables show where.
 \end{itemize}
@@ -435,6 +436,7 @@ scoring code speed & this PC's processor & & \code{native\_timing*.csv} \\
 disk read time & this PC (Windows) & SSD, hard disk & \code{device\_latency.csv} \\
 time and break-even & computed & & \code{cost\_benefit\_*.csv} \\
 compiler settings & xv6, counting mode & 5 builds & \code{compiler\_flags.csv} \\
+32 random pages in the kernel, 5\% and 20\% (her B1) & xv6 (PC) & 74 streams $\times$ 2 sizes & \code{kernel\_eval\_b1.csv} \\
 sampling schemes in the kernel (cost; 1 stream) & xv6 & & Section~\ref{sec:sampling} \\
 \textit{prepared, not run:} sampling schemes on 74 streams & Kaggle round 8 + PC & 444 runs & \\
 \textit{prepared, not run:} heavier models, 5 and 20\%, 74 streams & Kaggle round 9 + PC & 540 runs & \\
