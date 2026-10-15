@@ -223,3 +223,24 @@ A2 and A5 make it worse, so I propose A1 + A3 + A4 (A3 = an always-inlined copy 
 Patch: `tools/ml2/choose_ml_fast.patch` (switches `ML_FAST_*`); counts: `report/results2/choose_ml_fast.csv`; script `tools/ml2/choose_ml_fast_test.py`; log check `tools/ml2/check_fastlog.c`.
 Not done yet (needs GawwyG's go-ahead for the runs): putting it in the kernel, your checks 1–5, `native_timing.c`.
 **Intervals:** your caution is implemented — published cells are computed first in the original order (`kernel_ci_*_published.txt`), new pairs in a second loop with its own `default_rng(7)`; all 57 published intervals (faults and writes) come out identical. LeCaR at 5/20% and the new `global@32` pairs are in the second loop.
+
+**A: now in the kernel (2026-10-15, commit dbc508b).** Final version = A1 + A3 + A4 in `kernel/vmpage.c` (`ml_feature_linear`, `ml_log1p_q8_fast`, two stored fields in `struct vm_page`); `mlfeat.h` and the net path untouched. Your checks:
+1. **Data check:** `vmtest data-invariance`: checksum `AB0C8578`, 0 fallbacks, both prefetch settings, all 9 policies (policy 4 = linear).
+2. **Identical victims:** `ml global` and `ml global@32` at 10% on one stream per workload (14 streams, 28 runs; the 6 workloads' quickest streams for the 2 patterns + 12 more; list in `report/results2/kernel_eval_A_check.csv`): `swap_faults`, `zero_faults`, `evictions` and `page_writes` identical to `kernel_eval_all.csv` in **28 of 28** (`tools/ml2/compare_runs.py`). The sampled path calls the same code and draws, so it matches too.
+3. **Cost, one build:** old file kept as `cost_grid_before_A.csv`; `cost_grid.csv` redone for all 29 policies/models at 16/64/256/512 frames (2 more sample sizes than you asked for: 4, 8, 64):
+
+| | 20 pages | 68 | 260 | 516 |
+|---|---|---|---|---|
+| `ml global` (before) | 5,995 | 22,803 | 91,720 | 183,311 |
+| `ml global` (now) | 4,568 | **16,818** | 67,163 | 134,392 |
+| `global@32` (now) | 4,570 | **8,465** | 8,788 | 8,880 |
+| `global@16` (now) | 3,960 | **4,237** | 4,400 | 4,457 |
+| `global@64`, `@8`, `@4` at 68 | | 16,911, 2,129, 1,097 | | |
+
+   The other policies "should come out unchanged": most do (Clock, Aging, LFU, FIFO, S3-FIFO, ARC, LeCaR within 0.3%); **LHD +1.4%** (14,199 → 14,397) and the five heavier networks and trees **2–3% lower** (a build effect: the networks' `ml_feature` is now used once and probably inlined). I did not chase it.
+4. **Native timing:** `native_timing.c` now times the code before and after side by side (`verify` mode: 40,000 random decisions, old and new pick the identical victim). First numbers were taken **while the PC ran other jobs** (±25%): linear 947 ns new against 1,495 old at 68 candidates (ratio 0.63), 32-sampled 682 against 923, 16-sampled 297 against 429 (`native_timing_A_under_load.csv`). **Not final:** to be repeated on an idle PC after the queue.
+5. **Break-even etc.:** regenerated with a provisional x = 0.0508 ns (= 0.0592 x (947/1495) / (16818/22803)); the 1 ns file is exact. `report_w16.py` and `tradeoff.py` rerun; the week-16 report is updated. Time against Clock at 0.051 ns, SSD / disk: linear 0.93 / 0.91, 32 sampled 0.92 / 0.91, 16 sampled 0.93 / 0.93, ARC 0.95 / 0.94, LHD 0.97 / 0.95, LeCaR 1.12 / 1.11, CNN 2.58 / 0.93. At 1 ns (SSD): linear 1.23 (was 1.34), 16 sampled 0.98.
+   **Caveat that changes these:** the instruction counts are from patbench only; on real programs ARC and LHD cost up to ~2x more (`cost_from_runs.csv`).
+
+**Also for your B:** a new simulator result you may want in the paper. On all 74 streams at 20% memory, 32 random pages are 1.031 and 16 pages 1.059 of scoring every page (simulator; `sampling_more.csv`, report Table "more"); at 5% they are 0.996 and 1.001, at 10% 1.002 and 1.019. The old sweep's "almost nothing at 5 and 20%" was for 33 streams of the six training workloads. The B runs will show the kernel value at 5 and 20%.
+Pool (Redis-style) and clock-filter sampling were tried to cut the cost further: neither beats random by more than ~10% at equal cost (report Appendix / sampling section).
