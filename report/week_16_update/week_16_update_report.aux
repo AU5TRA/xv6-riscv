@@ -23,38 +23,40 @@
 \@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces 20\% memory, ten streams.}}{5}{table.caption.8}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Faults with $k$ sampled pages divided by faults with all pages (simulator). First three columns: score only; last three: scan and score (the kernel's way). The three seeds differ by under 0.002.}}{5}{table.caption.9}\protected@file@percent }
 \newlabel{tab:sweep}{{8}{5}{Faults with $k$ sampled pages divided by faults with all pages (simulator). First three columns: score only; last three: scan and score (the kernel's way). The three seeds differ by under 0.002}{table.caption.9}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}What choosing a victim costs}{5}{section.5}\protected@file@percent }
-\newlabel{sec:cost}{{5}{5}{What choosing a victim costs}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Instructions, on one synthetic benchmark}{5}{subsection.5.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Instructions to choose one victim, by number of pages to choose from (patbench uniform). Last column: extra instructions per extra page, from 68 to 516 pages.}}{6}{table.caption.10}\protected@file@percent }
-\newlabel{tab:costsizes}{{9}{6}{Instructions to choose one victim, by number of pages to choose from (patbench uniform). Last column: extra instructions per extra page, from 68 to 516 pages}{table.caption.10}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}A rough check on the real programs}{6}{subsection.5.2}\protected@file@percent }
-\newlabel{sec:costreal}{{5.2}{6}{A rough check on the real programs}{subsection.5.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Time spent choosing victims relative to Aging, median over each workload's streams (rough; \texttt  {tools/ml2/cost\_from\_runs.py}). First row: the exact patbench ratio.}}{6}{table.caption.11}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Faults with sampling divided by faults with all pages (simulator), and the estimated instructions per eviction at 10\% memory.}}{6}{table.caption.10}\protected@file@percent }
+\newlabel{tab:more}{{9}{6}{Faults with sampling divided by faults with all pages (simulator), and the estimated instructions per eviction at 10\% memory}{table.caption.10}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}What choosing a victim costs}{6}{section.5}\protected@file@percent }
+\newlabel{sec:cost}{{5}{6}{What choosing a victim costs}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Instructions, on one synthetic benchmark}{6}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Instructions to choose one victim, by number of pages to choose from (patbench uniform). Last column: extra instructions per extra page, from 68 to 516 pages.}}{6}{table.caption.11}\protected@file@percent }
+\newlabel{tab:costsizes}{{10}{6}{Instructions to choose one victim, by number of pages to choose from (patbench uniform). Last column: extra instructions per extra page, from 68 to 516 pages}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}A rough check on the real programs}{7}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:costreal}{{5.2}{7}{A rough check on the real programs}{subsection.5.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Time spent choosing victims relative to Aging, median over each workload's streams (rough; \texttt  {tools/ml2/cost\_from\_runs.py}). First row: the exact patbench ratio.}}{7}{table.caption.12}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.3}From instructions to time}{7}{subsection.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Reducing the instruction count}{7}{subsection.5.4}\protected@file@percent }
-\newlabel{sec:reduce}{{5.4}{7}{Reducing the instruction count}{subsection.5.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Does the simulator predict the kernel?}{8}{section.6}\protected@file@percent }
-\newlabel{sec:gap}{{6}{8}{Does the simulator predict the kernel?}{section.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Limits and open problems}{8}{section.7}\protected@file@percent }
-\newlabel{sec:limits}{{7}{8}{Limits and open problems}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Reducing the instruction count}{8}{subsection.5.4}\protected@file@percent }
+\newlabel{sec:reduce}{{5.4}{8}{Reducing the instruction count}{subsection.5.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Does the simulator predict the kernel?}{9}{section.6}\protected@file@percent }
+\newlabel{sec:gap}{{6}{9}{Does the simulator predict the kernel?}{section.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Limits and open problems}{9}{section.7}\protected@file@percent }
+\newlabel{sec:limits}{{7}{9}{Limits and open problems}{section.7}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {A}Break-even by workload}{9}{appendix.A}\protected@file@percent }
 \newlabel{app:breakeven}{{A}{9}{Break-even by workload}{appendix.A}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Faults against Clock and break-even fault cost, per workload.}}{9}{table.caption.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {B}Page writes}{9}{appendix.B}\protected@file@percent }
-\newlabel{app:writes}{{B}{9}{Page writes}{appendix.B}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces 5\% memory: page writes to disk relative to Clock, same layout as the fault tables.}}{9}{table.caption.13}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces 10\% memory: page writes relative to Clock.}}{9}{table.caption.14}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces 20\% memory: page writes relative to Clock.}}{10}{table.caption.15}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces Faults against Clock and break-even fault cost, per workload.}}{10}{table.caption.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}Page writes}{10}{appendix.B}\protected@file@percent }
+\newlabel{app:writes}{{B}{10}{Page writes}{appendix.B}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces 5\% memory: page writes to disk relative to Clock, same layout as the fault tables.}}{10}{table.caption.14}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces 10\% memory: page writes relative to Clock.}}{10}{table.caption.15}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {C}The first version of the training data, and DAgger}{10}{appendix.C}\protected@file@percent }
 \newlabel{app:first}{{C}{10}{The first version of the training data, and DAgger}{appendix.C}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {D}Simulator results}{10}{appendix.D}\protected@file@percent }
-\newlabel{app:sim}{{D}{10}{Simulator results}{appendix.D}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Faults relative to Clock in the simulator on the training workloads' test and held-out streams: classical policies, the linear model, trees and networks over kernel-visible features (K) and with features only a simulator can see (FK), and Belady (the best possible).}}{10}{table.caption.16}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Faults relative to Clock per stream group on workloads no model was trained on (simulator, geometric mean over streams and the three memory sizes).}}{11}{table.caption.17}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {17}{\ignorespaces LeCaR in the simulator. ``As published'': advisers exact LRU and exact LFU (needs every access, so a kernel cannot run it). ``Kernel form'': Clock and the kernel's ``how often used'' count, read at evictions. Original parameters (learning rate 0.45, history of half the memory per adviser).}}{11}{table.caption.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {E}Every experiment}{11}{appendix.E}\protected@file@percent }
-\newlabel{app:inventory}{{E}{11}{Every experiment}{appendix.E}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces 20\% memory: page writes relative to Clock.}}{11}{table.caption.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {D}Simulator results}{11}{appendix.D}\protected@file@percent }
+\newlabel{app:sim}{{D}{11}{Simulator results}{appendix.D}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Faults relative to Clock in the simulator on the training workloads' test and held-out streams: classical policies, the linear model, trees and networks over kernel-visible features (K) and with features only a simulator can see (FK), and Belady (the best possible).}}{11}{table.caption.17}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {17}{\ignorespaces Faults relative to Clock per stream group on workloads no model was trained on (simulator, geometric mean over streams and the three memory sizes).}}{11}{table.caption.18}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {18}{\ignorespaces LeCaR in the simulator. ``As published'': advisers exact LRU and exact LFU (needs every access, so a kernel cannot run it). ``Kernel form'': Clock and the kernel's ``how often used'' count, read at evictions. Original parameters (learning rate 0.45, history of half the memory per adviser).}}{12}{table.caption.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {E}Every experiment}{12}{appendix.E}\protected@file@percent }
+\newlabel{app:inventory}{{E}{12}{Every experiment}{appendix.E}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {F}How to reproduce}{12}{appendix.F}\protected@file@percent }
 \newlabel{app:repro}{{F}{12}{How to reproduce}{appendix.F}{}}
-\gdef \@abspage@last{12}
+\gdef \@abspage@last{13}

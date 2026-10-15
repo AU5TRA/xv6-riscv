@@ -1,0 +1,15 @@
+fraction,scheme,faults_vs_all_pages,faults_vs_clock,scanned_per_eviction,scored_per_eviction,estimated_instructions_per_eviction
+0.2,all pages,1.0,0.8696,90.32,90.32,23871
+0.2,clock-filter 4,1.1339,0.9861,4.69,2.7,973
+0.2,clock-filter 8,1.1215,0.9753,7.82,5.34,1728
+0.2,clock-filter 16,1.1094,0.9648,13.41,10.37,3123
+0.2,clock-filter 32,1.0958,0.9529,23.21,19.56,5621
+0.2,pool 4 new + 4 kept,1.1271,0.9801,5.21,5.21,1401
+0.2,pool 4 new + 8 kept,1.1115,0.9666,7.67,7.67,2051
+0.2,pool 8 new + 8 kept,1.0562,0.9185,10.0,10.0,2666
+0.2,pool 8 new + 16 kept,1.0511,0.9141,14.48,14.48,3849
+0.2,pool 16 new + 16 kept,1.0282,0.8941,18.54,18.54,4920
+0.2,random 4,1.2128,1.0547,2.7,2.7,739
+0.2,random 8,1.1171,0.9715,5.35,5.35,1440
+0.2,random 16,1.0592,0.9211,10.38,10.38,2766
+0.2,random 32,1.0308,0.8964,19.58,19.58,5194

@@ -1,0 +1,19 @@
+\begin{tabular}{lrrrrr}
+\toprule
+scheme & pages scored per eviction (10\%) & estimated instructions (10\%) & 5\% & 10\% & 20\% \\
+\midrule
+random 4 & 4 & 1\,082 & 1.053 & 1.116 & 1.213 \\
+random 8 & 8 & 2\,092 & 1.018 & 1.054 & 1.117 \\
+random 16 & 15 & 3\,960 & 1.001 & 1.019 & 1.059 \\
+random 32 & 28 & 7\,367 & 0.996 & 1.002 & 1.031 \\
+pool 4 new + 4 kept & 8 & 2\,015 & 1.020 & 1.063 & 1.127 \\
+pool 4 new + 8 kept & 11 & 2\,913 & 1.016 & 1.054 & 1.111 \\
+pool 8 new + 8 kept & 14 & 3\,743 & 1.002 & 1.017 & 1.056 \\
+pool 8 new + 16 kept & 20 & 5\,308 & 1.003 & 1.015 & 1.051 \\
+pool 16 new + 16 kept & 25 & 6\,640 & 1.000 & 1.004 & 1.028 \\
+clock-filter 4 & 4 & 1\,331 & 1.036 & 1.061 & 1.134 \\
+clock-filter 8 & 8 & 2\,378 & 1.026 & 1.074 & 1.121 \\
+clock-filter 16 & 15 & 4\,266 & 1.010 & 1.062 & 1.109 \\
+clock-filter 32 & 28 & 7\,697 & 1.000 & 1.040 & 1.096 \\
+\bottomrule
+\end{tabular}

@@ -247,6 +247,23 @@ def fast_code_table():
     (OUT / "fast_code.tex").write_text(tab(body, ["change", "68 pages", "260 pages", "68 pages, 32 sampled"]))
 
 
+def sampling_more_table():
+    """Pool and clock-filter sampling against random (exp_sampling_more.py): faults vs all pages at 5/10/20%, and the estimated instructions per eviction at 10%."""
+    d = {}
+    for fr in ("0.05", "0.1", "0.2"):
+        for r in csv.DictReader(open(R / f"sampling_more_summary_{fr}.csv")):
+            d[(fr, r["scheme"])] = r
+    order = ["random 4", "random 8", "random 16", "random 32", "pool 4 new + 4 kept", "pool 4 new + 8 kept", "pool 8 new + 8 kept", "pool 8 new + 16 kept",
+             "pool 16 new + 16 kept", "clock-filter 4", "clock-filter 8", "clock-filter 16", "clock-filter 32"]
+    body = []
+    for n in order:
+        if ("0.1", n) not in d:
+            continue
+        body.append([n, f"{float(d[('0.1', n)]['scored_per_eviction']):.0f}", fmt_int(float(d[("0.1", n)]["estimated_instructions_per_eviction"]))] +
+                    [f"{float(d[(fr, n)]['faults_vs_all_pages']):.3f}" for fr in ("0.05", "0.1", "0.2")])
+    (OUT / "sampling_more.tex").write_text(tab(body, ["scheme", "pages scored per eviction (10\\%)", "estimated instructions (10\\%)", "5\\%", "10\\%", "20\\%"]))
+
+
 def copies():
     for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer", "lecar"]:
         shutil.copy(W15 / f"{n}.tex", OUT / f"{n}.tex")
@@ -255,5 +272,5 @@ def copies():
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     ci_table(); cost_table(); breakeven_tables(); copies()
-    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table()
+    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table(); sampling_more_table()
     print("written", OUT)

@@ -1,16 +1,16 @@
 policy,instructions_per_decision_68_candidates,faults_over_clock_10pct,workloads_covered,linear_global_faults_over_clock_on_same_workloads
-FIFO,385,1.253,14,0.914
-Clock,411,1.000,14,0.914
-Aging,8125,1.066,14,0.914
-LFU,8005,1.130,14,0.914
+FIFO,384,1.253,14,0.914
+Clock,410,1.000,14,0.914
+Aging,8124,1.066,14,0.914
+LFU,8004,1.130,14,0.914
 S3-FIFO (adapted),1395,1.016,14,0.914
 ARC (adapted),11934,0.943,14,0.914
-LHD (adapted),14199,0.951,14,0.914
-"linear score, global, all candidates",22803,0.914,14,0.914
-"linear score, global, 32 sampled candidates",11293,0.912,14,0.914
-"linear score, global, 16 sampled candidates",5656,0.926,14,0.914
-boosted trees,464325,0.970,14,0.914
-ranking trees,449616,1.350,14,0.914
-set-attention,1810012,0.907,14,0.914
-CNN,1987567,0.914,14,0.914
-deeper MLP,3422321,0.912,14,0.914
+LHD (adapted),14397,0.951,14,0.914
+"linear score, global, all candidates",16818,0.914,14,0.914
+"linear score, global, 32 sampled candidates",8465,0.912,14,0.914
+"linear score, global, 16 sampled candidates",4237,0.926,14,0.914
+boosted trees,455229,0.970,14,0.914
+ranking trees,440490,1.350,14,0.914
+set-attention,1801153,0.907,14,0.914
+CNN,1936230,0.914,14,0.914
+deeper MLP,3413317,0.912,14,0.914
