@@ -50,7 +50,7 @@ Memory is 5, 10 or 20\% of each program's own pages. Intervals are 95\% interval
 \item \textbf{Looking at fewer pages costs little.} Scoring 32 randomly chosen pages instead of all of them is level with scoring all (0.998), and 16 is 1.3\% worse (1.013), at 10\% memory on 74 streams.
   The cost then stops growing with memory size (Table~\ref{tab:costsizes}). None of five other ways of choosing the pages beat random (simulator).
 \item \textbf{LeCaR}, a published learning policy, is worse than Clock in the form a kernel can run, at every memory size (1.051, 1.113 and 1.212 at 5, 10 and 20\%; all intervals above 1).
-\item \textbf{Cost.} Choosing a victim with the linear score costs about 260 instructions per page looked at in the current kernel (16\,800 with 68 pages, 134\,000 with 516; 22\,800 and 183\,000 before the code change of Section~\ref{sec:reduce}, which keeps every victim). In time, that is about 1 to 1.5\,\textmu s per eviction on this PC's processor (provisional: timed while other jobs ran),
+\item \textbf{Cost.} Choosing a victim with the linear score costs about 260 instructions per page looked at in the current kernel (16\,800 with 68 pages, 134\,000 with 516; 22\,800 and 183\,000 before the code change of Section~\ref{sec:reduce}, which keeps every victim). In time, that is about 0.8 to 1.6\,\textmu s per eviction on this PC's processor,
   small against a measured SSD read (63\,\textmu s) and tiny against a hard-disk read (8.9\,ms), so on this PC it pays for itself. \textbf{But the instruction counts come from one synthetic benchmark};
   a rough check on the real programs (Section~\ref{sec:costreal}) shows that this is fair for the linear score but underestimates ARC and LHD by up to about 2 times. Exact counts on the real programs are planned.
 \end{itemize}
@@ -253,16 +253,16 @@ Exact counts on one stream of each workload are planned; until then the costs of
 \input{tables/native_timing}
 \end{center}
 
-That is about 0.05 to 0.08\,ns per kernel instruction (provisional for the new code: this timing was taken while other jobs were running; the table above is the older, quiet measurement of the code before the change; the new code ran at 0.63 of the old code's time, 947 against 1\,495\,ns under the same load, \code{native\_timing\_A\_under\_load.csv}). It leaves out the locks and the flush of the address-translation cache after the scan, so it is a lower bound, and it runs on an x86 processor, not RISC-V.
+The new code takes 0.79\,\textmu s against 1.26\,\textmu s for the code before the change (ratio 0.63) with 68 pages (quiet PC, median of three runs, spread under 6\%); with the page-table walk 1.10 against 1.56, with caches flushed 1.61 against 2.28. That is 0.047\,ns per kernel instruction (0.066 with the walk, 0.096 cold); the 32-page version runs at 0.062\,ns per instruction, slower per instruction, so its time is charged at its own speed. Not counted: the locks and the flush of the address-translation cache after the scan, so it is a lower bound, and it runs on an x86 processor, not RISC-V. Each heavier model is charged the same 0.047\,ns per instruction; natively the CNN takes 112\,\textmu s for 1.9 million instructions (0.058\,ns), so its time is slightly understated.
 
-\textbf{Does the extra work pay?} The linear score spends about 16\,400 more instructions per eviction than Clock (about 1\,\textmu s here, provisional) and saves about 9\% of the faults. On the SSD each eviction then saves about
+\textbf{Does the extra work pay?} The linear score spends about 16\,400 more instructions per eviction than Clock (about 0.8\,\textmu s here) and saves about 9\% of the faults. On the SSD each eviction then saves about
 $0.09 \times 63 \approx 5.7$\,\textmu s of disk time, more than it spends; on the hard disk about 800\,\textmu s. On a slow processor (1\,ns per instruction) it spends about 16\,\textmu s, which still does not pay on the SSD for the full score (1.23 of Clock's time; the 16-page sample, 0.98, does).
 Time on faults plus choosing, relative to Clock (geometric mean over workloads; 10\% memory; using the patbench instruction counts):
 
 \begin{center}\small
 \resizebox{\linewidth}{!}{\input{tables/breakeven_summary}}
 \end{center}
-\emph{SSD 63\,\textmu s per read, hard disk 8.9\,ms (measured). ``1 ns'': a slow processor; ``0.051 ns'': this PC's processor with the cheaper code (provisional, see above). Bold: faster than Clock.}
+\emph{SSD 63\,\textmu s per read, hard disk 8.9\,ms (measured). ``1 ns'': a slow processor; ``0.047 ns'': this PC's processor with the cheaper code, no page-table walk (Table above); charging every policy the cold-cache speed (0.096 ns per instruction), the linear score is still faster than Clock on the SSD (0.95 of Clock's time) and the CNN is 3.9 times slower. The sampled versions at their own speed: 0.919 and 0.929 on the SSD (same speed 0.917 and 0.928). Bold: faster than Clock.}
 The CNN, MLP and set-attention do not pay on an SSD, and win only a few percent on a hard disk with a fast processor. The per-workload break-even is in Appendix~\ref{app:breakeven}. This counts only disk time per fault and
 choosing a victim; the rest of a fault and the program's own work are left out.
 
@@ -323,7 +323,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 \item \textbf{Adapted forms:} ARC, LHD, S3-FIFO and LeCaR ran in the form a kernel can run, not as published.
 \item \textbf{``All workloads'' means the six training workloads;} the other eight were never seen in training.
 \item \textbf{Sampling:} only random sampling at $k$ = 32 and 16, at 10\% memory, ran in the kernel, with one random seed.
-\item \textbf{The cheaper linear-score code} (Section~\ref{sec:reduce}) is in the kernel only since 2026-10-15; every fault count here comes from builds before it (checked identical on 28 runs, one stream per workload for the linear score and its 32-page version; not on every stream). Its native timing is provisional.
+\item \textbf{The cheaper linear-score code} (Section~\ref{sec:reduce}) is in the kernel only since 2026-10-15; every fault count here comes from builds before it (checked identical on 28 runs, one stream per workload for the linear score and its 32-page version; not on every stream). Its native timing was taken on a quiet PC (three runs).
 \item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph at 20\%); the tables show where.
 \end{itemize}
 
@@ -331,7 +331,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 \section{Break-even by workload}
 \label{app:breakeven}
 
-The fault cost above which a policy beats Clock on one workload, at 10\% memory, on this PC's processor (about 0.051\,ns per instruction, provisional): the extra instructions spent choosing a victim divided by the faults saved per eviction.
+The fault cost above which a policy beats Clock on one workload, at 10\% memory, on this PC's processor (0.047\,ns per instruction): the extra instructions spent choosing a victim divided by the faults saved per eviction.
 Compare with 63\,\textmu s (SSD) and 8.9\,ms (hard disk). ``never'': the policy does not save faults there. Uses the patbench instruction counts, so ARC is probably too favourable.
 
 \begin{table}[h]

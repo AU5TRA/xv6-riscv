@@ -1,0 +1,29 @@
+policy,candidates,decisions_timed,ns_per_decision_median,ns_per_decision_min,ns_per_candidate_median,spread_over_3_runs
+linear score (global),68,500000,794,731,11.7,0.055
+linear score (global) 32 sampled,68,500000,525,499,16.4,0.013
+linear score (global) 16 sampled,68,500000,255,250,15.9,0.031
+linear score (global) 64 sampled,68,500000,1016,988,15.9,0.024
+linear score (global) 8 sampled,68,500000,138,134,17.3,0.007
+linear score (global) 4 sampled,68,500000,69,68,17.3,0.000
+linear score (global) [code before the change],68,500000,1261,1209,18.5,0.032
+linear score (global) 32 sampled [code before the change],68,500000,812,785,25.4,0.023
+linear score (global) 16 sampled [code before the change],68,500000,403,391,25.2,0.017
+boosted trees,68,50000,32280,31303,474.7,0.013
+ranking trees,68,50000,29933,28888,440.2,0.015
+set-attention,68,7500,112191,109519,1649.9,0.053
+CNN,68,7500,111766,107363,1643.6,0.078
+deeper MLP,68,7500,218566,212803,3214.2,0.072
+linear score (global),256,500000,2922,2851,11.4,0.062
+linear score (global) 32 sampled,256,500000,523,500,16.3,0.088
+linear score (global) 16 sampled,256,500000,262,251,16.4,0.168
+linear score (global) 64 sampled,256,500000,1109,1041,17.3,0.087
+linear score (global) 8 sampled,256,500000,138,132,17.2,0.007
+linear score (global) 4 sampled,256,500000,70,67,17.6,0.043
+linear score (global) [code before the change],256,500000,4815,4661,18.8,0.055
+linear score (global) 32 sampled [code before the change],256,500000,824,797,25.8,0.017
+linear score (global) 16 sampled [code before the change],256,500000,408,392,25.5,0.015
+boosted trees,256,50000,128594,124036,502.3,0.053
+ranking trees,256,50000,120604,115560,471.1,0.062
+set-attention,256,7500,426811,413793,1667.2,0.030
+CNN,256,7500,424583,412529,1658.5,0.022
+deeper MLP,256,7500,828766,812593,3237.4,0.046

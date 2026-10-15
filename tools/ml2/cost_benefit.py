@@ -26,6 +26,7 @@ R = ps.ROOT / "report" / "results2"
 SSD_US, HDD_US = 100.0, 8000.0     # assumed fault costs (the defaults of week 15); overridden by --ssd-us / --hdd-us
 NS_PER_INSTR = 1.0                 # assumed 1 ns per instruction; overridden by --ns-per-instr (measured, S2)
 OUT_NAME = "cost_benefit.csv"
+OWN_SPEED = {}          # --own-speed: (policy, model) -> ns per instruction measured natively for that policy (the sampled scores run slower per instruction)
 for _i, _a in enumerate(__import__("sys").argv):
     if _a == "--ssd-us":
         SSD_US = float(__import__("sys").argv[_i + 1])
@@ -33,6 +34,8 @@ for _i, _a in enumerate(__import__("sys").argv):
         HDD_US = float(__import__("sys").argv[_i + 1])
     elif _a == "--ns-per-instr":
         NS_PER_INSTR = float(__import__("sys").argv[_i + 1])
+    elif _a == "--own-speed":
+        OWN_SPEED = {("ml", "global@32"): 525 / 8465, ("ml", "global@16"): 255 / 4237, ("ml", "global@64"): 1016 / 16911}   # native ns / kernel instructions at 68 pages (native_timing_A.csv, cost_grid.csv)
     elif _a == "--out":
         OUT_NAME = __import__("sys").argv[_i + 1]
 POL = [("fifo", ""), ("aging", ""), ("lfu", ""), ("ml", "global"), ("ml", "own"), ("ml", "cnn-kv"), ("ml", "mlp-kv"),
@@ -104,10 +107,11 @@ def main():
             fr = fl(r) / cf
             saved = (cf - fl(r)) / ce                    # faults saved per Clock eviction
             extra = cost - cc
-            be = extra * NS_PER_INSTR / saved / 1000 if saved > 0 else float("inf")      # microseconds (NS_PER_INSTR ns per instruction)
+            ns = OWN_SPEED.get((p, m), NS_PER_INSTR)
+            be = extra * ns / saved / 1000 if saved > 0 else float("inf")      # microseconds (ns nanoseconds per instruction)
             t = {}
             for name, us in (("ssd", SSD_US), ("hdd", HDD_US)):
-                t[name] = (fl(r) * us * 1000 + ev * cost * NS_PER_INSTR) / (cf * us * 1000 + ce * cc * NS_PER_INSTR)
+                t[name] = (fl(r) * us * 1000 + ev * cost * ns) / (cf * us * 1000 + ce * cc * NS_PER_INSTR)
             agg[(g, p, m)].append((fr, be, t["ssd"], t["hdd"], frames, cost))
     for (g, p, m), v in sorted(agg.items()):
         gm = lambda i: math.exp(np.mean([math.log(max(x[i], 1e-9)) for x in v]))

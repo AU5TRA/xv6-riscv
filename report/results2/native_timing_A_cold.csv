@@ -1,0 +1,29 @@
+policy,candidates,decisions_timed,ns_per_decision_median,ns_per_decision_min,ns_per_candidate_median,spread_over_3_runs
+linear score (global) + page-table walk (cold caches),68,1500,1608,1522,23.6,0.033
+linear score (global) 32 sampled + page-table walk (cold caches),68,1500,1111,976,34.7,0.141
+linear score (global) 16 sampled + page-table walk (cold caches),68,1500,880,736,55.0,0.176
+linear score (global) 64 sampled + page-table walk (cold caches),68,1500,1947,1651,30.4,0.090
+linear score (global) 8 sampled + page-table walk (cold caches),68,1500,603,529,75.3,0.109
+linear score (global) 4 sampled + page-table walk (cold caches),68,1500,487,404,121.9,0.193
+linear score (global) [code before the change] + page-table walk (cold caches),68,1500,2282,2003,33.6,0.051
+linear score (global) 32 sampled [code before the change] + page-table walk (cold caches),68,1500,1498,1368,46.8,0.235
+linear score (global) 16 sampled [code before the change] + page-table walk (cold caches),68,1500,959,856,59.9,0.298
+boosted trees + page-table walk (cold caches),68,1500,33549,31711,493.4,0.046
+ranking trees + page-table walk (cold caches),68,1500,29399,26319,432.3,0.029
+set-attention + page-table walk (cold caches),68,500,117840,109254,1732.9,0.013
+CNN + page-table walk (cold caches),68,500,118158,107989,1737.6,0.042
+deeper MLP + page-table walk (cold caches),68,500,225832,213081,3321.1,0.167
+linear score (global) + page-table walk (cold caches),256,1500,5208,4781,20.3,0.103
+linear score (global) 32 sampled + page-table walk (cold caches),256,1500,1541,1323,48.2,0.278
+linear score (global) 16 sampled + page-table walk (cold caches),256,1500,1071,880,66.9,0.110
+linear score (global) 64 sampled + page-table walk (cold caches),256,1500,2488,2022,38.9,0.135
+linear score (global) 8 sampled + page-table walk (cold caches),256,1500,742,622,92.8,0.178
+linear score (global) 4 sampled + page-table walk (cold caches),256,1500,652,515,163.1,0.367
+linear score (global) [code before the change] + page-table walk (cold caches),256,1500,7581,6770,29.6,0.130
+linear score (global) 32 sampled [code before the change] + page-table walk (cold caches),256,1500,1807,1493,56.5,0.110
+linear score (global) 16 sampled [code before the change] + page-table walk (cold caches),256,1500,1215,1010,76.0,0.152
+boosted trees + page-table walk (cold caches),256,1500,128300,121953,501.2,0.044
+ranking trees + page-table walk (cold caches),256,1500,110449,104064,431.4,0.047
+set-attention + page-table walk (cold caches),256,500,456251,422417,1782.2,0.013
+CNN + page-table walk (cold caches),256,500,455169,426929,1778.0,0.087
+deeper MLP + page-table walk (cold caches),256,500,864483,823920,3376.9,0.067

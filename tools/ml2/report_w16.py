@@ -81,7 +81,15 @@ def breakeven_tables():
             continue
         cells = [gm(a, "time_vs_clock_ssd"), gm(a, "time_vs_clock_hdd"), gm(b, "time_vs_clock_ssd"), gm(b, "time_vs_clock_hdd")]
         body.append([n, f"{gm(a, 'faults_over_clock'):.3f}"] + [f"\\best{{{c:.2f}}}" if c < 0.995 else f"{c:.2f}" for c in cells])
-    (OUT / "breakeven_summary.tex").write_text(tab(body, ["policy", "faults / Clock", "SSD, 1 ns", "disk, 1 ns", "SSD, 0.059 ns", "disk, 0.059 ns"]))
+    own = list(csv.DictReader(open(R / "cost_benefit_own_speed.csv")))
+    body2 = []
+    for pol, n in [("ml:global", "linear score, all pages"), ("ml:global@32", "linear score, 32 sampled"), ("ml:global@16", "linear score, 16 sampled")]:
+        a2 = [r for r in allm if r["policy"] == pol]
+        o2 = [r for r in own if r["policy"] == pol]
+        if len(a2) >= 14 and len(o2) >= 14:
+            body2.append([n, f"{gm(a2, 'time_vs_clock_ssd'):.3f}", f"{gm(o2, 'time_vs_clock_ssd'):.3f}", f"{gm(a2, 'time_vs_clock_hdd'):.3f}", f"{gm(o2, 'time_vs_clock_hdd'):.3f}"])
+    (OUT / "breakeven_own_speed.tex").write_text(tab(body2, ["policy", "SSD, same speed", "SSD, own speed", "disk, same speed", "disk, own speed"]))
+    (OUT / "breakeven_summary.tex").write_text(tab(body, ["policy", "faults / Clock", "SSD, 1 ns", "disk, 1 ns", "SSD, 0.047 ns", "disk, 0.047 ns"]))
 
     def fmt(x):
         if x == "never":
@@ -200,8 +208,9 @@ def sampling_heur_table():
 def native_timing_table():
     """The kernel's scoring code compiled for the thesis PC (native_timing.c), 68 pages: microseconds per decision."""
     def load(f):
-        return {r["policy"].split(" + ")[0]: float(r["ns_per_decision_median"]) for r in csv.DictReader(open(R / f)) if r["candidates"] == "68"}
-    a, b, c = load("native_timing.csv"), load("native_timing_walk.csv"), load("native_timing_cold.csv")
+        return {r["policy"].split(" + ")[0].replace("[code before the change]", "(code before the change)"): float(r["ns_per_decision_median"])
+                for r in csv.DictReader(open(R / f)) if r["candidates"] == "68"}
+    a, b, c = load("native_timing_A.csv"), load("native_timing_A_walk.csv"), load("native_timing_A_cold.csv")
     body = []
     for k in a:
         body.append([k, f"{a[k] / 1000:.2f}", f"{b.get(k, 0) / 1000:.2f}", f"{c.get(k, 0) / 1000:.2f}"])
