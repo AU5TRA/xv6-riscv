@@ -142,7 +142,7 @@ if CONFIG.get("sizes"):
     for st, fr, miss in CONFIG["sizes"]:
         groups.setdefault((fr, tuple(miss), st in CONFIG["short"]), []).append(st + "$")
     for (fr, miss, is_short), sts in sorted(groups.items()):
-        keval(f"kaggle_{i}_sizes.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
+        keval(f"kaggle_{i}_{CONFIG.get('sizes_tag', 'sizes')}.csv", f"--fracs {fr} {'--accesses 50000 ' if is_short else ''}--only {','.join(sts)} --splits test,heldout "
               f"--models {','.join(miss)} --timeout 40000")
         save()
 if CONFIG["patapp"]:

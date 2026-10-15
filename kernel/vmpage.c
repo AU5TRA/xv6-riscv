@@ -279,6 +279,55 @@ ml_feature(struct proc *p, struct vm_page *page, int f)
   return 0;
 }
 
+// The linear score's copy of ml_feature, made cheaper without changing any value (so every victim stays the same; checked on one
+// stream of each workload): always inlined (the kernel is built with -O, which does not inline ml_feature), the two logs that change
+// only on a refault read from the page (ml_refaults_q8, ml_rdist_q8), and the other logs through ml_log1p_q8_fast. The networks keep
+// ml_feature. mlfeat.h is unchanged, since the simulator shares it.
+static const uint8 ml_msb8[256] = {     // index of the highest set bit of a byte (0 for 0)
+#define R2(n) n, n
+#define R4(n) R2(n), R2(n)
+#define R8(n) R4(n), R4(n)
+#define R16(n) R8(n), R8(n)
+#define R32(n) R16(n), R16(n)
+#define R64(n) R32(n), R32(n)
+#define R128(n) R64(n), R64(n)
+  0, 0, R2(1), R4(2), R8(3), R16(4), R32(5), R64(6), R128(7)
+};
+
+// ml_log1p_q8 (mlfeat.h) with the highest-bit search done by the byte table instead of six tests: the same value for every input
+// (tools/ml2/check_fastlog.c compares the two on 67 million inputs).
+static inline int
+ml_log1p_q8_fast(unsigned long long v)
+{
+  if(v < 256)
+    return ml_log1p_q8_small[v];
+  unsigned long long x = v + 1;
+  int e;
+  if(x >> 32)
+    e = x >> 48 ? (x >> 56 ? 56 + ml_msb8[x >> 56] : 48 + ml_msb8[x >> 48]) : (x >> 40 ? 40 + ml_msb8[x >> 40] : 32 + ml_msb8[x >> 32]);
+  else
+    e = x >> 16 ? (x >> 24 ? 24 + ml_msb8[x >> 24] : 16 + ml_msb8[x >> 16]) : 8 + ml_msb8[x >> 8];
+  int m = (int)((e >= 10 ? (x >> (e - 10)) : (x << (10 - e))) & 0x3FF);
+  return (int)(((long long)e * 45427 + 128) >> 8) + ml_ln_mant_q8[m];
+}
+
+static inline __attribute__((always_inline)) int
+ml_feature_linear(struct proc *p, struct vm_page *page, int f)
+{
+  uint64 now = p->vm.ml_scans;
+  switch(f){
+  case ML_F_REF:      return page->ml_seen ? 256 : 0;
+  case ML_F_AGING:    return ml_aging_q8(page->aging_counter & 0xff);
+  case ML_F_SFREQ:    return ml_log1p_q8_fast(page->ml_sfreq);
+  case ML_F_IDLE:     return ml_log1p_q8_fast(now - page->ml_last_seen);
+  case ML_F_AGE:      return ml_log1p_q8_fast(now - page->ml_load_scan);
+  case ML_F_DIRTY:    return page->dirty_sample ? 256 : 0;
+  case ML_F_REFAULTS: return page->ml_refaults_q8;
+  case ML_F_RDIST:    return page->ml_rdist_q8;
+  }
+  return 0;
+}
+
 // Sampled scoring, like cache_ext's bpf_cache_ext_list_sample: move k distinct
 // random candidates to the front (partial Fisher-Yates) and let the policy
 // look only at those. Pages outside the sample are neither scanned nor scored
@@ -353,7 +402,7 @@ choose_ml(struct proc *p, struct vm_page **candidates, int count)
       score = (long)ml_scores[i];
     } else {
       for(int j = 0; j < w->n; j++)
-        score += (long)w->qa[j] * ml_feature(p, page, w->feat[j]);
+        score += (long)w->qa[j] * ml_feature_linear(p, page, w->feat[j]);
     }
     if(victim == 0 || score > best ||
        (score == best && page->load_sequence < victim->load_sequence)){
@@ -1214,6 +1263,8 @@ vm_frame_set_backing(uint64 pa, int slot)
   // evictions ago it was written out.
   page->ml_refaults = slot_refaults[slot] + 1;
   page->ml_rdist = page->owner->vm.ml_scans - slot_evict_scan[slot];
+  page->ml_refaults_q8 = ml_log1p_q8(page->ml_refaults);
+  page->ml_rdist_q8 = ml_log1p_q8(page->ml_rdist);
   release(&frame_table.lock);
   return 0;
 }

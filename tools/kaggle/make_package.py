@@ -372,6 +372,8 @@ def main_models():
 
 
 SIZE_RATIO = {"cnn-all": 1.71, "mlp-all": 2.17, "attention-all": 1.71, "trees-all": 1.13, "ranktrees-all": 1.17}   # as MODEL_RATIO
+SIZES_TAG = "sizes"      # --b1: "b1" (the 32-sample linear score at 5% and 20%, all on Kaggle)
+SIZES_LOCAL = True
 
 
 def costs_sizes():
@@ -387,7 +389,7 @@ def costs_sizes():
                 short.add(r["stem"])
         if r["policy"] == "ml":
             have.add((r["stem"], r["fraction"], r["model"]))
-    for f in R.glob("kaggle_*_sizes.csv"):
+    for f in R.glob(f"kaggle_*_{SIZES_TAG}.csv"):
         for r in csv.DictReader(open(f)):
             if r["status"] == "ok":
                 have.add((r["stem"], r["fraction"], r["model"]))
@@ -406,7 +408,8 @@ def main_sizes():
     nb = int(argv[argv.index("--notebooks") + 1]) if "--notebooks" in argv else 6
     items, short = costs_sizes()
     bins = {f"k{n}": {"lanes": 4, "work": 0.0, "sizes": []} for n in range(1, nb + 1)}
-    bins["local"] = {"lanes": 6 * KAGGLE_SLOWDOWN, "work": 0.0, "sizes": []}
+    if SIZES_LOCAL:
+        bins["local"] = {"lanes": 6 * KAGGLE_SLOWDOWN, "work": 0.0, "sizes": []}
     for (st, fr), (h, miss) in sorted(items.items(), key=lambda kv: -kv[1][0]):
         b = min(bins.values(), key=lambda b: b["work"] / b["lanes"])
         b["work"] += h
@@ -415,7 +418,7 @@ def main_sizes():
         print(f"{n} {b['lanes']:.1f} lanes, {b['work']:6.1f} lane-h at Kaggle speed -> at least {b['work'] / b['lanes']:.1f} h; {len(b['sizes'])} cells, {sum(len(m) for _, _, m in b['sizes'])} runs")
     print("total", round(sum(b["work"] for b in bins.values()) / KAGGLE_SLOWDOWN, 1), "core-hours at this PC's speed")
     g = collections.defaultdict(list)
-    for st, fr, miss in bins["local"]["sizes"]:
+    for st, fr, miss in bins.get("local", {"sizes": []})["sizes"]:
         g[(fr, tuple(miss), st in short)].append(st)
     sh = ["#!/bin/bash", "# the thesis PC's share of this round (resumable); results in report/results2/kernel_eval_sizes.csv", "cd \"$(dirname \"$0\")/../../tools/ml2\"",
           "export KERNEL_EVAL_OUT=kernel_eval_sizes.csv KERNEL_EVAL_LANES=/tmp/xv6sizes", "PY=${PY:-python3}"]
@@ -438,7 +441,7 @@ def main_sizes():
     exp = json.load(open(PK / "plan.json"))["selftest"]
     tpl = (Path(__file__).parent / "notebook_template.py").read_text()
     for i in range(1, nb + 1):
-        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "sizes": bins[f"k{i}"]["sizes"], "short": sorted(short), "selftest": exp}, indent=1)
+        cfg = json.dumps({"id": i, "standard": [], "nets": [], "patapp": False, "sizes": bins[f"k{i}"]["sizes"], "sizes_tag": SIZES_TAG, "short": sorted(short), "selftest": exp}, indent=1)
         (PK / f"notebook_{i}.py").write_text(tpl.replace("__CONFIG__", cfg))
     print("package", out, round(out.stat().st_size / 1e6, 1), "MB;", nb, "notebooks")
 
@@ -446,6 +449,10 @@ def main_sizes():
 def main():
     global CLASSIC_POLS, CLASSIC_TAG, NOTEBOOKS, SAMPLING, MODELS_TAG, MODEL_RATIO
     if "--sizes" in __import__("sys").argv:
+        return main_sizes()
+    if "--b1" in __import__("sys").argv:
+        global SIZE_RATIO, SIZES_TAG, SIZES_LOCAL
+        SIZE_RATIO, SIZES_TAG, SIZES_LOCAL = {"global@32": 1.0}, "b1", False
         return main_sizes()
     if "--sampling" in __import__("sys").argv:
         SAMPLING, MODELS_TAG = True, "sampling"

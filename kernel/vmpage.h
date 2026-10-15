@@ -44,6 +44,8 @@ struct vm_page {
   uint32 ml_sfreq;          // scans that found it accessed since load
   uint32 ml_refaults;       // times evicted and faulted back in
   uint8 ml_seen;            // accessed bit at the latest scan
+  uint16 ml_refaults_q8;    // ml_log1p_q8(ml_refaults) and ml_log1p_q8(ml_rdist), stored where the two counters change
+  uint16 ml_rdist_q8;       // (vm_frame_set_backing), so the linear score does not recompute them at every eviction
   // Intrusive doubly-linked list of this frame's owner's other owned
   // frames (struct vmstate.owned_head/owned_tail). Protected by
   // frame_table.lock, not p->vm.lock -- see vmpage.c.

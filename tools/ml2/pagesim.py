@@ -63,7 +63,7 @@ class Model(C.Structure):
                 ("emb", C.POINTER(C.c_float)), ("quant_w", C.c_int),
                 ("qa", C.c_int32 * NF), ("protect_age", C.c_int),
                 ("sample_k", C.c_int), ("sample_scan", C.c_int),
-                ("sample_seed", C.c_int), ("sample_mode", C.c_int), ("cb", C.c_void_p),
+                ("sample_seed", C.c_int), ("sample_mode", C.c_int), ("sample_pool", C.c_int), ("cb", C.c_void_p),
                 ("tree_n", C.c_int), ("tree_base", C.c_float),
                 ("tree_root", C.POINTER(C.c_int32)), ("nd_l", C.POINTER(C.c_int32)),
                 ("nd_r", C.POINTER(C.c_int32)), ("nd_f", C.POINTER(C.c_int16)),
@@ -244,6 +244,7 @@ class ScoredModel:
         self.c.sample_scan = int(kw.get("sample_scan", 0))
         self.c.sample_seed = int(kw.get("sample_seed", 1))
         self.c.sample_mode = int(kw.get("sample_mode", 0))
+        self.c.sample_pool = int(kw.get("sample_pool", 0))
         # safety guard prototype: windows of guard_w accesses, exploit the winner for guard_k windows (0 = off)
         self.c.guard_w = int(kw.get("guard_w", 0))
         self.c.guard_k = int(kw.get("guard_k", 8))

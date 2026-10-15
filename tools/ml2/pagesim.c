@@ -103,6 +103,9 @@ struct model {
   // every eviction, 3 the k oldest loaded, 4 every (count/k)-th page in load order (a spread over all ages, the start moves on),
   // 5 pages not seen at their latest scan first (random among them), then random.
   int sample_mode;
+  // mode 6 (pool, as in Redis): the best sample_pool candidates of the last eviction are kept and scored again with k new random pages;
+  // mode 7 (Clock filter): walk the pages in load order from a moving hand, clearing used bits, and score the first k pages found unused.
+  int sample_pool;
   // Callback scorer (kind 3): cb(n, feat[n][NF], hist[n][GRU_K], out[n]) scores
   // the whole candidate set at once (set / sequence models run in Python).
   void *cb;
@@ -233,7 +236,8 @@ struct state {
   int64_t seq, scans, distinct_seen;
   int32_t *order; int order_n; int64_t hand;   // Clock candidate list
   int32_t ring[EMB_W]; int ring_i;             // last EMB_W pages referenced
-  uint64_t srng; int32_t *samp, *ord; int64_t win_hand;                // sampled-scoring rng / chosen indices
+  uint64_t srng; int32_t *samp, *ord; int64_t win_hand;
+  int32_t *pool; int pool_n; uint8_t *pmark; double *psc; int64_t clk_hand;                // sampled-scoring rng / chosen indices
   // doubly linked lists over page ids (ARC, S3-FIFO); head = MRU / newest
   int32_t *lnx, *lpv; int8_t *lin; int32_t lhead[4], ltail[4]; int llen[4];
   int arc_p;                                   // ARC target size of T1
@@ -608,6 +612,74 @@ static int choose_sampled(struct state *s, const struct model *m, int64_t t, int
         (sc == best_score && s->load_seq[p] < s->load_seq[s->res[best]])) {
       best = idx; best_score = sc;
     }
+  }
+  return best;
+}
+
+// Modes 6 and 7: build the candidate set (indices into res, in samp[0..n)), scanning what the kernel would scan; return n and add the
+// pages scanned to *scanned. Then evict the best (same score, probation and tie rule as choose_sampled) and, for mode 6, keep the best
+// sample_pool of the others for the next eviction.
+static int sample_ex(struct state *s, const struct model *m, int64_t *scanned, int64_t *scored) {
+  int k = m->sample_k, n = 0;
+  if (m->sample_mode == 6) {
+    draw_sample(s, k, 0);
+    n = k;
+    for (int i = 0; i < n; i++) s->pmark[s->res[s->samp[i]]] = 1;
+    for (int i = 0; i < s->pool_n; i++) {
+      int p = s->pool[i];
+      if (s->pos[p] >= 0 && !s->pmark[p]) { s->samp[n++] = s->pos[p]; s->pmark[p] = 1; }
+    }
+    for (int i = 0; i < n; i++) s->pmark[s->res[s->samp[i]]] = 0;
+    for (int i = 0; i < n; i++) scan_one(s, s->res[s->samp[i]]);
+    *scanned += n;
+  } else {                                           // mode 7
+    int c = s->count;
+    for (int i = 0; i < c; i++) s->ord[i] = i;
+    g_cmp_state = s;
+    qsort(s->ord, c, sizeof(int32_t), cmp_load);
+    int start = (int)(s->clk_hand % c), j;
+    for (j = 0; j < c && n < k; j++) {
+      int idx = s->ord[(start + j) % c], p = s->res[idx];
+      int used = s->abit[p];
+      scan_one(s, p);
+      if (!used) s->samp[n++] = idx;
+    }
+    *scanned += j;
+    s->clk_hand = start + j;
+    if (n == 0) { s->samp[0] = s->ord[start % c]; n = 1; }      // every page was in use: take the one under the hand (Clock's second lap)
+  }
+  *scored += n;
+  return n;
+}
+
+static int choose_ex(struct state *s, const struct model *m, int64_t t, int n) {
+  int any_old = 0;
+  for (int i = 0; i < n; i++)
+    if (m->protect_age && s->scans - s->load_scan[s->res[s->samp[i]]] >= m->protect_age) any_old = 1;
+  int best = -1;
+  double best_score = 0;
+  for (int i = 0; i < n; i++) {
+    int idx = s->samp[i], p = s->res[idx];
+    double sc = score_one(s, m, p, t, NULL);
+    s->psc[i] = sc;
+    if (any_old && s->scans - s->load_scan[p] < m->protect_age) continue;
+    if (best < 0 || sc > best_score || (sc == best_score && s->load_seq[p] < s->load_seq[s->res[best]])) { best = idx; best_score = sc; }
+  }
+  if (m->sample_mode == 6) {                         // keep the best sample_pool others (highest score first)
+    int P = m->sample_pool, vp = s->res[best];
+    s->pool_n = 0;
+    for (int r = 0; r < P; r++) {
+      int bi = -1;
+      for (int i = 0; i < n; i++) {
+        int p = s->res[s->samp[i]];
+        if (p == vp || s->pmark[p]) continue;
+        if (bi < 0 || s->psc[i] > s->psc[bi]) bi = i;
+      }
+      if (bi < 0) break;
+      s->pmark[s->res[s->samp[bi]]] = 1;
+      s->pool[s->pool_n++] = s->res[s->samp[bi]];
+    }
+    for (int i = 0; i < s->pool_n; i++) s->pmark[s->pool[i]] = 0;
   }
   return best;
 }
@@ -1043,7 +1115,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
            ALLOC(s->has_copy, n_pages) && ALLOC(s->seen_now, n_pages) &&
            ALLOC(s->hist, (int64_t)n_pages * GRU_K) &&
            ALLOC(s->order, cap + 1) && ALLOC(score, cap + 1) &&
-           ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1) && ALLOC(s->ord, cap + 1);
+           ALLOC(pick, cap + 1) && ALLOC(s->samp, cap + 1) && ALLOC(s->ord, cap + 1) && ALLOC(s->pool, cap + 1) && ALLOC(s->pmark, n_pages) && ALLOC(s->psc, 2 * cap + 2);
   int listpol = policy == P_ARC || policy == P_ARCK || policy == P_S3FIFO || policy == P_S3SCAN || policy == P_MGLRU || policy == P_LHD;
   if (ok && listpol)
     ok = ALLOC(s->lnx, n_pages) && ALLOC(s->lpv, n_pages) && ALLOC(s->lin, n_pages) &&
@@ -1109,9 +1181,12 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         lv = policy == P_ARC || policy == P_ARCK ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
       if (s->count >= cap) {                  // ---- evict ----
         int sampled = sampling && s->count > m->sample_k;
+        int ex_n = 0;
         int gclock = guard && g_use_clock;
         if (gclock) {
           o->guard_clock_evictions++;
+        } else if (sampled && m->sample_mode >= 6) {
+          ex_n = sample_ex(s, m, &o->scanned, &o->scored);
         } else if (sampled) {
           draw_sample(s, m->sample_k, m->sample_mode);
           if (m->sample_scan) {
@@ -1150,6 +1225,8 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
           memmove(s->order + idx, s->order + idx + 1,
                   sizeof(int32_t) * (s->order_n - idx - 1));
           s->order_n--;
+        } else if (sampled && m->sample_mode >= 6) {
+          k = choose_ex(s, m, t, ex_n);
         } else if (sampled) {
           k = choose_sampled(s, m, t, m->sample_k);
         } else {
@@ -1227,7 +1304,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   free(s->sfreq); free(s->kfreq); free(s->refaults); free(s->abit);
   free(s->dbit); free(s->aging); free(s->has_copy); free(s->seen_now);
   free(s->hist); free(s->order); free(score); free(s->bit); free(pick);
-  free(s->gru_cache); free(s->gru_dirty); free(s->samp); free(s->ord);
+  free(s->gru_cache); free(s->gru_dirty); free(s->samp); free(s->ord); free(s->pool); free(s->pmark); free(s->psc);
   free(s->gen); free(s->gst); free(s->la1); free(s->la2);
   free(s->lnx); free(s->lpv); free(s->lin); free(s->s3freq); free(s->s3fresh);
   free(s->lc_t); free(s->lc_who); free(s->lc_snap); free(s->lc_q[0]); free(s->lc_q[1]); free(s->lc_qt[0]); free(s->lc_qt[1]);
