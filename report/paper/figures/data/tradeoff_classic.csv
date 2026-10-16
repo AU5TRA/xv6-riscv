@@ -1,5 +1,5 @@
 instr,faults,label,anchor,dx,dy,workloads
-385,1.253,FIFO,west,3,0,14
-411,1.000,Clock,north west,1,-1,14
-8125,1.066,Aging,east,-3,0,14
-8005,1.130,LFU,east,-3,0,14
+384,1.253,FIFO,west,3,0,14
+410,1.000,Clock,north west,1,-1,14
+8124,1.066,Aging,west,3,0,14
+8004,1.130,LFU,east,-3,0,14
