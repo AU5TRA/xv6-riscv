@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  16 OCT 2026 10:24
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.9.28)  16 OCT 2026 12:06
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -610,17 +610,18 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 
 [4] (./tables/sampling_kernel.tex) (./tables/sampling_sweep.tex)
 (./tables/sampling_heur.tex) [5{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathit.e
-nc}] (./tables/sampling_more.tex) (./tables/cost_sizes.tex)
+nc}] (./tables/sampling_more.tex) [6] (./tables/cost_sizes.tex)
+(./tables/cost_exact.tex)
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[6] (./tables/cost_exact.tex) [7] (./tables/native_timing.tex)
-Overfull \hbox (14.39499pt too wide) in paragraph at lines 1--259
+[7] (./tables/native_timing.tex)
+Overfull \hbox (14.39499pt too wide) in paragraph at lines 1--261
  [] 
  []
 
-(./tables/breakeven_summary.tex) [8{/usr/share/texmf/fonts/enc/dvips/lm/lm-rm.e
-nc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}]
+[8{/usr/share/texmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/dv
+ips/lm/lm-mathsy.enc}] (./tables/breakeven_summary.tex)
 (./tables/compiler_flags.tex) (./tables/fast_code.tex) [9]
 (./tables/breakeven_by_workload.tex)
 
@@ -637,67 +638,67 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 430--431
+Underfull \hbox (badness 10000) in paragraph at lines 432--433
 []\T1/lmtt/m/n/7 r3_first_version.*\T1/lmr/m/n/7 (+20) ,
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 437--437
+Underfull \hbox (badness 10000) in paragraph at lines 439--439
 []\T1/lmr/m/n/7 (+20) xv6, count-ing
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 438--438
+Underfull \hbox (badness 10000) in paragraph at lines 440--440
 []\T1/lmr/m/n/7 (+20) xv6, count-ing
  []
 
 
-Underfull \hbox (badness 6157) in paragraph at lines 441--441
+Underfull \hbox (badness 6157) in paragraph at lines 443--443
 []\T1/lmr/m/n/7 (+20) this PC (Win-
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 443--443
+Underfull \hbox (badness 10000) in paragraph at lines 445--445
 []\T1/lmr/m/n/7 (+20) xv6, count-ing
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 446--447
+Underfull \hbox (badness 10000) in paragraph at lines 448--449
 []\T1/lmtt/m/n/7 sampling_kaggle_*.csv\T1/lmr/m/n/7 (+20) ,
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 447--448
+Underfull \hbox (badness 10000) in paragraph at lines 449--450
 []\T1/lmtt/m/n/7 kaggle_*_sizes.csv\T1/lmr/m/n/7 (+20) ,
  []
 
 
-Overfull \hbox (8.16626pt too wide) in paragraph at lines 417--450
+Overfull \hbox (8.16626pt too wide) in paragraph at lines 419--452
  [] 
  []
 
 [12]
-Underfull \hbox (badness 6316) in paragraph at lines 456--457
+Underfull \hbox (badness 6316) in paragraph at lines 458--459
 []\T1/lmr/m/n/10 (+20) Kernel runs: \T1/lmtt/m/n/10 python3 tools/ml2/kernel_ev
 al.py --fracs 0.1 --nonml clock,arck --models
  []
 
 
-Overfull \hbox (55.4056pt too wide) in paragraph at lines 456--457
+Overfull \hbox (55.4056pt too wide) in paragraph at lines 458--459
 \T1/lmtt/m/n/10 global,global@32\T1/lmr/m/n/10 (-20) ; re-sults go to \T1/lmtt/
 m/n/10 report/results2/\T1/lmr/m/n/10 (-20) ; the Kag-gle pack-ages are in \T1/
 lmtt/m/n/10 kaggle_package/round1..round9
  []
 
 
-Underfull \hbox (badness 1147) in paragraph at lines 457--458
+Underfull \hbox (badness 1147) in paragraph at lines 459--460
 []\T1/lmr/m/n/10 (+20) Merge: \T1/lmtt/m/n/10 merge_kernel_results.py\T1/lmr/m/
 n/10 (+20) ; in-ter-vals: \T1/lmtt/m/n/10 kernel_ci_classic.py \T1/lmr/m/n/10 (
 +20) (and \T1/lmtt/m/n/10 writes\T1/lmr/m/n/10 (+20) ); ta-bles:
  []
 
 
-Overfull \hbox (13.29263pt too wide) in paragraph at lines 458--459
+Overfull \hbox (13.29263pt too wide) in paragraph at lines 460--461
 []\T1/lmr/m/n/10 (-20) Costs: \T1/lmtt/m/n/10 cost_grid.py \T1/lmr/m/n/10 (-20)
  (count-ing mode), \T1/lmtt/m/n/10 cost_from_runs.py\T1/lmr/m/n/10 (-20) , \T1/
 lmtt/m/n/10 native_timing.c\T1/lmr/m/n/10 (-20) , \T1/lmtt/m/n/10 tools/io_late
@@ -705,7 +706,7 @@ ncy.ps1\T1/lmr/m/n/10 (-20) ,
  []
 
 [13]
-Overfull \hbox (16.91965pt too wide) in paragraph at lines 459--460
+Overfull \hbox (16.91965pt too wide) in paragraph at lines 461--462
 []\T1/lmr/m/n/10 (-20) Simulator stud-ies: \T1/lmtt/m/n/10 exp_sampling.py\T1/l
 mr/m/n/10 (-20) , \T1/lmtt/m/n/10 exp_sampling_heur.py\T1/lmr/m/n/10 (-20) , \T
 1/lmtt/m/n/10 r3_first_version.py\T1/lmr/m/n/10 (-20) , \T1/lmtt/m/n/10 r3_dagg
@@ -741,7 +742,7 @@ re/texmf/fonts/type1/public/lm/lmsy10.pfb></usr/share/texmf/fonts/type1/public/
 lm/lmsy5.pfb></usr/share/texmf/fonts/type1/public/lm/lmsy7.pfb></usr/share/texm
 f/fonts/type1/public/lm/lmtt10.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt
 8.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt9.pfb>
-Output written on week_16_update_report.pdf (14 pages, 481532 bytes).
+Output written on week_16_update_report.pdf (14 pages, 482147 bytes).
 PDF statistics:
  302 PDF objects out of 1000 (max. 8388607)
  240 compressed objects within 3 object streams

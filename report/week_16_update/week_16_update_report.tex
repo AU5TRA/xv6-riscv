@@ -213,6 +213,8 @@ used bits and scores only the first $k$ found unused. Each run records the pages
 At equal estimated cost, pool is level with random or at most about 10\% cheaper (pool 16+16 is 1.004 at about 6\,600 instructions against random 32 at 1.002 and 7\,400); clock-filter is clearly worse than random at every size (1.062 at about 4\,300 against random 16 at 1.019 and 4\,000).
 So the quality-against-cost curve of random sampling is close to the best we found: about 16 pages is the knee at 5 and 10\% (1.001 and 1.019 of all pages at about a quarter of the cost), and at 20\% memory more pages are needed.
 
+\textbf{A sample that grows with memory} (simulator, 74 streams): $k$ = the larger of a minimum and a share of the pages to choose from. It does shrink the loss at 20\% memory, from 1.031 (32 pages) to 1.017 (the larger of 32 and a quarter of the pages) and 1.006 (the larger of 32 and half the pages), at 5 and 10\% it changes little, but only by looking at more pages, so its cost grows with memory again. At the same cost a larger fixed sample does as well: 48 random pages give 1.020 at about 7\,400 instructions against 1.017 at about 7\,800 for the growing rule, and 64 pages give 1.015 at about 9\,600. So the 20\% loss is simply the price of looking at fewer pages; we keep the fixed 32 pages (\code{sampling\_pct*.csv}, \code{tools/ml2/exp\_sampling\_pct.py}).
+
 \section{What choosing a victim costs}
 \label{sec:cost}
 
