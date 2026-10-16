@@ -48,10 +48,13 @@ rules inside xv6, and is the extra work worth it? Numbers: page faults in xv6 di
 | linear score vs Clock | 0.976 [0.90, 1.09] | **0.914 [0.85, 0.98]** | 0.882 [0.77, 1.00] | FINAL |
 | linear score vs ARC | 1.031 [0.97, 1.13] | 0.970 [0.92, 1.02] | 0.896 [0.77, 1.02] | FINAL: no interval excludes 1 |
 | linear score vs LeCaR | 0.929 [0.84, 1.04] | **0.822 [0.73, 0.91]** | **0.728 [0.58, 0.87]** | FINAL |
-| linear, 32 / 16 sampled pages vs Clock | NOT RUN | **0.912 / 0.926** | NOT RUN | FINAL at 10% |
-| linear, 32 / 16 sampled vs linear, all pages | NOT RUN | 0.998 [0.97, 1.02] / 1.013 [0.98, 1.04] | NOT RUN | FINAL at 10% |
-| CNN / MLP / set-attention vs linear | ten streams | 1.000 / 0.998 / 0.992 (level) | ten streams | FINAL at 10% |
-| boosted trees / ranking trees vs linear | ten streams | 1.061 [1.01, 1.12] / 1.476 [1.05, 2.43] (worse) | ten streams | FINAL at 10% |
+| linear, 32 / 16 sampled pages vs Clock (16 at 10% only) | 0.972 / -- | **0.912 / 0.926** | **0.902** / -- | FINAL |
+| linear, 32 / 16 sampled vs linear, all pages (16 at 10% only) | 0.995 / -- | 0.998 [0.97, 1.02] / 1.013 [0.98, 1.04] | 1.023 / -- | FINAL |
+| CNN / MLP / set-attention vs linear | 0.984 / 0.992 / **0.948 [0.89, 0.99]** | 1.000 / 0.998 / 0.992 | 1.008 / 1.011 / 1.018 | FINAL, 74 streams at every size (2026-10-16) |
+| boosted trees / ranking trees vs linear | 0.984 / 1.125 | 1.061 [1.01, 1.12] / 1.476 [1.05, 2.45] (worse) | 1.049 / 1.432 [1.04, 2.37] (worse) | FINAL, 74 streams |
+| CNN / MLP / set-attention vs ARC | 1.015 / 1.023 / 0.978 | 0.969 / 0.968 / 0.962 | 0.903 [0.79, 1.00] / **0.906 [0.81, 0.99]** / 0.912 | FINAL, 74 streams; MLP vs ARC at 20% is the only interval below 1 |
+| linear, 32 sampled vs linear, all pages | 0.995 [0.99, 1.00] | 0.998 [0.97, 1.02] | 1.023 [0.97, 1.09] | FINAL (her B1) |
+| linear, 32 sampled vs Clock | 0.972 [0.90, 1.09] | **0.912** | **0.902 [0.83, 0.98]** | FINAL |
 
 **What it supports:** the linear score beats Clock at 10% memory and is better on average at 5 and 20%; it is level with ARC (never write "beats ARC");
 heavier models are no better and cost 20–150 times more; looking at 32 random pages loses nothing at 10%; LeCaR in kernel form loses to Clock everywhere.
@@ -66,11 +69,11 @@ Claim as in section 0; title "Learned Page Replacement from What the Kernel Alre
 |---|---|---|---|
 | Kernel runs: every policy and model, 14 workloads, 74 streams, 3 memory sizes; 3,405 runs merged; PC and Kaggle give identical faults (180 repeats) | xv6 | FINAL | `kernel_eval_all.csv` (only read this one) |
 | LeCaR in the kernel, 5/10/20% | xv6 | FINAL | `kernel_eval_lecar.csv`; report "Main result" |
-| Heavier models: 74 streams at 10%, ten streams at 5/20% | xv6 | FINAL (5/20% partial; round 9 NOT RUN) | `kmain_B_*` |
+| Heavier models: 74 streams at 5, 10 and 20% | xv6 (PC + Kaggle round 9) | FINAL | `kmain_B_*` |
 | Sampled linear score, 32 and 16 random pages, 10% | xv6 | FINAL | report "Looking at fewer pages" |
 | Sampling sweep, k = 4, 8, 16, 32, 64, 3 sizes, 3 seeds, two ways (score only / scan and score) | simulator, 33 streams | FINAL | `sampling_sweep.csv`; report table "sampling" |
 | Ways of choosing the sample (random, newest + random, spread, window, unseen-first, oldest): none beats random | simulator, 74 streams | FINAL | `sampling_heuristics.csv` |
-| Sampling schemes in the kernel: instruction counts and one stream | xv6 | PRELIMINARY (74-stream runs = round 8, NOT RUN) | report "Looking at fewer pages" |
+| Six ways of sampling in the kernel (random, newest+random, spread; 32 and 16), 74 streams at 10%: nothing beats random; spread-32 worse (1.022 of random); PC and Kaggle identical on 318 runs | xv6 | FINAL | `sampling_kaggle_*.csv`, `kernel_eval_sampling.csv` |
 | Kernel vs simulator: within ~2% on average for ARC, LHD, S3-FIFO, LeCaR, linear, sampled linear | both | FINAL | report "Does the simulator predict the kernel?" |
 | First version of the training data rerun: 203 of 300 linear models fail on PageRank; DAgger, 3 rounds: rescues one failing model, not others ("DAgger did not help" is NOT reproduced) | simulator | FINAL | `r3_first_version.*`, `r3_dagger_v1.csv`; report appendix |
 | Instruction counts per eviction, 20/68/260/516 pages, every policy | xv6, counting mode, **patbench uniform only** | FINAL for patbench | `cost_grid.csv`; report table "cost by size" |
@@ -102,7 +105,6 @@ These counts come from patbench; exact counts on one stream of each workload agr
 ### 4. Not done / open
 * Exact instruction counts on the real programs (one stream per workload) — approved by GawwyG, planned.
 * Your A: putting the cheaper code into the kernel, then the checks (data check, same victims on 14 streams, cost grid redone in one build, native timing). Your B: 32-sample at 5/20% (148 runs), a data check that really samples, the tables.
-* Round 8 (sampling schemes, 74 streams) and round 9 (heavier models at 5/20%, 74 streams): packaged, NOT RUN.
 * Seed variation in the kernel (only checked in the simulator).
 * A whole xv6 page fault on real hardware was never timed (only a bare disk read and the scoring code on an x86 core).
 
