@@ -1,0 +1,6 @@
+stem,split,workload,variant,fraction,frames,policy,model,status,swap_faults,evictions,page_writes,select_ticks,candidates_scanned,zero_faults,wall_s,transcript,accesses,collect_ticks,path_ticks
+lzw-r30-s5,heldout,lzw,lzw-r30,0.05,23,ml,trees-all,ok,3144960,3145083,330036,17428154781,84917241,123,6210,test-logs/kernel_eval/20261015-052442-801835-vmrun-ml-trees-all-lzwbench-23-30-0-5.log,,290488796,19954006352
+lzw-r30-s5,heldout,lzw,lzw-r30,0.05,23,ml,attention-all,ok,2806741,2806864,196277,31274832337,75785328,123,7046,test-logs/kernel_eval/20261015-052442-801630-vmrun-ml-attention-all-lzwbench-23-30-0-5.log,,265262206,33584007564
+lzw-r30-s5,heldout,lzw,lzw-r30,0.05,23,ml,cnn-all,ok,3115521,3115644,361661,35918934946,84122388,123,7945,test-logs/kernel_eval/20261015-052442-796155-vmrun-ml-cnn-all-lzwbench-23-30-0-5.log,,286421252,38461152292
+lzw-r30-s5,heldout,lzw,lzw-r30,0.05,23,ml,mlp-all,ok,3080941,3081064,356797,54820403746,83188728,123,9591,test-logs/kernel_eval/20261015-052442-796160-vmrun-ml-mlp-all-lzwbench-23-30-0-5.log,,271477432,57301720418
+lzw-r30-s5,heldout,lzw,lzw-r30,0.05,23,ml,ranktrees-all,ok,3512872,3512995,305820,9599576486,94850865,123,4375,test-logs/kernel_eval/20261015-070812-686252-vmrun-ml-ranktrees-all-lzwbench-23-30-0-5.log,,222802154,11558396275

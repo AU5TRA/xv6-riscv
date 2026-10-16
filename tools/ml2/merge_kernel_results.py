@@ -19,7 +19,8 @@ OLD = "kernel_eval.csv"       # the week-14 build of the programs; later files u
 
 
 def main():
-    files = [R / f for f in SOURCES if (R / f).exists()] + [Path(p) for p in sorted(glob.glob(str(R / "kaggle_*.csv")))]
+    files = [R / f for f in SOURCES if (R / f).exists()] + [Path(p) for p in sorted(glob.glob(str(R / "kaggle_*.csv")))] + \
+        [R / "kernel_eval_sampling.csv"] * (R / "kernel_eval_sampling.csv").exists() + [Path(p) for p in sorted(glob.glob(str(R / "sampling_kaggle_*.csv")))]   # round 8 / 8b: ways of sampling
     rows, header, stat = {}, [], []
     for f in files:
         n = dup = 0

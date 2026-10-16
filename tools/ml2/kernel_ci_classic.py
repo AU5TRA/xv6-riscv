@@ -29,7 +29,10 @@ PAIRS = [("lecar", "clock"), ("ml:global", "lecar"), ("arck", "clock"), ("lhd", 
 # added after publication (computed in the second loop, so they never shift the published intervals)
 NEW_PAIRS = [("ml:global@32", "arck"), ("ml:global@32", "lhd"), ("ml:global@32", "s3fifo"), ("ml:global@32", "lecar"),
              ("ml:cnn-all", "ml:global@32"), ("ml:mlp-all", "ml:global@32"), ("ml:attention-all", "ml:global@32"),
-             ("ml:trees-all", "ml:global@32"), ("ml:ranktrees-all", "ml:global@32"), ("lecar", "arck")]
+             ("ml:trees-all", "ml:global@32"), ("ml:ranktrees-all", "ml:global@32"), ("lecar", "arck"),
+             ("ml:global@32n", "ml:global"), ("ml:global@32s", "ml:global"), ("ml:global@16n", "ml:global"), ("ml:global@16s", "ml:global"),
+             ("ml:global@32n", "ml:global@32"), ("ml:global@32s", "ml:global@32"), ("ml:global@16n", "ml:global@16"), ("ml:global@16s", "ml:global@16"),
+             ("ml:global@32n", "clock"), ("ml:global@32s", "clock"), ("ml:global@16n", "clock"), ("ml:global@16s", "clock")]
 
 
 def interval(d, fr, a, b, rng):

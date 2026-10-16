@@ -300,6 +300,24 @@ def cost_exact_table():
     (OUT / "cost_exact.tex").write_text(tab(body, ["workload", "pages", "Aging", "LeCaR", "ARC", "LHD", "linear", "Clock", "32 sampled", "16 sampled"]))
 
 
+def sampling_kernel_table():
+    """The six ways of sampling in the kernel (rounds 8 and 8b, 74 streams, 10% memory), from kernel_ci_classic.csv."""
+    d = {(r["fraction"], r["policy"], r["against"]): r for r in csv.DictReader(open(R / "kernel_ci_classic.csv"))}
+    def cell(a, b):
+        r = d.get(("0.1", a, b))
+        if not r:
+            return "--"
+        lo, hi = float(r["ci95_low"]), float(r["ci95_high"])
+        c = f"{float(r['faults_ratio']):.3f} [{lo:.2f}, {hi:.2f}]"
+        return f"\\best{{{c}}}" if hi < 1 else c
+    body = []
+    for k in ("32", "16"):
+        for suf, name in (("", "random"), ("n", "the quarter newest, rest random"), ("s", "evenly spread over the load order")):
+            m = f"ml:global@{k}{suf}"
+            body.append([f"{k} pages, {name}", cell(m, "ml:global"), cell(m, "clock"), cell(m, f"ml:global@{k}") if suf else "--"])
+    (OUT / "sampling_kernel.tex").write_text(tab(body, ["which pages", "vs all pages", "vs Clock", "vs random, same number"]))
+
+
 def copies():
     for n in ["kmain_A_005", "kmain_A_01", "kmain_A_02", "kmain_B_005", "kmain_B_01", "kmain_B_02", "kmain_WA_005", "kmain_WA_01", "kmain_WA_02", "trainedall", "model_comparison", "transfer", "lecar"]:
         shutil.copy(W15 / f"{n}.tex", OUT / f"{n}.tex")
@@ -308,5 +326,5 @@ def copies():
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     ci_table(); cost_table(); breakeven_tables(); copies()
-    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table(); sampling_more_table(); cost_exact_table()
+    cost_sizes_table(); cost_runs_table(); sampling_sweep_table(); sampling_heur_table(); native_timing_table(); compiler_flags_table(); dagger_table(); fast_code_table(); sampling_more_table(); cost_exact_table(); sampling_kernel_table()
     print("written", OUT)

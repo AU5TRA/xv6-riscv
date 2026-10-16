@@ -106,6 +106,8 @@ struct model {
   // mode 6 (pool, as in Redis): the best sample_pool candidates of the last eviction are kept and scored again with k new random pages;
   // mode 7 (Clock filter): walk the pages in load order from a moving hand, clearing used bits, and score the first k pages found unused.
   int sample_pool;
+  // sample_pct > 0: k = max(sample_k, sample_pct % of the pages to choose from), so the sample grows with memory (random pages only)
+  int sample_pct;
   // Callback scorer (kind 3): cb(n, feat[n][NF], hist[n][GRU_K], out[n]) scores
   // the whole candidate set at once (set / sequence models run in Python).
   void *cb;
@@ -1180,7 +1182,9 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
       if (listpol)
         lv = policy == P_ARC || policy == P_ARCK ? arc_fault(s, p) : (policy == P_MGLRU || policy == P_LHD) ? -1 : s3_fault(s, p, policy == P_S3SCAN);
       if (s->count >= cap) {                  // ---- evict ----
-        int sampled = sampling && s->count > m->sample_k;
+        int kk = sampling ? m->sample_k : 0;
+        if (sampling && m->sample_pct > 0 && s->count * m->sample_pct / 100 > kk) kk = s->count * m->sample_pct / 100;
+        int sampled = sampling && s->count > kk;
         int ex_n = 0;
         int gclock = guard && g_use_clock;
         if (gclock) {
@@ -1188,15 +1192,15 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         } else if (sampled && m->sample_mode >= 6) {
           ex_n = sample_ex(s, m, &o->scanned, &o->scored);
         } else if (sampled) {
-          draw_sample(s, m->sample_k, m->sample_mode);
+          draw_sample(s, kk, m->sample_mode);
           if (m->sample_scan) {
-            for (int i = 0; i < m->sample_k; i++) scan_one(s, s->res[s->samp[i]]);
-            o->scanned += m->sample_k;
+            for (int i = 0; i < kk; i++) scan_one(s, s->res[s->samp[i]]);
+            o->scanned += kk;
           } else {
             scan_all(s);
             o->scanned += s->count;
           }
-          o->scored += m->sample_k;
+          o->scored += kk;
         } else if (need_scan) {
           if (policy == P_LECAR) lecar_snapshot(s);
           scan_all(s);
@@ -1228,7 +1232,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
         } else if (sampled && m->sample_mode >= 6) {
           k = choose_ex(s, m, t, ex_n);
         } else if (sampled) {
-          k = choose_sampled(s, m, t, m->sample_k);
+          k = choose_sampled(s, m, t, kk);
         } else {
           k = choose(s, policy, m, t, score);
         }
