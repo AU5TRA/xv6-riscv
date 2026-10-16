@@ -197,7 +197,7 @@ on the 74 kernel streams the simulator gives 1.002 and 1.019 and the kernel 0.99
 Random is as good as anything tried. Taking the newest pages plus random ones ties it; an even spread ties it at 16 but at 32 it becomes ``the 32 oldest pages'' whenever fewer than 64 pages are in memory, which is worse;
 the others are clearly worse. Measured exactly in the kernel with 68 pages, random sampling costs 11\,305 (32) and 5\,668 (16) instructions, the even spread 11\,275 and 5\,681 (the random draws cost almost nothing, so it saves nothing),
 and newest-plus-random 10\,759 and 5\,002. On one stream (kv-T17) the kernel and simulator agree to within 1--3\% for every scheme.
-Not done: kernel runs with several random seeds (the seed check is from the simulator only).
+\textbf{Random seeds in the kernel.} The kernel's sampler normally starts from the same state; with two other starting states (a new \code{vmrun} option, \code{global@32r2}), on 10 streams of 10 workloads that sample at 10\% memory, single streams moved by at most 1.6\% (32 pages) and 1.6\% (16 pages), and the mean over the streams by at most 0.002 (0.975, 0.975, 0.975 at 32 pages; 0.997, 0.996, 0.996 at 16), as the simulator had shown; the usual seed reproduced the earlier runs exactly (20 of 20; \code{kernel\_eval\_seeds.csv}).
 
 \textbf{Looking for a cheaper rule} (simulator, all 74 streams at 5, 10 and 20\% memory, scan and score). Two ideas beyond picking pages at random, aimed at fewer pages per eviction:
 \emph{pool} keeps the best few candidates of the last eviction and adds $k$ fresh random pages (what Redis does, so a good candidate is not forgotten), and \emph{clock-filter} walks the pages in load order like Clock, clears their
@@ -329,7 +329,7 @@ The kernel's own fixed pages (code, stack) and sizes near a sudden change in fau
 \item \textbf{Fourteen workloads,} some close variants of each other.
 \item \textbf{Adapted forms:} ARC, LHD, S3-FIFO and LeCaR ran in the form a kernel can run, not as published.
 \item \textbf{``All workloads'' means the six training workloads;} the other eight were never seen in training.
-\item \textbf{Sampling:} only random sampling ran in the kernel: $k$ = 32 at 5, 10 and 20\%, $k$ = 16 at 10\%, with one random seed.
+\item \textbf{Sampling:} in the kernel, random sampling with $k$ = 32 at 5, 10 and 20\% and $k$ = 16 at 10\%, plus two other ways of choosing at 10\%; other seeds only on 10 streams.
 \item \textbf{The cheaper linear-score code} (Section~\ref{sec:reduce}) is in the kernel only since 2026-10-15; every fault count here comes from builds before it (checked identical on 28 runs, one stream per workload for the linear score and its 32-page version; not on every stream). Its native timing was taken on a quiet PC (three runs).
 \item \textbf{The learned policy can be worse than Clock} (matmul at 5\%, SpMV, graph at 20\%); the tables show where.
 \end{itemize}

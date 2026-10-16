@@ -107,6 +107,8 @@ set_ml_weights(struct proc *p, uint64 addr)
       return -1;
   acquire(&p->vm.lock);
   p->vm.ml = w;
+  if(w.sample_seed != 0)
+    p->vm.ml_rng = ((uint64)w.sample_seed * 0x9E3779B97F4A7C15ULL) ^ 0xD1B54A32D192ED03ULL;
   release(&p->vm.lock);
   return 0;
 }

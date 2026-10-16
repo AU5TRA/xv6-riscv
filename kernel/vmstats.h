@@ -52,6 +52,7 @@ struct vm_ml_weights {
   int sample_k;             // 0 = scan and score every candidate; k > 0 = a random sample of k per eviction
   int model_id;             // 0 = the linear weights above; k > 0 = built-in network / trees number k (mlnets.h)
   int sample_mode;          // which k: 0 random, 1 the k/4 newest loaded + random rest, 2 evenly spread over the load order
+  int sample_seed;          // 0: the sampler's usual starting state; otherwise a different starting state (seed checks)
 };
 
 
