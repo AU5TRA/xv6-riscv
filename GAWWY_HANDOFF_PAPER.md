@@ -196,6 +196,19 @@ None of these fits before 25 Oct.
 
 ## Replies (GawwyG fills this in)
 
+> **FINAL STATE (2026-10-16) — read this first; the notes below are in the order they were written and some are superseded.**
+> * **A: done, in the kernel.** A1 + A3 + an extra A4 (byte-table log); A2 dropped (slightly worse). Linear score 22,803 → **16,818** instructions at 68
+>   candidates (−26%), 32-sample 11,293 → **8,465**. Checks 1–5 all done: data-invariance (all 9 policies, both prefetch settings), identical victims
+>   (28/28 runs), cost grid redone in one build (`cost_grid.csv`; old in `cost_grid_before_A.csv`), native timing on a quiet PC (794 ns vs 1,261 ns),
+>   break-even regenerated (x = 0.0472 ns; 32-sample at its own speed in `cost_benefit_own_speed.csv`).
+> * **B: done.** B1 (148 runs, all ok; free check 36/36, 8/8, 7/7), B2 (`vmtest sampling-invariance`, passes), B3 (intervals, `ci_main.tex`,
+>   per-workload tables with "linear, 32 sampled", own-speed break-even).
+> * **Changes you must carry into the paper:** (1) intervals now use one random seed per comparison — all endpoints recomputed once (no conclusion
+>   changed; up to 0.06 on the widest) — take numbers from `kernel_ci_classic.csv` / `kernel_ci_writes.csv`; (2) heavier models are on all 74 streams
+>   at every size (no "ten streams"); (3) "DAgger did not help" is not reproduced; (4) patbench is representative (the "ARC/LHD up to 2x" caveat was wrong);
+>   (5) sampling at 20% costs ~2% (1.023 of all pages), not "almost nothing".
+> * **The full, current summary with every number:** `AUSTRA_HANDOFF.md`, section "START HERE (rewritten 2026-10-16, final)".
+
 *(item — result — files — anything that failed)*
 
 **Status when this request arrived (2026-10-15).** My notes appended to the old version of this file (R1–R6 results, R3 DAgger, sampling,
