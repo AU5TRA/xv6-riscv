@@ -278,3 +278,13 @@ Pool (Redis-style) and clock-filter sampling were tried to cut the cost further:
 * **Intervals:** all recomputed with the per-comparison seeds and the complete data (`kernel_ci_classic.csv`, `kernel_ci_writes.csv`); tables `ci_main.tex`, `kmain_B_*`, `sampling_kernel.tex` regenerated.
 * **A sample that grows with memory** (simulator, 74 streams; `exp_sampling_pct.py`, `sampling_pct*.csv`): k = max(minimum, share of the pages). At 20% it cuts the loss from 1.031 (32 pages) to 1.017 (max(32, 25%)) and 1.006 (max(32, 50%)), but only by scoring more pages; a fixed 48 or 64 random pages does as well at the same cost (1.020 at ~7,400 instructions, 1.015 at ~9,600). No kernel run needed; fixed 32 stays.
 * **Seeds in the kernel** (new `vmrun` option: `global@32r2` = sampler seed 2; default unchanged, data tests pass): 32 and 16 random pages with seeds 2 and 3 on 10 streams of 10 workloads at 10% (`kernel_eval_seeds.csv`, 60 runs). Single streams move by at most 1.6%; the mean over the streams by at most 0.002 (32 pages: 0.9754 / 0.9751 / 0.9750 of all pages; 16 pages: 0.9973 / 0.9963 / 0.9956); the usual seed reproduces the earlier runs exactly (20 of 20). So "one random draw" is not a weakness of the sampled results.
+
+
+---
+
+## 2026-10-17: paper review (GawwyG) — `report/paper/main2.tex`
+Your `main.tex` was **not** edited. `report/paper/main2.tex` is a reviewed copy with every change listed and justified in
+`report/paper/REVIEW_main2.md` (placeholders removed, wrong/inconsistent values fixed, new data: gap to Belady, k chosen on validation,
+write-backs in the time model, an untuned-baseline check, Holm-corrected primary tests, the learned weights, a new Figure 5).
+It builds, and the main text still ends on page 10. **What is still to do is in `backlog.md` (now in git), section "PAPER — still to
+do"** — please have your agent read it first.

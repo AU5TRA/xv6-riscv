@@ -1,0 +1,4 @@
+fraction,belady_vs_clock_sim,policy32,policy32_gap_closed,full,full_gap_closed,arc,arc_gap_closed,lhd,lhd_gap_closed
+0.05,0.614,0.972,0.072,0.976,0.061,0.947,0.138,1.005,-0.012
+0.1,0.59,0.912,0.214,0.914,0.209,0.943,0.139,0.951,0.119
+0.2,0.563,0.902,0.225,0.882,0.271,0.984,0.036,0.949,0.118

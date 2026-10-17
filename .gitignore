@@ -46,8 +46,7 @@ report/slides/*.vrb
 # the study's presentation and the figure PDFs it is built from
 !report/slides/ml_results.pdf
 !report/figures2/*.pdf
-# local backlog of deferred work
-/backlog.md
+# backlog.md is in git since 2026-10-17 (shared with AU5TRA's agent)
 # local walk-through of the whole project
 /EXPLANATION.md
 # week-14 report build artifacts

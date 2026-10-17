@@ -24,19 +24,27 @@ import pagesim as ps
 
 R = ps.ROOT / "report" / "results2"
 SSD_US, HDD_US = 100.0, 8000.0     # assumed fault costs (the defaults of week 15); overridden by --ssd-us / --hdd-us
+SSD_W_US = HDD_W_US = 0.0          # cost of writing a page back to swap; 0 = not counted (as before); --ssd-write-us / --hdd-write-us
 NS_PER_INSTR = 1.0                 # assumed 1 ns per instruction; overridden by --ns-per-instr (measured, S2)
 OUT_NAME = "cost_benefit.csv"
 EXACT = False           # --exact: instruction counts measured on each workload (kernel_eval_icount.csv) instead of the patbench line
+FRACTION = "0.1"        # --fraction: memory size of the kernel runs used
 OWN_SPEED = {}          # --own-speed: (policy, model) -> ns per instruction measured natively for that policy (the sampled scores run slower per instruction)
 for _i, _a in enumerate(__import__("sys").argv):
     if _a == "--ssd-us":
         SSD_US = float(__import__("sys").argv[_i + 1])
+    elif _a == "--ssd-write-us":
+        SSD_W_US = float(__import__("sys").argv[_i + 1])
+    elif _a == "--hdd-write-us":
+        HDD_W_US = float(__import__("sys").argv[_i + 1])
     elif _a == "--hdd-us":
         HDD_US = float(__import__("sys").argv[_i + 1])
     elif _a == "--ns-per-instr":
         NS_PER_INSTR = float(__import__("sys").argv[_i + 1])
     elif _a == "--own-speed":
         OWN_SPEED = {("ml", "global@32"): 525 / 8465, ("ml", "global@16"): 255 / 4237, ("ml", "global@64"): 1016 / 16911}   # native ns / kernel instructions at 68 pages (native_timing_A.csv, cost_grid.csv)
+    elif _a == "--fraction":
+        FRACTION = __import__("sys").argv[_i + 1]
     elif _a == "--exact":
         EXACT = True
     elif _a == "--out":
@@ -94,7 +102,7 @@ def main():
     ex = exact_costs() if EXACT else {}
     rows = []
     for f in [str(R / "kernel_eval_all.csv")]:       # the merged file: every distinct kernel run, all streams
-        rows += [r for r in csv.DictReader(open(f)) if r["status"] == "ok" and r["fraction"] == "0.1"]
+        rows += [r for r in csv.DictReader(open(f)) if r["status"] == "ok" and r["fraction"] == FRACTION]
     seen = {}
     for r in rows:
         seen[(r["stem"], r["policy"], r["model"])] = r        # later files override older ones
@@ -135,8 +143,9 @@ def main():
             ns = OWN_SPEED.get((p, m), NS_PER_INSTR)
             be = extra * ns / saved / 1000 if saved > 0 else float("inf")      # microseconds (ns nanoseconds per instruction)
             t = {}
-            for name, us in (("ssd", SSD_US), ("hdd", HDD_US)):
-                t[name] = (fl(r) * us * 1000 + ev * cost * ns) / (cf * us * 1000 + ce * cc * NS_PER_INSTR)
+            wr = lambda x: int(x["page_writes"] or 0)
+            for name, us, wus in (("ssd", SSD_US, SSD_W_US), ("hdd", HDD_US, HDD_W_US)):
+                t[name] = (fl(r) * us * 1000 + wr(r) * wus * 1000 + ev * cost * ns) / (cf * us * 1000 + wr(c) * wus * 1000 + ce * cc * NS_PER_INSTR)
             agg[(g, p, m)].append((fr, be, t["ssd"], t["hdd"], frames, cost))
     for (g, p, m), v in sorted(agg.items()):
         gm = lambda i: math.exp(np.mean([math.log(max(x[i], 1e-9)) for x in v]))

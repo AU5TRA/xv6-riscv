@@ -222,6 +222,10 @@ static void gru_step(int H, int n_x, const float *gw, const float *x,
   memcpy(h, hn, sizeof(float) * H);
 }
 
+// S3-FIFO's small queue, in percent of the memory (10 as published); set_s3_small_pct() changes it for a sensitivity check.
+static int g_s3_small_pct = 10;
+void set_s3_small_pct(int pct) { g_s3_small_pct = pct > 0 ? pct : 10; }
+
 struct state {
   int64_t n; int n_pages, cap;
   const uint32_t *pg; const uint8_t *wr; const uint32_t *nu;
@@ -1140,7 +1144,7 @@ int simulate(int64_t n, int n_pages, int cap, const uint32_t *pg,
   if (listpol) {
     for (int p = 0; p < n_pages; p++) s->lin[p] = -1;
     for (int l = 0; l < 4; l++) s->lhead[l] = s->ltail[l] = -1;
-    s->s3_small_cap = cap / 10 > 0 ? cap / 10 : 1;
+    s->s3_small_cap = cap * g_s3_small_pct / 100 > 0 ? cap * g_s3_small_pct / 100 : 1;
     s->s3_main_cap = cap - s->s3_small_cap;
   }
   if (policy == P_MGLRU)
