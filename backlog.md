@@ -8,16 +8,32 @@ older sections below are history and many items in them are done. Remove items a
 `report/paper/main2.tex` is a reviewed copy of `main.tex` (GawwyG's review, 2026-10-17; `main.tex` itself was not edited, as asked).
 Diff it against `main.tex` and merge what you accept. What is still open:
 
+0. **MLSys 2027 rules, checked 2026-10-17 against https://mlsys.org/Conferences/2027/CallForResearchPapers and the official style
+   archive.** The style files in `report/paper/` are byte-identical to `mlsys2025style.zip`, which the 2027 call prescribes ("same
+   submission format as 2025"): the template is correct. Limits: 10 pages excluding references (main2 ends on page 10), appendix
+   unlimited but **a separate upload** due at the paper deadline, 10-pt Times, Type-1 fonts only (checked: all Type 1), table captions
+   above / figure captions below, abstract "roughly 4–6 sentences" (main2: 6), multiple citations in chronological order (fixed in
+   main2), every reference lists all authors (checked). Dates: submissions open **19 Oct 20:00 UTC**, deadline **30 Oct 20:00 UTC**
+   (OpenReview, https://openreview.net/group?id=MLSys.org/2027/Conference); author lists cannot change after the deadline.
+   * **AI Usage Disclosure — mandatory, missing from main.tex.** "placed after the references section; it does not count toward the
+     page limit"; must describe tools, which parts, to what extent; "Undisclosed or inaccurately disclosed AI use ... may result in
+     desk rejection". main2.tex has a draft after the references: the second author must fill in the red writing part, and BOTH
+     authors must check every sentence.
+   * **Build for submission with `bash report/paper/make_submission.sh main2`** (one build, split into paper and appendix PDFs).
+     main.tex's own instruction (\withappendixfalse) leaves 8 appendix references as "??" in the paper PDF.
+   * **OpenReview:** every author needs a complete, active profile ("at least two weeks in advance", i.e. by 16 Oct): check the
+     second author's (and the supervisor's, if added); register all conflicts on the submission site.
+   * Page numbers for two references if available (bansal2004car, FAST 2004; vietri2018lecar, HotStorage 2018); the MLSys
+     proceedings entries have none, which is allowed ("whenever possible"). Do not guess numbers.
 1. **Anonymized code and data link.** The three `\todo{anonymized code link}` marks were removed from `main2.tex` (abstract,
    Availability, Conclusion). Before submission: create an anonymous mirror (e.g. anonymous.4open.science or an anonymized zip), make
    sure its history and paths do not identify the authors, and add the link once (Availability paragraph, §4) — not in the abstract.
-2. **Template year.** The PDF says "mlsys 2025" (`mlsys2025.sty`). Check the MLSys 2027 call for a 2027 style file and switch if one exists.
+2. ~~Template year~~ — checked: the 2027 call prescribes the 2025 style files, and ours are identical (item 0).
 3. **Strip comments before any source upload** (arXiv, OpenReview supplementary, the anonymous repository): the `.tex` comments name
    both authors and the handoff files. The PDF itself is clean (checked: no names in text or metadata).
    `python3 tools/strip_tex_comments.py report/paper/main2.tex out.tex` writes a comment-free copy.
-4. **Appendix upload.** `\withappendixtrue` is set for drafting. For submission build the paper with `\withappendixfalse` and the
-   appendix separately (see the comment at the top of main.tex), and check every "Appendix" reference in the body still reads well
-   without it (reviewers need not read the appendix).
+4. **Appendix upload.** Use `make_submission.sh` (item 0), then read the paper PDF once without the appendix and check every
+   "Appendix" reference still reads well (reviewers need not read the appendix).
 5. **Camera-ready only:** legal names, affiliations, the supervisor decision (by 19 Oct), equal-contribution marks, acknowledgements,
    the credit for the lzw/chase/join/bloom/spmv/heap programs.
 6. Things checked but not re-derived in the 2026-10-17 review (they come from older reports; re-check if time allows): integer

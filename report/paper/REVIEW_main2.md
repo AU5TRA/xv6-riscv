@@ -48,3 +48,13 @@ section "PAPER — still to do" (anonymous link, template year, stripping commen
 * **To keep 10 pages**: the feature table moved to the appendix (the Discussion lists each feature's Linux analogue in prose);
   "The simulator predicts the kernel" shortened to one sentence (details in Appendix B).
 * One name for our policy in prose ("our policy"); the tables keep "linear, 32 sampled", defined in the teaser caption.
+
+## MLSys 2027 compliance (added 2026-10-17, after checking the official call and style archive)
+* Template: the 2027 call prescribes `mlsys2025style.zip`; our style files are identical. 10-pt Times, Type-1 fonts only (checked).
+* Page limit: main text ends on page 10 (references excluded).
+* **AI Usage Disclosure added** after the references (mandatory; not counted in the page limit). Draft: the second author fills in
+  the red writing part; both authors check every sentence (inaccurate disclosure risks desk rejection).
+* Abstract shortened to 6 sentences (template: "roughly 4–6"); four citation groups put in chronological order (template rule).
+* **Submission build: `bash make_submission.sh main2`.** Building with `\withappendixfalse` (main.tex's instruction) left 8 appendix
+  references as "??"; the script builds once and splits into `submission/main2_paper.pdf` (14 pages: text, references, disclosure)
+  and `submission/main2_appendix.pdf` (5 pages).

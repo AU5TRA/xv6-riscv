@@ -114,11 +114,10 @@
 \newcommand{\finding}[1]{\textbf{#1}\hspace{0.4em}}
 \newcommand{\obs}[2]{\textbf{Observation #1: #2}\hspace{0.4em}}
 
-% Draft toggle: the appendix is a SEPARATE upload at submission time.
-% Keep true while drafting. For submission:
-%   paper PDF:    set \withappendixfalse, build.
-%   appendix PDF: set \withappendixtrue, build, keep only the pages after the
-%                 references, e.g.  qpdf main.pdf --pages . <first-appendix-page>-z -- appendix.pdf
+% Draft toggle: the appendix is a SEPARATE upload at submission time (MLSys 2027 call).
+% For submission run   bash make_submission.sh main2   : it builds ONCE with the appendix (so every "Appendix X"/"Table N"
+% reference in the body resolves; building with \withappendixfalse leaves them as "??") and splits the PDF into
+% submission/main2_paper.pdf (main text, references, AI Usage Disclosure) and submission/main2_appendix.pdf.
 \newif\ifwithappendix
 \withappendixtrue
 
@@ -171,22 +170,20 @@
 % trees 440,490 (52x) to MLP 3,413,317 (403x). Time: breakeven_summary.tex / _own_speed.tex.
 % 4,489 runs = rows of kernel_eval_all.csv, all "ok".
 Learned policies beat hand-written heuristics in CPU caches and content-delivery
-networks, but a kernel's page-replacement policy works under constraints those settings
-lack: it never sees individual memory accesses, cannot use floating point on the eviction
-path, and every eviction changes all later faults. We ask whether a learned policy can
-work under these constraints at the cost of a classical one, and build one in the xv6
-teaching kernel. At each eviction it scores 32 randomly sampled resident pages with a
-small linear model over signals the kernel already keeps (accessed- and dirty-bit history
-and refault bookkeeping), computed in whole numbers and trained offline to imitate
-\belady's optimal policy. Across 14 workloads, eight of them never used in training, and
+networks, but a kernel's page-replacement policy never sees individual memory accesses,
+cannot use floating point on the eviction path, and changes all later faults with every
+eviction. We build a learned policy for the xv6 teaching kernel: it scores 32 randomly
+sampled resident pages with a small whole-number linear model over signals the kernel
+already keeps (accessed- and dirty-bit history and refault bookkeeping), trained offline
+to imitate \belady's optimal policy. Across 14 workloads, eight never used in training, and
 4,489 kernel runs, it incurs 8.8\% fewer page faults than \clock at 10\% memory (95\%
-interval 3--14\%) and 9.8\% fewer at 20\% (2--17\%). It does not beat ARC and LHD, the
-best classical policies in kernel form, but is level with them at fewer instructions per
-eviction (8,465 against 11,934 for ARC with 68 candidates), with a cost that stays flat as
-memory grows. Five heavier models, among them a CNN and an MLP, are not clearly better at
-52--403$\times$ the cost, and LeCaR, a learned cache policy in the same form, incurs
-5--21\% more faults than \clock. With the devices and processor core we measured, the
-saved faults pay for the decision on an NVMe SSD and on a hard disk.
+interval 3--14\%) and 9.8\% fewer at 20\% (2--17\%). It does not beat ARC and LHD, the best
+classical policies in kernel form, but is level with them at fewer instructions per
+eviction (8,465 against 11,934 for ARC with 68 candidates), at a cost that stays flat as
+memory grows. Five heavier models are not clearly better at 52--403$\times$ the cost, and
+LeCaR, a learned cache policy in the same form, incurs 5--21\% more faults than \clock.
+With the SSD, hard disk and processor core we measured, the saved faults pay for the
+decision.
 \end{abstract}
 ]
 
@@ -278,7 +275,7 @@ Learned replacement policies outperform hand-written ones, but where every acces
 visible. Hardware cache policies learn from \belady's past decisions, with the program
 counter of each access as the main feature~\citep{jain2016hawkeye,shi2019glider,shah2022mockingjay}.
 Content-delivery and storage caches learn from every request, in floating point, outside
-the kernel~\citep{song2020lrb,song2023halp,vietri2018lecar,rodriguez2021cacheus}; even
+the kernel~\citep{vietri2018lecar,song2020lrb,rodriguez2021cacheus,song2023halp}; even
 there, three FIFO queues match the learned LRB on the traces where both were
 compared~\citep{yang2023s3fifo}. A kernel has none of this visibility: it learns about a
 page only when the page faults or when a scan finds its accessed or dirty bit set, and it
@@ -289,7 +286,7 @@ chosen victims. The
 closest eviction work, LearnedCache~\citep{qi2026learnedcache}, runs a perceptron in the
 Linux page cache through cache\_ext~\citep{zussman2025cacheext}, where every access is
 visible and the pages are file pages. Learned operating-system policies at MLSys work above
-the kernel~\citep{barbalho2023vmalloc,ling2025lava,zhao2026catur,yang2025byom}. We found no
+the kernel~\citep{barbalho2023vmalloc,ling2025lava,yang2025byom,zhao2026catur}. We found no
 learned eviction policy for a program's own memory, its anonymous pages and swap, and none
 that learns only from the coarse signals a kernel has.
 % src: related-work-notes.md (search of OS/arch/ML venues, 2026-10-12) and the literature
@@ -1386,13 +1383,13 @@ parameters~\citep{lagarcavilla2019farmemory,akgun2021kml}, or predict accesses a
 lifetimes~\citep{hashemi2018learning,maas2020llama,qiu2021rmt}; LinnOS~\citep{hao2020linnos},
 LAKE~\citep{fingler2023lake} and SOL~\citep{wang2022sol} run or guard models in the kernel's
 I/O path and node agents. At MLSys, learned policies sit above the
-kernel~\citep{barbalho2023vmalloc,ling2025lava,wang2025protorail,yang2025byom,zhao2026catur,mallick2022matchmaker,tan2023ouroboros,qiu2024flash,gohil2026uncertain}.
+kernel~\citep{mallick2022matchmaker,barbalho2023vmalloc,tan2023ouroboros,qiu2024flash,ling2025lava,wang2025protorail,yang2025byom,zhao2026catur,gohil2026uncertain}.
 \emph{Difference:} our policy chooses every victim for a program's own memory on the
 kernel's fault path, where a decision must cost far less than a fault, the inputs are
 hardware bits, and the model must be integer-only.
 
 \finding{Paging with predictions.} Learning-augmented paging bounds the cost of wrong
-predictions~\citep{lykouris2021jacm,rohatgi2020,wei2020,im2022parsimonious}, also for
+predictions~\citep{rohatgi2020,wei2020,lykouris2021jacm,im2022parsimonious}, also for
 pages of different weight~\citep{bansal2022weighted}. \emph{Difference:} these analyses
 assume a prediction at every request, which a kernel that sees only faults cannot make.
 %==============================================================================
@@ -1469,6 +1466,33 @@ kernel policy is no longer whether it can learn, but what it can observe and aff
 
 \bibliography{references}
 \bibliographystyle{mlsys2025}
+
+% =============================================================================
+% AI USAGE DISCLOSURE -- required by the MLSys 2027 call for research papers: "All submissions must include an 'AI Usage
+% Disclosure' section, placed after the references section; it does not count toward the page limit ... describe in detail how
+% generative AI or AI-based tools were used in producing the work including ideation, literature search, experiment design, code
+% generation, data generation, writing etc. Describe what tools were used, for which parts of the work and to what extent."
+% "Undisclosed or inaccurately disclosed AI use ... may result in desk rejection."
+% DRAFT (2026-10-17): the first paragraph describes the systems side as recorded in this repository's history; BOTH AUTHORS must
+% check every sentence, and the second author must fill in the red part. It must stay in the paper PDF (after the references),
+% not in the separate appendix.
+% =============================================================================
+\section*{AI Usage Disclosure}
+
+We used generative AI extensively, under the authors' direction and with every result
+checked by running it. \textbf{Code and experiments:} an AI coding agent (Anthropic's
+Claude models, through Claude Code) wrote most of the code in this work at the authors'
+request, including the kernel's replacement policies (the accessed-bit ARC, LHD, S3-FIFO and
+LeCaR, and the learned policy's integer scoring and sampler), the simulator, the training and evaluation
+pipeline, the cloud-run packaging, and the analysis and table-generation scripts. It also
+ran and monitored the experiments, computed the statistics, and drafted internal reports
+that the paper's numbers come from. The authors chose the research questions, workloads and
+policies, decided which experiments to run and which claims to make, and reviewed the code
+and results. The tables are generated by scripts from the recorded runs, and the numbers in
+the text were checked against those files. \textbf{Writing:} \todo{second author: which tool(s)
+drafted and edited the paper text, the figures and the literature review, and how the text
+and every reference were checked}. A second pass with the same coding agent reviewed the
+draft against the results and suggested edits, which the authors accepted or rejected.
 
 \ifwithappendix
 \clearpage
