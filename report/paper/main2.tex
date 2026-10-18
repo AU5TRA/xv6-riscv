@@ -939,10 +939,13 @@ model selection, though not all are new programs: kv-T runs the trained key-valu
 recorded traffic, and pat and app are synthetic.
 
 \finding{Memory and runs.} The resident limit is 5, 10 or 20\% of each program's pages,
-with the same 74 streams at every size: 2--205, 4--410 and 8--820 pages (at most 3.2\,MB;
-medians 37, 75 and 150 pages), plus each program's few own pages. The pattern and application
-programs run their first 50,000 accesses. 4,489 kernel runs in total.
-% src: paper_extra.py summary (frames of the Clock runs at 5 / 10 / 20%)
+with the same 74 streams at every size: 2--205, 4--410 and 8--820 pages (at most 3.2\,MiB;
+the upper middle of the 74 streams' values is 37, 75 and 150 pages), plus each program's few
+own pages. The pattern and application programs run their first 50,000 accesses. 4,489
+kernel runs in total.
+% src: paper_extra.py summary (frames of the Clock runs at 5 / 10 / 20%; it reports sorted(...)[n // 2],
+% the upper of the two middle values of 74, so 37 / 75 / 150; the mean of the two middle values is
+% 35.5 / 71 / 142. Sizes in MiB: 820 x 4 KiB = 3.2 MiB = 3.36 MB)
 % src: week_16 report section "What was run"; kernel_eval_all.csv = 4,489 rows, all "ok"
 % (2026-10-16: every policy and model at every size on all 74 streams, plus the sampling
 % variants at 10%); Twitter: GAWWY_HANDOFF_PAPER.md "Twitter licence" (CC BY 4.0;
@@ -959,7 +962,8 @@ variants of the sampled score (16 samples, other sampling rules), each of these 
 74 streams at every size. \belady, and LeCaR as published, appear only in simulation. The
 classical policies use their published settings and were not tuned, while the learned
 policy's features and probation were chosen on validation streams; in simulation, moving
-S3-FIFO's small queue from 10\% of memory to 5, 20 or 30\% moves its faults by at most 1.3\%.
+S3-FIFO's small queue from 10\% of memory to 5, 20 or 30\% moves its faults by at most 1.3\%
+on average.
 % src: paper_extra_s3.csv (paper_extra.py s3; simulator, the kernel's cells: 0.983/0.981/0.979/0.976 at 5% memory, 1.004/1.002/
 % 0.997/0.991 at 10%, 1.048/1.046/1.042/1.035 at 20%, for a small queue of 5/10/20/30%)
 
@@ -1063,11 +1067,13 @@ covers all 74 streams. All comparisons: Table~\ref{tab:ci-full}.}
 \finding{The policy beats \clock at 10\% and 20\% memory} (0.912, interval 0.86--0.97;
 0.902, interval 0.83--0.98; Holm-corrected $p=0.006$ and $0.025$; Table~\ref{tab:ci}). At 5\%
 (0.972) it is better on average, but the interval includes 1 ($p=0.51$). It is better than
-\clock on 62 of the 74 streams at 10\% and worse on 7, against 52 and 13 for ARC
-(Figure~\ref{fig:dist}). Scoring every candidate gives nearly the same averages (0.976,
-0.914, 0.882), but its 20\% interval reaches 1.
+\clock on 65 of the 74 streams at 10\% and worse on 9, against 54 and 19 for ARC (which ties
+on one) (Figure~\ref{fig:dist}). Scoring every candidate gives nearly the same averages
+(0.976, 0.914, 0.882), but its 20\% interval reaches 1.
 % src: paper_extra_tests.csv (bootstrap p 0.0020 / 0.0124 / 0.515, Holm over the three Clock comparisons 0.006 / 0.025 / 0.515);
-% paper_extra_cdf.csv via make_figdata2.py (worse = ratio > 1.005, better = < 0.995)
+% stream counts: kernel_eval_all.csv at 10%, strict (better = ratio < 1, worse = ratio > 1), checked
+% against paper_extra_cdf.csv (AU5TRA, 2026-10-18; make_figdata2.py prints counts with a +-0.5% band,
+% 62 / 7 and 52 / 13, which the text no longer uses)
 
 \finding{It is level with ARC.} ARC, in accessed-bit form, beats \clock at 5\% and 10\%
 (0.947 and 0.943, intervals below 1) and is level at 20\% (0.984). Our policy against
@@ -1122,7 +1128,7 @@ run, learned or not, leaves most of the headroom of \S\ref{sec:bg-headroom} unus
 \end{tikzpicture}
 % data: figures/data/cdf_*.csv, kval_*.csv (make_figdata2.py from paper_extra_cdf.csv and sampling_val.csv)
 \caption{Left: per-stream faults relative to \clock in the kernel at 10\% memory, all 74
-streams (x clipped to 0.5--1.5). Our policy is better on 62 streams and worse on 7. Right:
+streams (x clipped to 0.5--1.5). Our policy is better on 65 streams and worse on 9. Right:
 choosing $k$ on validation streams only (simulator): faults with $k$ sampled pages relative
 to scoring every page; 32 is the smallest $k$ within 1\% (grey line) at every size.}
 \label{fig:dist}
@@ -1424,7 +1430,7 @@ runs at a time on one hart, and no page cache competes for memory.
   with the page-table walk but not the TLB flush or locks) are measured; a whole xv6 fault
   on real hardware is not, so the break-even results add the parts.
 \item \textbf{Fourteen workloads, some close variants; six for training.} The resident sets
-  are small (at most 3.2\,MB) and one program runs at a time. Many comparisons share the same
+  are small (at most 3.2\,MiB) and one program runs at a time. Many comparisons share the same
   74 streams, so only the corrected primary comparisons carry claims; most differences
   between the best policies are inside the intervals.
 \item \textbf{Fault counts predate the cheaper code} of \S\ref{sec:impl}; they were checked
@@ -1900,12 +1906,15 @@ on datasets drawn with other seeds moves the result by at most 0.0005.
 
 All kernel runs are resumable and finished runs are skipped. (1) Run the policies in
 the kernel at each memory size with \texttt{tools/ml2/kernel\_eval.py} (the pattern and
-application programs with \texttt{--accesses 50000}). One run uses one core; a \clock run
-takes from seconds (sort, kv) to about half an hour (Bloom filter, pointer chasing, LZW),
-and a heavier model up to about four hours. All 4,489 runs took about 715 core-hours (407
+application programs with \texttt{--accesses 50000}). One run uses one core; at 10\% memory
+a \clock run takes from seconds (sort, kv) to about half an hour (Bloom filter, pointer
+chasing, LZW), and up to about 1.3 hours at 5\% and 1 hour at 20\%; a heavier model takes up
+to about four hours. All 4,489 runs took about 715 core-hours (407
 of them outside the heavier models), split between a 6-core desktop and cloud
 notebooks. (2)
 % src: paper_extra.py summary (wall time per run in kernel_eval_all.csv; Kaggle runs at Kaggle speed); longest Clock run at 10%
+% (Bloom 32.9 min, chase 19.7, LZW 14.8); at 5% LZW 78.3 / Bloom 72.6 min, at 20% Bloom 60.0 min (kernel_eval_all.csv
+% wall_s, checked by AU5TRA 2026-10-18)
 % 1,972 s (bloom); longest run 232 min (chase, a heavier model) Merge every result file into one with
 \texttt{merge\_kernel\_results.py}, compute the intervals with
 \texttt{kernel\_ci\_classic.py}, and regenerate every table with \texttt{report\_w15.py}
