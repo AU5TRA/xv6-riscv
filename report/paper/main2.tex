@@ -284,8 +284,9 @@ has so far placed pages across memory tiers~\citep{doudali2019kleio,ramaswamy202
 tuned the parameters of far-memory reclaim~\citep{lagarcavilla2019farmemory} rather than
 chosen victims. The
 closest eviction work, LearnedCache~\citep{qi2026learnedcache}, runs a perceptron in the
-Linux page cache through cache\_ext~\citep{zussman2025cacheext}, where every access is
-visible and the pages are file pages. Learned operating-system policies at MLSys work above
+Linux page cache through cache\_ext~\citep{zussman2025cacheext}, where a hook reports a
+sample of accesses and the pages are file pages. Learned operating-system
+policies at MLSys work above
 the kernel~\citep{barbalho2023vmalloc,ling2025lava,yang2025byom,zhao2026catur}. We found no
 learned eviction policy for a program's own memory, its anonymous pages and swap, and none
 that learns only from the coarse signals a kernel has.
@@ -296,6 +297,10 @@ that learns only from the coarse signals a kernel has.
 % slow for the 6,594-trace set), S3-FIFO paper, checked 2026-10-13. Far memory: a GP
 % bandit tunes the threshold controller's parameters K and S offline (ASPLOS'19 PDF).
 % Kleio: RNN page scheduling DRAM/NVM; xTier: INT8 MLP in eBPF over PEBS samples.
+% src (2026-10-18 audit; "where every access is visible" was wrong): LearnedCache, arXiv 2605.26168 (PDF read 2026-10-18):
+% "access hooks into the kernel function folio_mark_accessed ... Because folio_mark_accessed is inherently used as a signal that
+% a folio is active rather than a function that is called on each access, it is only possible to treat it as a roughly
+% representative subsample of all accesses"; its per-page state is "updated at every access event".
 
 % --- Move 4: the question and the insight ------------------------------------
 We ask whether a learned page-replacement policy can work at operating-system level:
@@ -472,8 +477,10 @@ fails on some workload; a policy should learn the combination.}
 \end{tikzpicture}
 % data: figures/data/headroom_*.csv from report/results2/summary_classical.csv (make_figdata.py)
 \caption{Headroom (simulator, geometric mean over 5, 10 and 20\% memory; test streams,
-matmul held-out). The blue rule is the gap between \belady and the best classical
-policy. Exact LFU, whose runs stop at 3$\times$ \clock's faults, is drawn at the edge.}
+matmul held-out). The blue rule is the gap between \belady and the best grey
+dot. Exact LFU, whose runs stop at 3$\times$ \clock's faults, is drawn at the edge.}
+% (2026-10-18 audit) "the best classical policy" was wrong on sort: make_figdata.py takes the best of CLASSICAL = FIFO, Aging,
+% LFU, LRU, exact LFU (Clock excluded); on sort Clock (1.000) beats them all (Aging/LFU 1.011), so the rule ends past the Clock line.
 \label{fig:headroom}
 \end{figure}
 
@@ -820,9 +827,9 @@ no interval excludes a tie; \S\ref{sec:eval-ablate}). $k$ is a per-process setti
 % DOUBLE-BLIND: no names, lab URLs, or repository paths that identify the authors.
 % =============================================================================
 
-\finding{A paging layer for xv6.} Stock \xv~\citep{xv6} allocates every page eagerly and
-never evicts; it has no page-fault path for memory, no backing store and no
-replacement policy. We added demand paging, a raw swap area outside the file system
+\finding{A paging layer for xv6.} Stock \xv~\citep{xv6} never evicts: it maps pages eagerly
+(heap pages lazily, on request) and has no backing store and no replacement policy. We added
+demand paging, a raw swap area outside the file system
 (8,192 slots, 32\,MiB), a frame table with per-process resident limits, FIFO, \clock,
 Aging and a decayed LFU, synchronous and asynchronous prefetch, an event tracer, and a
 control call (\texttt{vmctl}) that sets a process's limit, policy and weights: about
@@ -830,6 +837,9 @@ control call (\texttt{vmctl}) that sets a process's limit, policy and weights: a
 workload produces byte-identical output under all nine policies, with and without
 prefetch, and on the sampled path with more than 32 candidates.
 Why xv6, and what differs from Linux, is discussed in \S\ref{sec:discussion}.
+% src (2026-10-18 audit; "no page-fault path for memory" was wrong): upstream base 7d01506 kernel/trap.c calls vmfault()
+% ("page fault on lazily-allocated page"), and kernel/vm.c vmfault() zero-fills the page; sys_sbrk is lazy only with SBRK_LAZY
+% (user/ulib.c sbrklazy(); plain sbrk() is SBRK_EAGER); kernel/exec.c maps the program and stack eagerly with uvmalloc().
 % src: git diff --shortstat 7d01506..HEAD -- kernel (4,398 insertions, 37 files, 2026-10-18, after removing the stray
 % backup kernel/vmpage.c.orig that the earlier 5,869 counted); data invariance: GAWWY_HANDOFF_PAPER.md
 % reply M5, R4 and the 2026-10-15 replies (checksum AB0C8578, all 9 policies; vmtest
@@ -995,6 +1005,8 @@ writes (write-backs to swap) are averaged the same way as faults.
 % benchmark"; AUSTRA_HANDOFF START HERE (2026-10-16) sections 0, 3, 5 (per-comparison seeds);
 % platform: GAWWY_HANDOFF_PAPER.md reply M5 (QEMU 8.2.2, -machine virt -smp 1 -m 128M; Ryzen 5 5600;
 % Ubuntu 24.04 on WSL2; riscv64-linux-gnu-gcc 13.3.0)
+% (2026-10-18 audit: GCC 13.3 holds for the evaluation, on the desktop per M5 and on the Kaggle notebooks; the streams were
+% recorded earlier on another machine with riscv64-unknown-elf-gcc 13.2.0, docs/vm-baseline.txt. Text unchanged.)
 
 
 
@@ -1413,15 +1425,25 @@ parameters~\citep{lagarcavilla2019farmemory,akgun2021kml}, or predict accesses a
 lifetimes~\citep{hashemi2018learning,maas2020llama,qiu2021rmt}; LinnOS~\citep{hao2020linnos},
 LAKE~\citep{fingler2023lake} and SOL~\citep{wang2022sol} run or guard models in the kernel's
 I/O path and node agents. At MLSys, learned policies sit above the
-kernel~\citep{mallick2022matchmaker,barbalho2023vmalloc,tan2023ouroboros,qiu2024flash,ling2025lava,wang2025protorail,yang2025byom,zhao2026catur,gohil2026uncertain}.
+kernel~\citep{mallick2022matchmaker,barbalho2023vmalloc,qiu2024flash,ling2025lava,wang2025protorail,yang2025byom,zhao2026catur,gohil2026uncertain}.
+% (2026-10-18 audit) tan2023ouroboros removed from this list: Ouroboros is not a policy above the kernel but a framework that
+% "constructs verified neural networks ... that satisfy user-defined safety properties" (MLSys 2023 abstract), and one of its five
+% case studies ports LinnOS ("For LatPredictor, we port the original LinnOS (Hao et al., 2020)", paper PDF). If space allows, it
+% fits after the LinnOS/LAKE/SOL sentence ("and Ouroboros builds verified ones"); that cost a line and pushed the conclusion to page 11.
 \emph{Difference:} our policy chooses every victim for a program's own memory on the
 kernel's fault path, where a decision must cost far less than a fault, the inputs are
 hardware bits, and the model must be integer-only.
 
 \finding{Paging with predictions.} Learning-augmented paging bounds the cost of wrong
 predictions~\citep{rohatgi2020,wei2020,lykouris2021jacm,im2022parsimonious}, also for
-pages of different weight~\citep{bansal2022weighted}. \emph{Difference:} these analyses
-assume a prediction at every request, which a kernel that sees only faults cannot make.
+pages of different weight~\citep{bansal2022weighted}. \emph{Difference:} they assume predictions
+per request or, in parsimonious caching, per miss; we learn ours from kernel signals.
+% src (2026-10-18 audit; "these analyses assume a prediction at every request" was wrong for Im et al.): Im et al., ICML 2022
+% (PMLR v162 PDF, read 2026-10-18): "a new algorithm that queries b unmarked pages uniformly at random on each cache miss and
+% evicts the one that is predicted to be requested the furthest in the future"; of Lykouris & Vassilvitskii, Wei and Rohatgi:
+% "their algorithm, however, queries the oracle at every time step". Bansal et al. 2022: predictions at any time about the next
+% arrival of each page (arXiv 2011.09076, checked by the bibliography audit). Im et al.'s per-miss query of a few random pages is
+% close to our sampled policy's; that remark was cut for the page limit.
 %==============================================================================
 % ----- 7 DISCUSSION AND LIMITATIONS -----
 %==============================================================================
@@ -1663,9 +1685,13 @@ simulator faults are 0.995 (ARC), 1.014 (S3-FIFO) and 0.984 (LHD), geometric mea
 74 streams, with the median stream within 1.5\%; 1.000 for LeCaR over the 59 streams run
 at full length in both (median 1.004); and 1.000 for the linear score over all candidates
 and 0.996 for the 32-sample policy over 74 streams, though single streams differ more
-(0.71--1.72 for the linear score). This holds only when the simulator starts from filled memory, as
-the kernel's benchmarks do: started empty, it misjudges some models, set-attention by up
-to 14$\times$.
+(0.71--1.72 for the linear score). The simulator starts from filled memory, as the kernel's
+benchmarks do. Started empty, it misjudged kv's own linear weights on the Twitter replays by
+10\% (kernel over simulator 0.903, against 0.999 from filled memory), while the other policies
+compared on the key-value streams moved by at most 0.021. Set-attention depends far more on
+the starting contents: on one stream its simulated faults vary 14-fold across five starting
+states, and started empty the simulator rated it 0.50 of \clock on five of the six graph
+streams, against 0.91--1.30 in the kernel.
 % src (1): validate.py rerun 2026-10-18: "1194 stream x capacity cells checked against baselines.tsv", all match, Belady <=
 % every other policy (the earlier 534 counted the 89 streams of week 14).
 % src: ML_REPORT 5.1; kernel_vs_sim_classic.csv (ARC / S3-FIFO / LHD); week-16 report table "Does
@@ -1675,6 +1701,14 @@ to 14$\times$.
 % rechecked 2026-10-14 on the 40 streams that baselines_ext.csv also has at 10%: geo-mean 0.999,
 % median 1.004, range 0.81-1.048);
 % week-15 report "Why the kernel and the simulator disagree"
+% src (2026-10-18 audit; the old "started empty, it misjudges ... set-attention by up to 14x" was wrong: 14x is the spread of
+% simulated faults across starting states, not the empty start's error against the kernel): week_15 tables/warmstart.tex
+% (kv-T, linear kv: 0.903 empty, 0.999 populated; the other rows change by at most 0.021, kv-T linear global 0.978 -> 0.999;
+% the report's own text rounds this to 0.02) and the week-15 report section
+% "Set-attention is very sensitive to the starting state" (median 2.0x, up to 14.4x over five starting states;
+% state_sensitivity.csv graph-pr2000x2-s3: 42,989 empty vs 618,843 random fill; empty start 0.50 of Clock on five of six graph
+% streams and 0.78 on the sixth). Kernel 0.91-1.30: kernel_eval_all.csv, ml:attention-graph / Clock on the six graph streams at
+% 10% = 0.914-1.296 (rechecked 2026-10-18).
 
 \section{Full Results}
 \label{app:results}
@@ -1934,11 +1968,14 @@ per-hit versions; LHD is the accessed-bit form.}
 
 \finding{Controls (simulator).} The pattern suite has known answers. On the cyclic loop,
 FIFO, LRU, \clock, ARC and LHD miss every access and MRU matches \belady; on the uniform
-pattern, every online policy is within 0.0003 of the analytical miss rate $1-C/P$ and no
+pattern, every online policy is within 0.0011 of the analytical miss rate $1-C/P$ and no
 learned model gains, so nothing leaks from training (Table~\ref{tab:transfer}). Refitting
 on datasets drawn with other seeds moves the result by at most 0.0005.
 % src: week-15 report, "patbench known answers hold" and the classical-baselines paragraph;
 % noise floor: week-15 report "Noise floor" (noise_floor.csv)
+% src (2026-10-18 audit; the week-15 report's "0.0003" does not hold per stream): transfer.csv, pat-uniform-s1/-s5 (P = 1,024
+% pages, 1,000,000 accesses), |faults / 1e6 - (1 - frames / 1024)| over every online policy and size: largest 0.00108 (MGLRU),
+% LRU 0.00101, linear K 0.00100; averaged over the two seeds at most 0.00043.
 
 \section{Reproducing the Results}
 \label{app:repro}
