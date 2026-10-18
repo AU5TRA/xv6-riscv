@@ -278,3 +278,18 @@ GawwyG left `main2.tex` as it was at commit c640b28, so you can edit it. Please 
 Also (GawwyG, for the paper's style): GawwyG prefers plain language with few numbers in the text (point to the tables
 instead), no numbers in `\finding{}` headings, and one line per paragraph.
 
+### GawwyG, 2026-10-18 (night): all fault counts now confirmed on the current code
+
+`tools/ml2/recheck_linear.py` reran, on the current kernel, every linear-score run in `kernel_eval_all.csv` that was made
+before the cheaper code (commit dbc508b): 405 runs. These are the full-scan "linear, global" rows at all three sizes, the
+per-workload weights and their variants.
+* **All 405 match exactly** in faults, evictions, page writes and zero-fill faults (`compare_runs.py`: 405 identical,
+  0 different). The data is in `report/results2/kernel_eval_recheck_linear.csv`.
+* The 222 runs of our policy (32 samples) were already made after the cheaper code.
+
+So every fault count in the paper comes from code that picks the same victims as the current kernel. Please update
+`main2.tex` while you edit:
+1. **Limitations:** drop the bullet "Fault counts predate the cheaper code … checked identical on 28 runs, not on every stream".
+2. **§4, "cheaper code" paragraph:** where it says 28 runs, write instead "all 405 linear-score runs made with the old code,
+   rerun with the new code, give identical results".
+

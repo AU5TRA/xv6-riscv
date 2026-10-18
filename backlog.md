@@ -37,6 +37,9 @@ Diff it against `main.tex` and merge what you accept. What is still open:
    "Appendix" reference still reads well (reviewers need not read the appendix).
 5. **Camera-ready only:** legal names, affiliations, the supervisor decision (by 19 Oct), equal-contribution marks, acknowledgements,
    the credit for the lzw/chase/join/bloom/spmv/heap programs.
+12. ~~Fault counts predate the cheaper code (checked on 28 runs only)~~ — done 2026-10-18: all 405 linear-score runs made
+    before commit dbc508b were rerun on the current kernel and match exactly (kernel_eval_recheck_linear.csv,
+    recheck_linear.py). AU5TRA updates the limitation and the §4 sentence (gawwy_handoff.md).
 11. **For AU5TRA while editing `main2.tex` (GawwyG, 2026-10-18):**
     (1) clarify the AI use or fill in the AI-disclosure `\todo`;
     (2) better diagrams;
