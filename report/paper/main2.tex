@@ -680,7 +680,7 @@ fewer than $p$ scans ago is not evicted while an older candidate exists, which i
 \clock's second chance applied to a learned score. $p\in\{0,1,2,4\}$ is chosen per
 scope on validation. Over the six training workloads this gives 5.22M training rows
 from 377K decisions, and 0.91M validation rows from 43K decisions.
-% src: GAWWY_HANDOFF_PAPER.md reply M5 (dataset_summary.csv): train 5,216,668 rows / 376,706
+% src (recounted 2026-10-18 from traces2/ml2_cache/{train,val}_*.npz: rows and distinct decision groups per file): train 5,216,668 rows / 376,706
 % decisions; validation 912,604 / 42,653 (total 6,129,272 / 419,359). Method: ML_REPORT 5.2, 7.2.
 
 % -----------------------------------------------------------------------------
@@ -893,11 +893,13 @@ implementations and the kernel (Appendices~\ref{app:data} and~\ref{app:sim}).
 \finding{Measuring cost and running at scale.} Decision cost is counted in instructions
 with QEMU in instruction-counting mode (repeatable to 0.3\%). The 4,489 kernel runs were
 split between a desktop and cloud notebooks; 498 runs done on both gave identical results.
-The linear score is a closed-form fit; the heavier models train in 2--67\,s.
+The linear score is a closed-form fit; the heavier models train in 3--70\,s.
 % src: AUSTRA_HANDOFF START HERE (2026-10-16) sections 2 and 5 (4,489 runs; PC and Kaggle
 % identical on 180 + 318 repeats; select_ticks is emulated time, not instructions);
-% training times: GAWWY_HANDOFF_PAPER.md reply M5 (global scope; MLP 48 s, CNN 48 s, set-attention
-% 67 s on an RTX 3060 Ti; boosted trees 1.8 s, ranking trees 2.7 s, CPU)
+% training times: report/results2/training_times.csv (re-measured 2026-10-18, the five global-scope kernel-feature models, the
+% training code of extra_nn.py / extra_trees.py, data already in memory, nothing saved): boosted trees 2.9 s, ranking trees
+% 3.0 s (CPU, 6 threads); MLP 48.1 s, CNN on aging bits 59.8 s, set-attention 69.3 s (RTX 3060 Ti). The earlier 1.8-67 s
+% (reply M5) was a single unsaved measurement.
 
 \finding{Availability.} The kernel, workloads, traces, simulator and training pipeline
 will be released as open source and submitted for artifact evaluation
@@ -1175,8 +1177,10 @@ mean over the 74 streams)
 
 \finding{Whole numbers lose almost nothing.} With 8 fractional bits, the selected linear
 models are within 0.002 of their floating-point fault ratio in 39 of 44 cells, and within
-0.007 in every cell a kernel could run.
-% src: report/results2/tables.md "Integer-only scoring" (current models), via GAWWY_HANDOFF_PAPER.md reply M4
+0.008 in every cell a kernel could run.
+% src (re-derived 2026-10-18 from summary_final.csv and summary_extras.csv quant8, the inputs of tables.md "Integer-only
+% scoring"): 44 cells (11 workload-splits x 4 feature groups), 39 within 0.002 unrounded; the 22 kernel-feature cells (K,
+% K+K+) differ by at most 0.0078 (lzw held-out K: 1.1786 float, 1.1864 int8); the earlier "0.007" compared rounded values
 
 \finding{From 68 candidates up, the sampled policy costs less than ARC.} Choosing a victim costs
 8,465 instructions with 68 candidates: 21$\times$ \clock, about Aging's (8,124) and LeCaR's
@@ -1647,7 +1651,7 @@ Feature & Definition & Linux analogue \\
 
 Feature selection needs tens of thousands of full replays, so it runs in a C simulator,
 which we checked in five ways. (1) FIFO, LRU and \belady match an independent
-implementation on all 534 stream--capacity cells. (2) FIFO, \clock, Aging and LFU match a
+implementation on all 1,194 stream--capacity cells (199 streams at six memory sizes). (2) FIFO, \clock, Aging and LFU match a
 naive re-implementation of the kernel's logic in faults and write-backs. (3) Every \tierK
 and \tierKp feature matches that re-implementation on 11,792 evictions $\times$ 53
 candidates, and the C scorer reproduces each trained model's predictions. (4) The
@@ -1662,6 +1666,8 @@ and 0.996 for the 32-sample policy over 74 streams, though single streams differ
 (0.71--1.72 for the linear score). This holds only when the simulator starts from filled memory, as
 the kernel's benchmarks do: started empty, it misjudges some models, set-attention by up
 to 14$\times$.
+% src (1): validate.py rerun 2026-10-18: "1194 stream x capacity cells checked against baselines.tsv", all match, Belady <=
+% every other policy (the earlier 534 counted the 89 streams of week 14).
 % src: ML_REPORT 5.1; kernel_vs_sim_classic.csv (ARC / S3-FIFO / LHD); week-16 report table "Does
 % the simulator predict the kernel?" (LeCaR 59 streams 1.000 / median 1.004; linear all pages
 % 1.000, 32 sampled 0.996, 74 streams; single streams 0.71-1.72; no CSV in results2 for these

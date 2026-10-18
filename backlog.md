@@ -23,8 +23,9 @@ Diff it against `main.tex` and merge what you accept. What is still open:
      main.tex's own instruction (\withappendixfalse) leaves 8 appendix references as "??" in the paper PDF.
    * **OpenReview:** every author needs a complete, active profile ("at least two weeks in advance", i.e. by 16 Oct): check the
      second author's (and the supervisor's, if added); register all conflicts on the submission site.
-   * Page numbers for two references if available (bansal2004car, FAST 2004; vietri2018lecar, HotStorage 2018); the MLSys
-     proceedings entries have none, which is allowed ("whenever possible"). Do not guess numbers.
+   * ~~Page numbers for two references~~ — done 2026-10-18: bansal2004car pp. 187–200 (USENIX, DBLP, Crossref agree);
+     vietri2018lecar has no page numbers (USENIX's own BibTeX has none; HotStorage papers are separate PDFs), so it gets
+     publisher and address instead. The MLSys proceedings entries have none, which is allowed ("whenever possible").
 1. **Anonymized code and data link.** The three `\todo{anonymized code link}` marks were removed from `main2.tex` (abstract,
    Availability, Conclusion). Before submission: create an anonymous mirror (e.g. anonymous.4open.science or an anonymized zip), make
    sure its history and paths do not identify the authors, and add the link once (Availability paragraph, §4) — not in the abstract.
@@ -42,9 +43,10 @@ Diff it against `main.tex` and merge what you accept. What is still open:
    regenerate cost_sizes.tex, the teaser and the break-even CSVs (about 0.2% on the sampled scores; nothing changes sides).
 8. **Week-16 report tables (2026-10-18).** report_w16.py ci_main.tex still bolds every interval below 1 (including 0.998 / 0.994);
    main2 uses make_figdata2.py's ci_full2.tex (below 0.99). Align report_w16.py if the week-16 report is rebuilt.
-6. Things checked but not re-derived in the 2026-10-17 review (they come from older reports; re-check if time allows): integer
-   scoring "39 of 44 cells", the simulator's "534 cells", the 5.22M training rows, training times 2–67 s, "22–41% worse" on Redis and
-   SQLite.
+6. ~~Older numbers not re-derived~~ — done 2026-10-18: "39 of 44" holds (but "within 0.007" was 0.0078 → now 0.008); "534 cells"
+   was stale (89 streams of week 14) → validate.py rerun on all 1,194 cells, all match; 5.22M / 377K / 0.91M / 43K recounted from
+   the .npz files, exact; training times re-measured (training_times.csv): 2.9–69.3 s → "3–70 s". "22–41% worse" was checked
+   in the 2026-10-18 audit (extra_summary.csv global,real).
 
 
 ## Recommended next (from the ML study, 2026-10-01)

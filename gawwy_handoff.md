@@ -237,3 +237,16 @@ ARC needs 129,555 and scoring every page 211,582. Metrics now lists 20, 68, 260,
 
 **Not changed, for you to decide:** Figure 2 uses kv test Belady 0.571 (all cells); `tab:info` uses 0.559 (15 cells). The
 caption already explains this, so I left it.
+
+### GawwyG, 2026-10-18 (later): the last backlog checks
+
+* **`references.bib` is shared with `main.tex`, so this changes your copy too.**
+  * `bansal2004car` gets pp. 187–200 (USENIX, DBLP and Crossref agree).
+  * `vietri2018lecar` has no page numbers anywhere, including USENIX's own BibTeX, so it gets "USENIX Association, Boston, MA".
+* **Re-derived in `main2.tex`:**
+  * Integer scoring: the kernel-feature cells differ by up to 0.0078, so "0.007" is now "0.008"; "39 of 44" holds.
+  * Simulator check (1): 534 → 1,194 cells. `validate.py` was rerun on all 199 streams × 6 sizes, and everything matches.
+  * Training rows: recounted from the `.npz` files, and exact.
+  * Training times: re-measured as 2.9 / 3.0 s for the trees on the CPU and 48 / 60 / 69 s for the networks on the GPU, so
+    "2–67 s" is now "3–70 s" (`report/results2/training_times.csv`).
+

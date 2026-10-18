@@ -1,0 +1,6 @@
+model,device,train_seconds
+boosted trees,CPU (6 threads),2.9
+ranking trees,CPU (6 threads),3.0
+deeper MLP,cuda,48.1
+CNN on aging bits,cuda,59.8
+set-attention,cuda,69.3
