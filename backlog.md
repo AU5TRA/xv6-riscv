@@ -36,6 +36,12 @@ Diff it against `main.tex` and merge what you accept. What is still open:
    "Appendix" reference still reads well (reviewers need not read the appendix).
 5. **Camera-ready only:** legal names, affiliations, the supervisor decision (by 19 Oct), equal-contribution marks, acknowledgements,
    the credit for the lzw/chase/join/bloom/spmv/heap programs.
+7. **Cost grid on one code version (2026-10-18).** cost_grid.csv rows at 16-512 frames predate the sampling-rule switch (16 Oct);
+   the 820-frame rows ran after it. The switch adds 14-16 instructions to a sampled decision (cost_grid_current_code.csv). The
+   paper states this in the Table 12 caption. Optional: re-measure the sampled rows (or the whole grid) on the current code and
+   regenerate cost_sizes.tex, the teaser and the break-even CSVs (about 0.2% on the sampled scores; nothing changes sides).
+8. **Week-16 report tables (2026-10-18).** report_w16.py ci_main.tex still bolds every interval below 1 (including 0.998 / 0.994);
+   main2 uses make_figdata2.py's ci_full2.tex (below 0.99). Align report_w16.py if the week-16 report is rebuilt.
 6. Things checked but not re-derived in the 2026-10-17 review (they come from older reports; re-check if time allows): integer
    scoring "39 of 44 cells", the simulator's "534 cells", the 5.22M training rows, training times 2–67 s, "22–41% worse" on Redis and
    SQLite.

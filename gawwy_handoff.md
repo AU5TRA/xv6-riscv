@@ -142,3 +142,98 @@ If you choose (b) in problem 1, check that this limitation and §5.1 still agree
 ## Replies (GawwyG fills this in)
 
 *(problem — what you changed — files — anything you disagree with)*
+
+### GawwyG, 2026-10-18
+
+All four are fixed in `main2.tex` (`main.tex` untouched). Then a full audit of `main2.tex` against `report/results2`, done
+section by section after your four, found more; those fixes are listed under "Also fixed" below. Every new number has a
+`% src:` comment; tables stay generated. The main text still ends on page 10, and `make_submission.sh` now checks where the
+conclusion *ends* (new label `sec:end-of-main`), not where it starts. It also reruns LaTeX until the cross-references settle.
+
+**1. Holm family: (a), three.** `paper_extra.py tests` now writes `p_holm` over the three Clock comparisons only (0.515 /
+0.006 / 0.025; the bootstrap p-values are unchanged) and leaves it empty for the ARC rows. `p_holm_six` keeps the old family
+for reference. RQ2: "($p=0.043$, uncorrected), within 0.01 of 1, so we do not count it as a win"; the "0.17" is gone. The
+intro's "Against ARC no difference holds once corrected" is now "no difference is clear". Files: `tools/ml2/paper_extra.py`,
+`report/results2/paper_extra_tests.csv`.
+
+**2. k = 32.** You are right about the history. 32 (and 16) came from the simulator sweep `exp_sampling.py` on 8 Oct, on test
+and held-out streams. The kernel runs of 32 vs 16 vs scoring every page at 10% kept 32 (R1, 13 Oct). The validation run of
+17 Oct confirmed it. §3.6 now says: "$k=32$ was first picked from sweeps on the test and held-out streams; a rule fixed in
+advance and applied to the validation streams only, [...] also picks 32". The Figure 5 caption is reworded the same way.
+
+**3. Measured.** `cost_grid.py --sizes 820` ran for all 29 policies (824 candidates, the largest set any stream has: btree at
+20%). The 32-sample score costs **8,832** there, so "under 8,900 at every memory size" now rests on a measurement and stays.
+ARC needs 129,555 and scoring every page 211,582. Metrics now lists 20, 68, 260, 516 and 824 candidates. §3.6 says "from 68 to
+824 candidates".
+* **One catch.** The sampling-rule switch (vmrun `@32n` / `@32s`, added 16 Oct, after the grid) adds **14–16 instructions** to
+  every sampled decision. That includes the default random one; victims and faults are unchanged. I re-measured on the
+  current code (`report/results2/cost_grid_current_code.csv`): 8,481 / 8,804 / 8,895 at 68 / 260 / 516, against 8,465 / 8,788
+  / 8,880 in the table. Scoring every page and the 20-candidate case are within 1 instruction.
+* The 824 rows ran on the current code, so the old-code value there would be about 8,816. Both are under 8,900.
+* I kept the table's numbers and said this in the Table 12 caption (appendix). Re-measuring the whole grid on the current code
+  is in `backlog.md`.
+
+**4. Limitation:** your wording, word for word.
+
+**Also fixed (from the audit):**
+* **Tables `tab:ci` and `tab:ci-full`** bolded every interval below 1. That includes ours vs ARC at 20% (up to 0.998), which
+  the text says is not a win, and set-attention at 5% (0.994). They now come from `make_figdata2.py` (`ci_body2.tex`,
+  `ci_full2.tex`), bold only below 0.99. The cells are identical; four bold marks are gone. `ci_body.tex` and week-16 `ci_main.tex`
+  are unchanged, so `main.tex` renders as before.
+* **Claims inside the 0.01 band, reworded:**
+  * boosted trees at 10%: "average 6% more faults (interval from 1.01)";
+  * even-spread sampling: "is, if anything, worse (1.007–1.041)";
+  * set-attention at 5%: "too close to 1 to claim";
+  * FIFO / Aging / LFU have no intervals: "incur 4–35% more faults on average".
+* **Wrong numbers:**
+  * Kernel lines: 5,900 → **4,400**. The diff counted `kernel/vmpage.c.orig`, a stray copy of `vmpage.c` from before the
+    sampling-mode patch; it is now deleted.
+  * Heavier models' read-only data: 100,716 → **305,976 bytes** (`nm -S kernel/kernel`; the old number predates the models
+    added on 11 Oct).
+  * S3-FIFO small queue: "at most 1.3% on average" → **1.1%**. 1.3% was the spread between the 5% and 30% settings, not the
+    change from 10%.
+  * Core-hours outside the heavier models: 407 → **302**. 407 subtracted only the five all-workload models.
+  * Reference-implementation checks: "570 traces" → 15 random traces at up to 7 cache sizes = 95 cases per policy.
+  * 32 MB → 32 MiB.
+* **Appendix D, step (2):** the text "Merge every result file into one with" was inside a `%` comment, so the step started
+  mid-sentence. Fixed.
+* **Appendix A, splits:** "every stream of the other eight workloads is held out" is wrong for the pattern suite. It splits 9
+  of 11 variants the same way, and only their test streams are run. Matmul's single-stream variants are training data.
+* **RQ1:**
+  * "every richer model fails on real traces" became "the three richer models we ran there are 22–41% worse". Only three ran,
+    on two traces.
+  * Added that on the Twitter replays kv's kernel-input trees beat kv's linear score (0.878 [0.849, 0.926],
+    `extra_summary.csv`).
+  * "Transfers best" is removed, as is "transfers better" from the Table 19 caption.
+  * "2–5%" → 2–6%: global test 2.4%, held-out 5.5%.
+  * "Tie where both work" → "win on some workloads (sort test 0.879 vs 0.983)".
+  * The idle medians are per-workload models; the text now says so.
+* **A2, one workload vs all six:** now from the kernel, because those models ran on all 74 streams at 10%. CNN, MLP and
+  set-attention are worse; boosted trees are level; ranking trees improve (1.07 vs 1.35). The simulator said four of five. New
+  `paper_extra.py oneall` writes `paper_extra_oneall.csv`.
+* **Break-even:** the text quotes write-back-inclusive numbers (1.01, 2.2–3.4×), but the table was reads only (1.02,
+  2.47–3.55). `tab:breakeven` now inputs `figures/data/breakeven_writes.tex` (`make_figdata2.py`, from
+  `cost_benefit_with_writes_*.csv`). The caption gives the reads-only deltas and the 11-of-14 count, and it now references
+  `tab:breakeven-wl` and `tab:breakeven-own`, which nothing referenced before.
+* **Scope added where it was missing:**
+  * "beats Clock inside the kernel" → at 10% and 20%;
+  * the 0.91 / 0.92 times → at 10% memory;
+  * Belady 39–44% → in simulation, and 7% of the gap closed at 5%;
+  * conclusion → "with the core we measured" and "at 10% and 20% memory";
+  * seeds → two seeds, 10 streams at 10%;
+  * exact counts agree "per candidate wherever there are more than 40";
+  * the simulator matches the kernel "geometric mean over the 74 streams" (by workload-then-equal-weight, LHD is 0.979);
+  * matmul's feature selection used its training streams;
+  * default weights score every page unless a sample size is set.
+* **Softened or removed:**
+  * cost "stays flat" / "does not grow" → "barely grows" (8,465 → 8,880);
+  * Obs. 1 "as good as LRU" → "close to";
+  * LFU "6–13% on btree" mixed test and held-out → 6% on test streams;
+  * "failures repeat across memory sizes" removed (graph fails only at 20%, SpMV only at 5%);
+  * the "Second," with no "First," is gone;
+  * the Table 12 caption no longer says only Clock, S3-FIFO and the samples stay flat (FIFO is flatter than S3-FIFO);
+  * the "92 intervals" count is gone (it included the 3 primary ones);
+  * A3 now says the fourth feature group (all kernel and refault features) stayed at 1.39.
+
+**Not changed, for you to decide:** Figure 2 uses kv test Belady 0.571 (all cells); `tab:info` uses 0.559 (15 cells). The
+caption already explains this, so I left it.

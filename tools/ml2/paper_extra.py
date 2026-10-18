@@ -3,11 +3,13 @@
 
   belady      Belady and Clock in the simulator at the kernel's own memory sizes (frames of the kernel's Clock runs; short streams cut to
               the kernel's access count) -> how much of the gap between Clock and Belady each kernel policy closes
-  tests       bootstrap p-values (the same two-level resampling, one seed per comparison) for the six primary comparisons, Holm-adjusted
+  tests       bootstrap p-values (the same two-level resampling, one seed per comparison) for the policy against Clock and ARC;
+              Holm over the three primary comparisons (against Clock) only; ARC is descriptive (Holm over all six kept for reference)
   cdf         per-stream faults / Clock at 10% for the figure (policy, ARC, LHD)
   summary     FIFO / Aging / LFU vs Clock to 3 decimals; resident sizes in pages and MB; total kernel compute time
+  oneall      in the kernel at 10%: each heavier kind trained on one workload against the same kind trained on all six (74 streams)
 
-    python3 paper_extra.py belady|tests|cdf|summary   -> report/results2/paper_extra_*.csv and printed lines
+    python3 paper_extra.py belady|tests|cdf|summary|s3|oneall   -> report/results2/paper_extra_*.csv and printed lines
 """
 import csv
 import math
@@ -104,20 +106,28 @@ def tests():
         p = min(1.0, 2 * min((bs >= 0).mean(), (bs <= 0).mean()))
         rows.append([fr, a, b, round(math.exp(point), 3), round(float(math.exp(np.quantile(bs, 0.025))), 3),
                      round(float(math.exp(np.quantile(bs, 0.975))), 3), max(p, 1 / 10000)])
-    order = sorted(range(len(rows)), key=lambda i: rows[i][6])
-    m = len(rows)
-    adj = [0.0] * m
-    run = 0.0
-    for rank, i in enumerate(order):
-        run = max(run, min(1.0, (m - rank) * rows[i][6]))
-        adj[i] = run
+    prim3 = [i for i, r in enumerate(rows) if r[2] == "clock"]     # the family fixed in the paper (Setup/Metrics)
+    adj3 = dict(zip(prim3, holm([rows[i][6] for i in prim3])))
+    adj6 = holm([r[6] for r in rows])
     with open(R / "paper_extra_tests.csv", "w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["fraction", "policy", "against", "ratio", "ci95_low", "ci95_high", "p_bootstrap", "p_holm"])
-        for r, h in zip(rows, adj):
-            w.writerow(r + [round(h, 4)])
-            print(f"{r[0]:5s} {r[1]} vs {r[2]:6s} {r[3]:.3f} [{r[4]:.3f}, {r[5]:.3f}]  p={r[6]:.4f}  Holm p={h:.4f}  {'significant' if h < 0.05 else ''}")
+        w.writerow(["fraction", "policy", "against", "ratio", "ci95_low", "ci95_high", "p_bootstrap", "p_holm", "p_holm_six"])
+        for i, r in enumerate(rows):
+            h = adj3.get(i)
+            w.writerow(r + ["" if h is None else round(h, 4), round(adj6[i], 4)])
+            hs = "descriptive" if h is None else f"Holm p={h:.4f}" + ("  significant" if h < 0.05 else "")
+            print(f"{r[0]:5s} {r[1]} vs {r[2]:6s} {r[3]:.3f} [{r[4]:.3f}, {r[5]:.3f}]  p={r[6]:.4f}  {hs}  (over six: {adj6[i]:.4f})")
 
+
+def holm(ps):
+    """Holm-adjusted p-values, in the order given."""
+    order = sorted(range(len(ps)), key=lambda i: ps[i])
+    adj = [0.0] * len(ps)
+    run = 0.0
+    for rank, i in enumerate(order):
+        run = max(run, min(1.0, (len(ps) - rank) * ps[i]))
+        adj[i] = run
+    return adj
 
 def cdf():
     d, _ = runs()
@@ -180,5 +190,23 @@ def s3():
         print(fr, "S3-FIFO vs Clock (simulator):", ", ".join(line))
 
 
+def oneall():
+    d, _ = runs()
+    fr = "0.1"
+    kinds = [("CNN", "ml:cnn-kv", "ml:cnn-all"), ("deeper MLP", "ml:mlp-kv", "ml:mlp-all"), ("boosted trees", "ml:trees-kv", "ml:trees-all"),
+             ("set-attention", "ml:attention-graph", "ml:attention-all"), ("ranking trees", "ml:ranktrees-graph", "ml:ranktrees-all")]
+
+    def ratio(a, b):
+        return wmean({s: max(v, 1) / max(d[(fr, b)][s], 1) for s, v in d[(fr, a)].items() if s in d[(fr, b)]})
+
+    with open(R / "paper_extra_oneall.csv", "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["fraction", "kind", "one_workload_model", "one_vs_clock", "all_six_vs_clock", "one_vs_all_six", "streams"])
+        for k, one, alls in kinds:
+            r1, r6, (rr, _, n) = ratio(one, "clock")[0], ratio(alls, "clock")[0], ratio(one, alls)
+            w.writerow([fr, k, one, round(r1, 3), round(r6, 3), round(rr, 3), n])
+            print(f"{k:14s} one workload ({one}) {r1:.3f}  all six {r6:.3f}  one / all six {rr:.3f}  ({n} streams)")
+
+
 if __name__ == "__main__":
-    {"belady": belady, "tests": tests, "cdf": cdf, "summary": summary, "s3": s3}[sys.argv[1]]()
+    {"belady": belady, "tests": tests, "cdf": cdf, "summary": summary, "s3": s3, "oneall": oneall}[sys.argv[1]]()

@@ -1,0 +1,18 @@
+\begin{tabular}{lrrrrr}
+\toprule
+policy & faults / Clock & SSD, 1 ns & disk, 1 ns & SSD, 0.047 ns & disk, 0.047 ns \\
+\midrule
+linear score, all candidates & 0.914 & 1.21 & \best{0.92} & \best{0.93} & \best{0.92} \\
+linear score, 32 sampled & 0.912 & 1.01 & \best{0.91} & \best{0.92} & \best{0.91} \\
+linear score, 16 sampled & 0.926 & \best{0.98} & \best{0.93} & \best{0.93} & \best{0.93} \\
+ARC & 0.943 & 1.15 & \best{0.94} & \best{0.95} & \best{0.94} \\
+LHD & 0.951 & 1.21 & \best{0.95} & \best{0.96} & \best{0.95} \\
+LeCaR & 1.113 & 1.28 & 1.11 & 1.12 & 1.11 \\
+S3-FIFO & 1.016 & 1.04 & 1.02 & 1.02 & 1.02 \\
+CNN & 0.914 & 27.22 & 1.16 & 2.37 & \best{0.92} \\
+deeper MLP & 0.912 & 46.82 & 1.34 & 3.37 & \best{0.93} \\
+set-attention & 0.907 & 25.27 & 1.13 & 2.24 & \best{0.91} \\
+boosted trees & 0.970 & 7.82 & 1.04 & 1.37 & \best{0.98} \\
+ranking trees & 1.350 & 10.63 & 1.43 & 1.88 & 1.35 \\
+\bottomrule
+\end{tabular}

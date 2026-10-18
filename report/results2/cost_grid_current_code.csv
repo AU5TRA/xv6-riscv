@@ -1,0 +1,8 @@
+frames,model,evictions,candidates_per_eviction,select_instructions_per_eviction,path_instructions_per_eviction,faults,cost_grid_csv_select,difference
+16,global@32,19682,20.0,4571,8708,19682,4570,1
+64,global,18714,68.0,16817,21807,18714,16818,-1
+64,global@16,18749,68.0,4251,9239,18749,4237,14
+64,global@32,18722,68.0,8481,13466,18722,8465,16
+64,global@64,18729,68.0,16926,21916,18729,16911,15
+256,global@32,15042,260.0,8804,17166,15042,8788,16
+512,global@32,10125,516.0,8895,21726,10125,8880,15

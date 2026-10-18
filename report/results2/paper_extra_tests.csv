@@ -1,7 +1,7 @@
-fraction,policy,against,ratio,ci95_low,ci95_high,p_bootstrap,p_holm
-0.05,ml:global@32,clock,0.972,0.899,1.084,0.5148,1.0
-0.1,ml:global@32,clock,0.912,0.858,0.966,0.002,0.012
-0.2,ml:global@32,clock,0.902,0.831,0.978,0.0124,0.062
-0.05,ml:global@32,arck,1.027,0.971,1.134,0.6384,1.0
-0.1,ml:global@32,arck,0.968,0.927,1.011,0.1278,0.3834
-0.2,ml:global@32,arck,0.916,0.831,0.998,0.0426,0.1704
+fraction,policy,against,ratio,ci95_low,ci95_high,p_bootstrap,p_holm,p_holm_six
+0.05,ml:global@32,clock,0.972,0.899,1.084,0.5148,0.5148,1.0
+0.1,ml:global@32,clock,0.912,0.858,0.966,0.002,0.006,0.012
+0.2,ml:global@32,clock,0.902,0.831,0.978,0.0124,0.0248,0.062
+0.05,ml:global@32,arck,1.027,0.971,1.134,0.6384,,1.0
+0.1,ml:global@32,arck,0.968,0.927,1.011,0.1278,,0.3834
+0.2,ml:global@32,arck,0.916,0.831,0.998,0.0426,,0.1704

@@ -1,0 +1,6 @@
+fraction,kind,one_workload_model,one_vs_clock,all_six_vs_clock,one_vs_all_six,streams
+0.1,CNN,ml:cnn-kv,0.952,0.914,1.042,74
+0.1,deeper MLP,ml:mlp-kv,0.941,0.912,1.031,74
+0.1,boosted trees,ml:trees-kv,0.963,0.97,0.992,74
+0.1,set-attention,ml:attention-graph,1.543,0.907,1.702,74
+0.1,ranking trees,ml:ranktrees-graph,1.067,1.35,0.791,74

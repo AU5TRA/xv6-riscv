@@ -58,3 +58,19 @@ section "PAPER — still to do" (anonymous link, template year, stripping commen
 * **Submission build: `bash make_submission.sh main2`.** Building with `\withappendixfalse` (main.tex's instruction) left 8 appendix
   references as "??"; the script builds once and splits into `submission/main2_paper.pdf` (14 pages: text, references, disclosure)
   and `submission/main2_appendix.pdf` (5 pages).
+
+## 2026-10-18: AU5TRA's four problems (gawwy_handoff.md) and a full data audit
+
+The details and files are in `gawwy_handoff.md`, "Replies". In short:
+* The Holm family is the three Clock comparisons (paper_extra_tests.csv `p_holm`), and ARC is descriptive.
+* The k = 32 history is stated honestly.
+* The 32-sample cost was measured at 824 candidates: 8,832.
+* The limitation now matches §5.1.
+* Interval tables bold only below 0.99 (`ci_body2.tex`, `ci_full2.tex`).
+* The break-even table counts write-backs (`breakeven_writes.tex`).
+* Fixed values: kernel lines 4,400, model data 305,976 B, S3-FIFO 1.1%, 302 core-hours, 95 reference cases per policy, and the
+  held-out description.
+* A2 one-vs-all is now from the kernel (`paper_extra_oneall.csv`).
+* RQ1's transfer claims are narrowed to what was run.
+* Scope was added where claims were unqualified.
+* `make_submission.sh` checks the end of the conclusion and reruns LaTeX until the references settle.
