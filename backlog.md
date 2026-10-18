@@ -37,6 +37,31 @@ Diff it against `main.tex` and merge what you accept. What is still open:
    "Appendix" reference still reads well (reviewers need not read the appendix).
 5. **Camera-ready only:** legal names, affiliations, the supervisor decision (by 19 Oct), equal-contribution marks, acknowledgements,
    the credit for the lzw/chase/join/bloom/spmv/heap programs.
+11. **For AU5TRA while editing `main2.tex` (GawwyG, 2026-10-18):**
+    (1) clarify the AI use or fill in the AI-disclosure `\todo`;
+    (2) better diagrams;
+    (3) fit the workload table and definitions into the main paper, where the workloads are first used (§2.2);
+    (4) state all sampling values (item 10).
+    Details are in `gawwy_handoff.md`, "for AU5TRA to keep in mind while editing".
+10. **For AU5TRA (2026-10-18): state all sampling values.** See also the four-point list in `gawwy_handoff.md`. The paper explains why we score 32 pages but never
+    says what fewer or more pages would do, although Figure 5 (right) already shows it. Proposed sentence for the sample-size
+    paragraph of the ablations: "Fewer than 16 pages cost noticeably more faults, and more than 32 gain nothing
+    (Figure 5, right)." Data (simulator, validation streams, faults relative to scoring every page; figures/data/kval_*.csv):
+    4 pages 1.05-1.14, 8 pages 1.02-1.07, 16 pages up to 1.02 (kernel: 1.013 at 10%), 32 within 0.005, 48-64 no further gain.
+    GawwyG supports adding it.
+9. **Wrong or unverified values in the Prism edits of `main2.tex` (checked 2026-10-18).** The Prism edits were reverted with the
+   rest of GawwyG's working copy; this item applies only if they come back.
+   * **Wrong:** the teaser table (Table 1) bolds `0.882` for "all candidates" at 20% memory. Its interval is [0.767, 1.002]
+     (kernel_ci_classic.csv, ml:global vs clock), which includes 1, so the bold breaks the caption ("Bold: 95% interval below 1")
+     and the RQ2 sentence "its 20% interval reaches 1". Fix: remove the `\textbf` around 0.882.
+   * **Not checkable from the repository** (need the source papers or code): cache_ext's hook "reports a sample of accesses"
+     (introduction, related work); the parsimonious-caching sentence in related work (im2022parsimonious: "assume predictions per
+     request or, in parsimonious caching, per miss"); xv6 "maps pages eagerly (heap pages lazily, on request)" in §4.
+   * **Checked and correct:** kv's own weights 0.903 → 0.999 (six Twitter replays; kernel_vs_sim_w16*.csv); other policies move by
+     at most 0.021; set-attention varies 14.4-fold across five starting states (state_sensitivity.csv); set-attention simulates
+     at 0.50-0.53 of Clock on five of six graph streams and 0.78 on the sixth, 0.91-1.30 in the kernel; uniform-pattern deviation at
+     most 0.00108 (transfer.csv), so "0.0011".
+   * **Page count:** with these edits the main text ends on page 11; make_submission.sh refuses it until it is back on page 10.
 7. **Cost grid on one code version (2026-10-18).** cost_grid.csv rows at 16-512 frames predate the sampling-rule switch (16 Oct);
    the 820-frame rows ran after it. The switch adds 14-16 instructions to a sampled decision (cost_grid_current_code.csv). The
    paper states this in the Table 12 caption. Optional: re-measure the sampled rows (or the whole grid) on the current code and
