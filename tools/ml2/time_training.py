@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """Training time of the five heavier models the kernel runs (global scope, kernel features).
 
-    python3 time_training.py   -> report/results2/training_times.csv
+    python3 time_training.py            -> report/results2/training_times.csv
+    python3 time_training.py --linear   time only the linear model (global, idle+age+dirty+refaults+rdist) and add/replace its row
 """
 # Times training of the five heavier models the kernel runs (global scope, kernel features), with the training code
 # itself; nothing is saved (the stored models in report/models2/extra are untouched).
 import sys, time, csv
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+if "--linear" in sys.argv:
+    import models as M
+    out_path = __import__("pathlib").Path(__file__).resolve().parents[2] / "report" / "results2" / "training_times.csv"
+    t = time.time(); d = M.load_scope("train", "global"); load = time.time() - t
+    t = time.time(); M.LinearFitter(d).fit(["idle", "age", "dirty", "refaults", "rdist"]); s = time.time() - t
+    print(f"linear data load {load:.1f}s, fit {s:.2f}s over {len(d['label'])} rows", flush=True)
+    rows = [r for r in csv.reader(open(out_path))][1:] if out_path.exists() else []
+    rows = [r for r in rows if r[0] != "linear score"] + [["linear score", "CPU (numpy)", round(s, 2)]]
+    with open(out_path, "w", newline="") as f:
+        w = csv.writer(f); w.writerow(["model", "device", "train_seconds"]); w.writerows(rows)
+    sys.exit(0)
 import torch
 import extra_core as Z, extra_nn as N, extra_trees as T
 out = []

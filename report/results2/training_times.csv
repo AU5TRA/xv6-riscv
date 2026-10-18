@@ -4,3 +4,4 @@ ranking trees,CPU (6 threads),3.0
 deeper MLP,cuda,48.1
 CNN on aging bits,cuda,59.8
 set-attention,cuda,69.3
+linear score,CPU (numpy),2.39

@@ -40,19 +40,19 @@ Diff it against `main.tex` and merge what you accept. What is still open:
 12. ~~Fault counts predate the cheaper code (checked on 28 runs only)~~ — done 2026-10-18: all 405 linear-score runs made
     before commit dbc508b were rerun on the current kernel and match exactly (kernel_eval_recheck_linear.csv,
     recheck_linear.py). AU5TRA updates the limitation and the §4 sentence (gawwy_handoff.md).
-11. **For AU5TRA while editing `main2.tex` (GawwyG, 2026-10-18):**
+11. ~~**For AU5TRA while editing `main2.tex` (GawwyG, 2026-10-18):**~~ — done by GawwyG's session 2026-10-19 (see gawwy_handoff.md); AU5TRA still confirms the AI-disclosure facts.
     (1) clarify the AI use or fill in the AI-disclosure `\todo`;
     (2) better diagrams;
     (3) fit the workload table and definitions into the main paper, where the workloads are first used (§2.2);
     (4) state all sampling values (item 10).
     Details are in `gawwy_handoff.md`, "for AU5TRA to keep in mind while editing".
-10. **For AU5TRA (2026-10-18): state all sampling values.** See also the four-point list in `gawwy_handoff.md`. The paper explains why we score 32 pages but never
+10. ~~**For AU5TRA (2026-10-18): state all sampling values.**~~ — done 2026-10-19: Table 3 (sample_sizes.tex) in §3.3. See also the four-point list in `gawwy_handoff.md`. The paper explains why we score 32 pages but never
     says what fewer or more pages would do, although Figure 5 (right) already shows it. Proposed sentence for the sample-size
     paragraph of the ablations: "Fewer than 16 pages cost noticeably more faults, and more than 32 gain nothing
     (Figure 5, right)." Data (simulator, validation streams, faults relative to scoring every page; figures/data/kval_*.csv):
     4 pages 1.05-1.14, 8 pages 1.02-1.07, 16 pages up to 1.02 (kernel: 1.013 at 10%), 32 within 0.005, 48-64 no further gain.
     GawwyG supports adding it.
-9. **Wrong or unverified values in the Prism edits of `main2.tex` (checked 2026-10-18).** The Prism edits were reverted with the
+9. ~~**Wrong or unverified values in the Prism edits of `main2.tex` (checked 2026-10-18).**~~ — resolved 2026-10-19: the 0.882 bold is gone; the cache_ext "sample of accesses" and xv6 "heap pages lazily" wordings were removed. The Prism edits were reverted with the
    rest of GawwyG's working copy; this item applies only if they come back.
    * **Wrong:** the teaser table (Table 1) bolds `0.882` for "all candidates" at 20% memory. Its interval is [0.767, 1.002]
      (kernel_ci_classic.csv, ml:global vs clock), which includes 1, so the bold breaks the caption ("Bold: 95% interval below 1")

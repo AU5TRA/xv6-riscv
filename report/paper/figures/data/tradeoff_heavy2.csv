@@ -1,0 +1,6 @@
+instr,faults,label,anchor,dx,dy,workloads
+455229,0.970,trees,south,0,2,14
+440490,1.350,ranking trees,west,3,0,14
+1801153,0.907,set-attention,south,0,3,14
+1936230,0.914,CNN,north,0,-3,14
+3413317,0.912,MLP,west,3,0,14

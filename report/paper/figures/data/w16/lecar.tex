@@ -1,0 +1,18 @@
+\begin{tabular}{llrrrrrr}
+\toprule
+scope & split & LRU & ARC & LHD & LeCaR, as published & LeCaR, kernel form & linear score \\
+\midrule
+btree & test & 0.994 & 0.950 & 0.948 & 0.906 & 1.122 & 0.835 \\
+btree & held-out & 0.997 & 0.975 & 0.974 & 0.910 & 1.065 & 0.875 \\
+graph & test & 0.990 & 0.991 & 0.865 & 0.981 & 1.327 & 0.847 \\
+graph & held-out & 0.992 & 0.993 & 0.816 & 0.968 & 1.321 & 0.798 \\
+kv & test & 0.984 & 0.986 & 0.906 & 0.904 & 1.127 & 0.897 \\
+kv & held-out & 0.982 & 0.982 & 0.901 & 0.918 & 1.149 & 0.902 \\
+lzw & test & 0.997 & 0.968 & 0.892 & 1.043 & 1.056 & 0.821 \\
+lzw & held-out & 0.981 & 0.957 & 0.887 & 1.042 & 1.190 & 0.813 \\
+matmul & held-out & 0.879 & 0.875 & 1.036 & 0.851 & 0.882 & 0.671 \\
+sort & test & 1.012 & 1.013 & 1.008 & 0.980 & 1.016 & 0.983 \\
+sort & held-out & 0.999 & 0.999 & 1.019 & 1.012 & 1.000 & 0.933 \\
+global & held-out & 0.979 & 0.968 & 0.926 & 0.958 & 1.116 & 0.896 \\
+\bottomrule
+\end{tabular}

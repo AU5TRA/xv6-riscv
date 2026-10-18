@@ -1,0 +1,15 @@
+\begin{tabular}{lrrr}
+\toprule
+change & 68 pages & 260 pages & 68 pages, 32 sampled \\
+\midrule
+none (the old code) & 22\,803 & 91\,720 & 11\,292 \\
+A1: store the two logs that rarely change & 21\,608 (-5\%) & 87\,506 (-5\%) & 10\,691 (-5\%) \\
+A2: one pass instead of two & 22\,986 (+1\%) & 90\,169 (-2\%) & 11\,374 (+1\%) \\
+A3: feature code inlined & 18\,193 (-20\%) & 72\,862 (-21\%) & 9\,132 (-19\%) \\
+A1 + A3 & 17\,174 (-25\%) & 69\,260 (-24\%) & 8\,620 (-24\%) \\
+A1 + A3 + A4: faster highest-bit search in the log & 16\,817 (-26\%) & 67\,163 (-27\%) & 8\,466 (-25\%) \\
+A1 + A3 + A5: features written out one by one & 18\,595 (-18\%) & 75\,277 (-18\%) & 9\,307 (-18\%) \\
+A1 + A2 + A3 & 18\,027 (-21\%) & 71\,531 (-22\%) & 9\,016 (-20\%) \\
+A1 + A2, page code at -O3 (also speeds up other policies) & 19\,088 (-16\%) & 76\,034 (-17\%) & 9\,501 (-16\%) \\
+\bottomrule
+\end{tabular}

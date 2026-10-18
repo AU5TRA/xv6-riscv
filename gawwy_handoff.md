@@ -293,3 +293,60 @@ So every fault count in the paper comes from code that picks the same victims as
 2. **§4, "cheaper code" paragraph:** where it says 28 runs, write instead "all 405 linear-score runs made with the old code,
    rerun with the new code, give identical results".
 
+### GawwyG, 2026-10-19: what changed in `main2.tex` (all your feedback and the four handed-over points are done)
+
+GawwyG restored the plain-language version of `main2.tex` and applied your feedback.
+
+**Your feedback:**
+* **§3.1:** "for how many scans (0, 1, 2 or 4) a newly loaded page is protected from eviction".
+* **§4:** "Training takes seconds: about 2 s for the linear model and 3 s for the tree models on the CPU, and 48–69 s for the
+  neural networks on one GPU". The linear fit was measured: `training_times.csv`, `time_training.py --linear`.
+* **Traced pages limitation:** rephrased.
+* **Does 32 scale to Linux:** a new §7 paragraph. It covers the sample quality (1 − 0.9³² ≈ 97% for any memory size), the
+  evidence up to 824 pages, cache_ext's own policies sampling 10–20 pages, and that multi-GB memories are untested.
+* **Name:** the policy is now **PageScore**. The tables use renamed paper-only copies in `figures/data/w16/` (made by
+  `make_figdata2.py`), so the week-16 report is unchanged.
+* **Fewer headings:**
+  * §2 has 3 subsections; the research questions are a closing paragraph.
+  * §3 has 3 subsections, with no Observation/Solution labels.
+  * §4 has no run-in headings.
+  * §5 is Setup, "Answering the Research Questions" (RQ1–RQ4, with RQ4 restored) and Ablations.
+* **Old 5.7:** moved to §7 as "Where PageScore does not help".
+* **Main paper vs appendix:**
+  * Table 5 (intervals) is cut to five key rows.
+  * The feature-ranking figure and the cost-against-faults figure moved to the appendix.
+  * The workload table moved into §2.2.
+
+**The four handed-over points:**
+1. **AI disclosure:** the Writing part now says the authors wrote the first draft, and the agent polished and edited at the
+   authors' direction (reworded, applied the authors' structural changes, wrote a few short passages the authors asked
+   for, checked numbers). **Please confirm this matches what you did**, and whether a person checked the references.
+2. **Diagrams:** Figures 1 and 3 are redrawn in plain words. Figure 4 is full width with coloured better/worse regions, and
+   Figure 5 is new (per-workload gains as coloured bars, training workloads vs never seen).
+3. **Workloads:** the definitions and the table are in §2.2.
+4. **Sampling values:** Table 3 (4, 8, 16, 32, 64 and every page: instructions and faults).
+
+**Also:**
+* the appendix is single-column so its tables are readable;
+* the Table 1 bold on 0.882 is removed;
+* "28 runs" became "all 405 runs";
+* the LaTeX warnings are fixed (xcolor is now loaded before hyperref; `hypertexnames=false`).
+
+The main text ends on page 10.
+
+**Checked before committing (2026-10-19):**
+* Two full read-only audits of `main2.tex` were run against the data, the bibliography and the cross-references; every
+  problem they found is fixed.
+* **Fixed:**
+  * p-values now given;
+  * the Twitter/real-trace claims now compare like with like;
+  * "simulator within 2%" is now limited to 10% memory and the five policies;
+  * contradictions are removed (DAgger, "how little the kernel can see");
+  * conditions are added ("with 68 pages to choose from", "at 10% memory");
+  * the simulator tables call their model "linear score" (not PageScore);
+  * the break-even and sampling table captions are corrected;
+  * the 824-pages column is explained;
+  * appendix floats are kept in their sections.
+* The build has no errors, no overfull boxes and no undefined references. The only remaining warning is the template's
+  empty anchor from `\printAffiliationsAndNotice{}`, which goes away when author names are added at camera-ready.
+

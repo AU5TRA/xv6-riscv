@@ -1,0 +1,20 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+workload & PageScore (every page) faults & PageScore (every page) break-even $\mu$s & ARC faults & ARC break-even $\mu$s & CNN faults & CNN break-even $\mu$s \\
+\midrule
+app & 1.004 & 35.2 & 0.991 & 55.4 & 1.016 & 5\,616 \\
+bloom & 0.999 & 734 & 1.0 & never & 1.0 & 432\,584 \\
+btree & 0.841 & 19.7 & 0.894 & 20.8 & 0.831 & 2\,018 \\
+chase & 0.864 & 6.7 & 0.922 & 7.6 & 0.921 & 1\,232 \\
+graph & 0.736 & 4.8 & 0.858 & 2.7 & 0.59 & 458 \\
+heap & 0.735 & 3.0 & 0.853 & 3.3 & 0.955 & 2\,608 \\
+join & 0.987 & 18.7 & 0.996 & 44.4 & 0.972 & 11\,458 \\
+kv & 0.879 & 5.6 & 0.892 & 4.0 & 0.932 & 1\,426 \\
+kv-T & 0.846 & 3.8 & 0.9 & 3.7 & 0.851 & 477 \\
+lzw & 0.941 & 9.3 & 0.982 & 23.0 & 0.93 & 914 \\
+matmul & 1.104 & never & 0.968 & 1.8 & 0.936 & 224 \\
+pat & 0.873 & 8.6 & 0.877 & 6.5 & 0.895 & 904 \\
+sort & 0.967 & 3.6 & 1.014 & never & 1.072 & 681 \\
+spmv & 1.124 & never & 1.086 & never & 1.007 & never \\
+\bottomrule
+\end{tabular}

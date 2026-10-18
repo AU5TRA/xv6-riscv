@@ -1,0 +1,15 @@
+pos,workload,group,ours,ours_pos,ours_neg,arc,lhd
+0,btree,trained,15.0,15.0,0,11.0,3.0
+1,graph,trained,23.0,23.0,0,14.0,37.0
+2,kv,trained,12.0,12.0,0,11.0,0.0
+3,lzw,trained,8.0,8.0,0,2.0,13.0
+4,matmul,trained,-10.0,0,-10.0,3.0,13.0
+5,sort,trained,3.0,3.0,0,-1.0,-4.0
+6.6,kv-T,unseen,15.0,15.0,0,10.0,-4.0
+7.6,heap,unseen,23.0,23.0,0,15.0,-1.0
+8.6,join,unseen,3.0,3.0,0,0.0,1.0
+9.6,spmv,unseen,0.0,0.0,0.0,-9.0,-3.0
+10.6,chase,unseen,12.0,12.0,0,8.0,2.0
+11.6,bloom,unseen,0.0,0.0,0.0,0.0,0.0
+12.6,pat,unseen,12.0,12.0,0,12.0,0.0
+13.6,app,unseen,0.0,0.0,0.0,1.0,1.0
