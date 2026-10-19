@@ -539,7 +539,9 @@ the 4-decimal summaries.
    * **Evaluation.** Against stock MGLRU and the classic active/inactive LRU
      under the same memory-cgroup limits: refaults, writeback, and reclaim
      CPU time.
-7. **Not covered**:
+7. **Queued for the paper (2026-10-19)**: repository and dataset links (Appendix D placeholders) and the
+   training-variety study (`exp_splits.py`, 5%/20% running); see `backlog.md` items 13–14 and `gawwy_handoff.md`.
+8. **Not covered**:
    * lzw: covered since week 15 (see the addendum);
    * kvbench's TTL mode;
    * the real Redis/SQLite traces: covered in the simulator since week 15 (not in the kernel).

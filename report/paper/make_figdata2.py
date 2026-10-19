@@ -133,7 +133,7 @@ RENAME = [("linear score, 32 sampled", "PageScore"), ("linear score, 16 sampled"
           ("linear score faults", "PageScore (every page) faults"), ("linear score break-even", "PageScore (every page) break-even"),
           ("linear kv K+", "linear score, kv weights"), ("linear F+K", "linear score, F+K"), ("linear K+", "linear score"),
           ("linear K", "linear score"),     # simulator tables: the linear score over every page, not PageScore's 32 samples
-          ("CNN on aging bits", "CNN"), ("trained on all workloads", "trained on all six"), ("none (what every run used)", "none (the old code)"),
+          ("CNN on aging bits", "CNN"), ("trained on all workloads", "trained on all six"), ("none (what every run used)", "none"),
           ("& linear &", "& PageScore, every page &"), ("& 32 sampled & 16 sampled", "& PageScore & PageScore, 16 pages")]
 
 

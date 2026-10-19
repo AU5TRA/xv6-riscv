@@ -350,3 +350,17 @@ The main text ends on page 10.
 * The build has no errors, no overfull boxes and no undefined references. The only remaining warning is the template's
   empty anchor from `\printAffiliationsAndNotice{}`, which goes away when author names are added at camera-ready.
 
+### GawwyG, 2026-10-19 (later): your line comments, and two things queued
+
+**Done in `main2.tex`:** the §3 overview sentence ("Five design choices make this work inside a kernel."); the "A fixed sample"
+paragraph now justifies 32 (the best of 32 random pages is on average in the top 3% whatever the memory size, Table 3, the
+validation rule); the §4 cheaper-code sentence no longer says "old code" and the training times name the CPU (Ryzen 5 5600)
+and GPU (RTX 3060 Ti); two slips ("levelwith", "is analysed").
+
+**Queued (backlog items 13 and 14):**
+1. **Links.** The paper now says the code and dataset are released; Appendix D has red `[repository link]` and `[dataset link]`
+   placeholders. Fill them once the repository and `traces2/` are uploaded (anonymous for review).
+2. **Training-variety study.** Five hand-picked train/test splits, kernel runs. At 10% the choice of training workloads barely
+   matters on unseen programs (within 1.3% of PageScore). 5% and 20% are running; when done it gets one paragraph in §5.3 and an
+   appendix table, and it changes the "few workloads" limitation you commented out.
+

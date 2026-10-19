@@ -26,6 +26,18 @@ Diff it against `main.tex` and merge what you accept. What is still open:
    * ~~Page numbers for two references~~ — done 2026-10-18: bansal2004car pp. 187–200 (USENIX, DBLP, Crossref agree);
      vietri2018lecar has no page numbers (USENIX's own BibTeX has none; HotStorage papers are separate PDFs), so it gets
      publisher and address instead. The MLSys proceedings entries have none, which is allowed ("whenever possible").
+13. **Repository and dataset links (2026-10-19).** AU5TRA wants the repository and the dataset of traces released. `main2.tex`
+    now says both "are released as open source" (§4, Availability) and Appendix D opens with two red placeholders,
+    `\textcolor{red}{[repository link]}` and `\textcolor{red}{[dataset link]}`. Before submission: decide anonymous mirror
+    (review) vs public link (camera-ready), upload the repository (strip .tex comments, item 3) and `traces2/` (4 GB; e.g. Zenodo,
+    keep the Twitter CC BY 4.0 attribution), then replace both placeholders. See item 1.
+14. **Training-variety study: add to the paper when the 5%/20% runs finish (2026-10-19).** `tools/ml2/exp_splits.py`, five
+    hand-picked train/test splits of the 14 workloads (s1-s5), weights refit only (same features, probation 4, n=32), kernel runs.
+    10% done (185 runs): split model vs Clock 0.886-0.967; on workloads neither model saw, split/PageScore = 1.001-1.013, i.e.
+    which workloads are trained on barely matters for unseen programs. 5% and 20% (370 runs) running since 2026-10-19
+    (log in the session scratchpad, `splits2.log`). When done: `python tools/ml2/exp_splits.py report --fracs 0.05,0.1,0.2`, then add
+    one paragraph to §5.3 Ablations (main text) and a per-split table to the appendix (via make_figdata2.py), and update the
+    "few workloads" limitation (§7) which this study partly answers. Ask before editing main2.tex.
 1. **Anonymized code and data link.** The three `\todo{anonymized code link}` marks were removed from `main2.tex` (abstract,
    Availability, Conclusion). Before submission: create an anonymous mirror (e.g. anonymous.4open.science or an anonymized zip), make
    sure its history and paths do not identify the authors, and add the link once (Availability paragraph, §4) — not in the abstract.

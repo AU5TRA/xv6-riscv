@@ -99,7 +99,7 @@
 \vskip 0.3in
 
 \begin{abstract}
-Learned policies have improved caching in CPUs and content-delivery networks, but they are hard to use for page replacement inside an operating-system kernel: the kernel cannot see individual memory accesses, cannot use floating point when it evicts a page, and every eviction changes later faults. We build PageScore, a learned page-replacement policy for the xv6 kernel. It scores 32 randomly chosen pages with a small integer model over information the kernel already keeps, such as whether a page was recently used, written to, or evicted and needed again, and it is trained offline to copy \belady's optimal policy. Across 14 workloads, eight of them never used in training, it causes 8.8\% fewer page faults than \clock at 10\% memory and 9.8\% fewer at 20\%. It does not beat the best classical policies, ARC and LHD, but matches them at a lower cost per decision, a cost that barely grows with memory. Larger learned models do no better, and with the disks and processor we measured, the faults PageScore saves pay for the time it spends choosing.
+Learned policies have improved caching in CPUs and content-delivery networks, but they are hard to use for page replacement inside an operating-system kernel: the kernel cannot see individual memory accesses, cannot use floating point when it evicts a page, and every eviction changes later faults. We build PageScore, a learned page-replacement policy for the xv6 kernel. It scores 32 randomly chosen pages with a small integer model over information the kernel already keeps, such as whether a page was recently used, written to, or evicted and needed again, and it is trained offline to copy \belady's optimal policy. Across 14 workloads, eight of them never used in training, it causes 8.8\% fewer page faults than \clock at 10\% memory and 9.8\% fewer at 20\%. It does not beat the best classical policies, ARC and LHD, but matches them at a lower cost per decision except on the smallest memories, a cost that barely grows with memory. Larger learned models do no better, and with the disks and processor we measured, the faults PageScore saves pay for the time it spends choosing.
 \end{abstract}
 ]
 
@@ -117,7 +117,7 @@ Learned policies have improved caching in CPUs and content-delivery networks, bu
 \setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
- & \multicolumn{3}{c}{faults / \clock} & \multicolumn{2}{c}{instr./victim} \\
+ & \multicolumn{3}{c}{faults / \clock} & \multicolumn{2}{c}{instr./eviction} \\
 \cmidrule(lr){2-4}\cmidrule(l){5-6}
 Policy & 5\% & 10\% & 20\% & 68 & 516 \\
 \midrule
@@ -130,7 +130,7 @@ S3-FIFO$^\dagger$    & 1.086 & 1.016 & 1.086 & 1,395  & 6,452 \\
 LHD$^\dagger$        & 1.005 & 0.951 & 0.949 & 14,397 & 111,705 \\
 ARC$^\dagger$        & \textbf{0.947} & \textbf{0.943} & 0.984 & 11,934 & 81,070 \\
 \midrule
-PageScore (ours) & 0.972 & \textbf{0.912} & \textbf{0.902} & 8,465 & 8,880 \\
+PageScore (ours) & 0.972 & \textbf{0.912} & \textbf{0.902} & 8,480 & 8,895 \\
 \quad every page & 0.976 & \textbf{0.914} & 0.882 & 16,818 & 134,392 \\
 \bottomrule
 \end{tabular}
@@ -139,22 +139,21 @@ PageScore (ours) & 0.972 & \textbf{0.912} & \textbf{0.902} & 8,465 & 8,880 \\
 \vskip -0.1in
 \end{table}
 
-When a program needs more memory than it is allowed, some of its pages must be moved out to disk, and every access to a swapped-out page becomes a page fault: a slow read from the device. Reading one page takes about 63\,\textmu s on our SSD and 8.9\,ms on our hard disk (Appendix, Table~\ref{tab:breakeven}). The eviction policy determines which pages to remove, directly impacting how many page faults will incur.
+When a program needs more memory than it is allowed, some of its pages must be moved out to disk, and every access to a swapped-out page becomes a page fault: a slow read from the device. Reading one page takes about 63\,\textmu s on our SSD and 8.9\,ms on our hard disk (Appendix, Table~\ref{tab:breakeven}). The eviction policy determines which pages to remove, directly impacting how many page faults occur.
 
 The kernel must choose without knowing which pages the program will need next. It relies on the hardware's accessed bit, which marks the pages a program has used since the kernel last checked (\S\ref{sec:bg-mechanism}), and on simple rules built on it, such as \clock and its successors~\citep{corbato1968paging,carr1981wsclock} and, in Linux, the multi-generational LRU~\citep{linux_mglru}. These rules leave many faults that could be avoided: on several of our workloads, \belady's optimal policy~\citep{belady1966study}, which knows the future, causes about half as many faults as \clock (\S\ref{sec:bg-headroom}). Stronger policies such as ARC~\citep{megiddo2003arc}, LHD~\citep{beckmann2018lhd} and S3-FIFO~\citep{yang2023s3fifo} were designed for caches that see every access. When adapted to use only the accessed bit, top cache policies like ARC reduce faults by just around 5\% relative to \clock at small memory limits (Table~\ref{tab:teaser}).
 
 Learned policies already beat hand-written ones in CPU caches and in web and storage caches~\citep{jain2016hawkeye,vietri2018lecar,shi2019glider,song2020lrb,rodriguez2021cacheus,shah2022mockingjay,song2023halp}, but there they see every access, and they run outside the kernel in floating point. A kernel sees far less: it only learns about a page when the page faults, when a page it evicted is needed again (a \emph{refault}), or when a check finds that the page was used or written, and it must choose a page quickly, without floating point. Learning in memory management has so far placed pages across memory tiers or tuned settings~\citep{doudali2019kleio,lagarcavilla2019farmemory,ramaswamy2026xtier}, and the closest eviction work, LearnedCache~\citep{qi2026learnedcache}, handles file pages rather than a program's own memory (\S\ref{sec:related}). We found no learned policy that evicts a program's own memory using only what a kernel sees.
 
-We ask whether a learned page-replacement policy can work at operating-system levelwith only the signals a kernel observes, without floating point, on the eviction path, and without knowing which program it serves. Our answer is a qualified yes: \textbf{the kernel already sees enough}. Our policy, \textit{PageScore}, is a small linear score over information the kernel already keeps, computed in whole numbers for $n$ randomly chosen pages. For our case, where we used $n = 32$, it causes 8.8\% fewer page faults than \clock at 10\% memory and 9.8\% fewer at 20\%, and matches ARC and LHD, the best classical policies a kernel can run, at a lower cost per decision. Counting disk reads, writes and decision time at 10\% memory, it takes 8--9\% less time than \clock on both our hard disk and our SSD. 
+We ask whether a learned page-replacement policy can work at operating-system level with only the signals a kernel observes, without floating point, on the eviction path, and without knowing which program it serves. Our answer is a qualified yes: \textbf{the kernel already sees enough}. Our policy, \textit{PageScore}, is a small linear score over information the kernel already keeps, computed in whole numbers for $n$ randomly chosen pages. For our case, where we used $n = 32$, it causes 8.8\% fewer page faults than \clock at 10\% memory and 9.8\% fewer at 20\%, and matches ARC and LHD, the best classical policies a kernel can run, at a lower cost per decision except on the smallest memories. Counting disk reads, writes and decision time at 10\% memory, it takes 8--9\% less time than \clock on both our hard disk and our SSD with our desktop processor. 
 
-%%edit this line
-Each part of the design answers one problem. The score uses the accessed and dirty bits and refault counts, because the kernel never sees individual accesses (\S\ref{sec:design-features}). Training always includes the most recently used pages, and new pages are protected for a short time, because otherwise the policy learns to evict the page that is in use (\S\ref{sec:design-train}). The score uses only integers (\S\ref{sec:design-int}). Models are chosen on data kept apart from the test data, and the kernel checks every page the model picks (\S\ref{sec:design-wrong}). Scoring only 32 pages keeps each decision cheap however much memory a program has (\S\ref{sec:design-cost}). 
+Five design choices make this work inside a kernel. The score uses the accessed and dirty bits and refault counts, because the kernel never sees individual accesses (\S\ref{sec:design-features}). Training always includes the most recently used pages, and new pages are protected for a short time, because otherwise the policy learns to evict the page that is in use (\S\ref{sec:design-train}). The score uses only integers (\S\ref{sec:design-int}). Features and probation are chosen on validation streams, never on test streams, and the kernel checks every page the model picks (\S\ref{sec:design-wrong}). Scoring only 32 pages keeps each decision cheap however much memory a program has (\S\ref{sec:design-cost}). 
 
 Our contributions are:
 \begin{itemize}[topsep=3pt, itemsep=2pt, parsep=0pt]
 \item \textbf{A learned page-replacement policy that runs inside a kernel at the cost of a classical one}: an integer score over 32 sampled pages, and five larger models that also run in the kernel using only integers (\S\ref{sec:design}, \S\ref{sec:impl}).
 \item \textbf{A study of what a learned eviction policy needs.} Extra information that a kernel does not have helps only on the programs a model was trained on, and larger models do not help (\S\ref{sec:bg}, \S\ref{sec:eval-info}, \S\ref{sec:eval-ablate}).
-\item \textbf{An evaluation inside the kernel}: 14 workloads, three memory capacities and 4,489 kernel runs, against \clock, ARC, LHD, S3-FIFO and LeCaR, with exact decision costs and measured disk speeds (\S\ref{sec:eval}).
+\item \textbf{An evaluation inside the kernel}: 14 workloads, three memory sizes and 4,489 kernel runs, against \clock, ARC, LHD, S3-FIFO and LeCaR, with exact decision costs and measured disk speeds (\S\ref{sec:eval}).
 \item \textbf{A paging platform and dataset for xv6}: demand paging and swap, and complete traces of every read and write, checked against independent models of each program (\S\ref{sec:impl}, Appendix~\ref{app:data}).
 \end{itemize}
 
@@ -278,7 +277,7 @@ app    & four application-shaped programs                         & -- \\
 \subsection{Overview}
 \label{sec:design-overview}
 
-PageScore is trained offline. We replay each training stream with LRU at 5, 10 and 20\% memory capacities, and at some of the evictions we record the pages in memory with their features and the right answer (\S\ref{sec:design-train}). We fit a linear model, choose on validation streams which features to use and for how many scans (0, 1, 2 or 4) a newly loaded page is protected from eviction, and round the weights to integers (Figure~\ref{fig:overview}).
+PageScore is trained offline. We replay each training stream with LRU at 5, 10 and 20\% memory sizes, and at some of the evictions we record the pages in memory with their features and the right answer (\S\ref{sec:design-train}). We fit a linear model, choose on validation streams which features to use and for how many scans (0, 1, 2 or 4) a newly loaded page is protected from eviction, and round the weights to integers (Figure~\ref{fig:overview}).
 
 In the kernel, at each eviction PageScore picks 32 of the program's pages in memory at random (all of them if there are fewer), updates their accessed-bit history, scores each with integer arithmetic, skips newly loaded pages, and evicts the page with the highest score (Algorithm~\ref{alg:choose}).
 
@@ -317,7 +316,7 @@ PageScore learns to copy \belady. For each page it predicts how far away the pag
 
 A kernel never sees individual accesses (\S\ref{sec:bg-mechanism}), so PageScore uses only information a kernel can collect when it scans its pages at an eviction (group \tierK), plus the refault records that Linux already keeps (group \tierKp) (Appendix, Table~\ref{tab:features}). Time is counted in scans, one per eviction. A third group, \tierF, holds exact information only a full trace has, such as when each page was last used; we use it only to measure what extra information would be worth.
 
-We train on recorded eviction decisions, because a random sample of the pages in memory almost never contains the page just used (\S\ref{sec:bg-naive}). \emph{Probation} is added, a page loaded fewer than a set number of scans ago is not evicted while an older page is available, like \clock's second chance; the number of scans is chosen on validation streams. The training data has 5.2 million rows from 377,000 decisions.
+We train on recorded eviction decisions, and each one always includes the 4 most recently used pages, because a random sample of the pages in memory almost never contains the page just used (\S\ref{sec:bg-naive}). \emph{Probation} is added: a page loaded fewer than a set number of scans ago is not evicted while an older page is available, like \clock's second chance; the number of scans is chosen on validation streams. The training data has 5.2 million rows from 377,000 decisions.
 
 \subsection{Running in the Kernel}
 \label{sec:design-int}\label{sec:design-wrong}\label{sec:design-cost}
@@ -328,16 +327,15 @@ s(\text{page}) = \sum_{j\in S} q_j\, X_j(\text{page}), \qquad
 q_j = \operatorname{round}\!\left(\frac{w_j}{\sigma_j}\, 2^{b}\right),
 \label{eq:score}
 \end{equation}
-where $X_j$ is feature $j$ stored as an integer with $b=8$ fractional bits, $S$ is the chosen set of features (PageScore uses five), $w_j$ is the learned weight and $\sigma_j$ the feature's spread, so each $q_j$ is an integer. The page with the highest score is the one the model expects to be needed last. The kernel and the simulator compute features with the same code, so a model scores a page the same way in both. PageScore's model uses five features and protects new pages for 4 scans. It evicts a page sooner the longer the page has sat idle and the farther apart its past refaults were, and keeps pages that came back after an earlier eviction or have stayed in memory a long time.
+where $X_j$ is feature $j$ stored as an integer with $b=8$ fractional bits, $S$ is the chosen set of features, $w_j$ is the learned weight and $\sigma_j$ the feature's spread, so each $q_j$ is an integer. The page with the highest score is the one the model expects to be needed last. The kernel and the simulator compute features with the same code, so a model scores a page the same way in both. PageScore's model uses five features and protects new pages for 4 scans. It evicts a page sooner the longer the page has sat idle, the farther apart its past refaults were, and if it was written to, and keeps pages that came back after an earlier eviction or have stayed in memory a long time.
 
 \finding{Larger models.} To test whether a larger model helps, we also converted five larger models (a CNN over the aging bits, a deeper MLP, set-attention, boosted trees and ranking trees) to integer arithmetic; they run in both the kernel and the simulator.
 
-\finding{When the model is wrong.} The worst possible case is that the policy causes more faults than \clock, not corruption that arises from a process evicting pages from another isolated process due to the policy. The model can only pick the programs own pages to be evicted and the kernel checks every page it picks and falls back to \clock if the choice is not allowed. \emph{Probation} keeps new pages from being evicted, which removes the failure of \S\ref{sec:bg-naive}. Features and probation are chosen on validation streams, never on the test streams, because many feature sets fail badly. At 10\% memory, more than a third of them cause at least three times \clock's faults on graph. Nothing switches PageScore off while it runs, so it can still be worse than \clock on some workloads (\S\ref{sec:eval-loss}).
-%% check the following line
-\finding{A fixed sample.} Scoring takes about the same work for every page, so scoring all of them gets slower as memory grows. PageScore therefore scores only 32 randomly chosen pages, or all of them if there are fewer, and the sample stays at 32 however much memory a program has, for our implementation in xv6. Table~\ref{tab:samples} shows the trade-off: fewer pages cost fewer instructions but cause more faults, and more than 32 pages cost more while saving almost nothing. We first picked 32 by trying several sample sizes on the test streams; a rule fixed in advance and applied only to the validation streams, the smallest sample within 1\% of scoring every page at all three memory sizes, also picks 32 (Figure~\ref{fig:dist}, right).
+\finding{When the model is wrong.} The worst possible case is that the policy causes more faults than \clock, not corruption: the policy can never evict another process's pages. The model can only pick the program's own pages to be evicted and the kernel checks every page it picks and falls back to \clock if the choice is not allowed. \emph{Probation} keeps new pages from being evicted, which removes the failure of \S\ref{sec:bg-naive}. Features and probation are chosen on validation streams, never on the test streams, because many feature sets fail badly. At 10\% memory, more than a third of them cause at least three times \clock's faults on graph. Nothing switches PageScore off while it runs, so it can still be worse than \clock on some workloads (\S\ref{sec:eval-loss}).
+\finding{A fixed sample.} Scoring takes about the same work for every page, so scoring all of them gets slower as memory grows. PageScore therefore scores only $n$ randomly chosen pages, or all of them if there are fewer; in our implementation in xv6, $n=32$. A fixed $n$ is enough because how good a random sample is depends on its size, not on how many pages it is drawn from: the best page in a random sample of 32 is, on average, among the top 3\% of pages to evict, however many pages the program has (\S\ref{sec:discussion} discusses much larger memories). Table~\ref{tab:samples} shows the trade-off: fewer pages cost fewer instructions but cause more faults, while more than 32 pages cost more and save almost nothing, so 32 is where the curve flattens. We first picked 32 by trying several sample sizes on the test streams; a rule fixed in advance and applied only to the validation streams, the smallest sample within 1\% of scoring every page at all three memory sizes, also picks 32 (Figure~\ref{fig:dist}, right).
 
 \begin{table}[t]
-\caption{What each sample size costs and saves. Instructions to choose one page to evict in the kernel with 68, 516 and 824 pages to choose from, and faults relative to scoring every page (simulator, validation streams, at 5, 10 and 20\% memory). 32 is the smallest sample within 1\% of scoring every page at every size. The 824 column was measured after a later change that adds 14--16 instructions to a sampled decision (Appendix, Table~\ref{tab:cost}).}
+\caption{What each sample size costs and saves. Instructions to choose one page to evict in the kernel with 68, 516 and 824 pages to choose from, and faults relative to scoring every page (simulator, validation streams, at 5, 10 and 20\% memory). 32 is the smallest sample within 1\% of scoring every page at every size.}
 \label{tab:samples}
 \vskip 0.05in
 \begin{center}
@@ -350,11 +348,11 @@ where $X_j$ is feature $j$ stored as an integer with $b=8$ fractional bits, $S$ 
 \end{table}
 
 \begin{algorithm}[t]
-\caption{Victim selection by the learned score (\texttt{choose\_ml}), one eviction}
+\caption{Choosing a page with the learned score (\texttt{choose\_ml}), one eviction}
 \label{alg:choose}
 \begin{algorithmic}
 \STATE {\bfseries Input:} eligible resident pages $C$, weights $q$, subset $S$, probation $p$, scan counter $t$
-\STATE {\bfseries if} $|C| > k$ {\bfseries then} $C \leftarrow k$ random pages of $C$ \hfill ($k=32$; partial Fisher--Yates)
+\STATE {\bfseries if} $|C| > n$ {\bfseries then} $C \leftarrow n$ random pages of $C$ \hfill ($n=32$; partial Fisher--Yates)
 \STATE $old \leftarrow$ false; \ $best \leftarrow \bot$
 \FOR{each page $c \in C$}
   \STATE read and clear $A(c)$; update \feat{aging}, \feat{sfreq}, last-seen scan
@@ -375,36 +373,34 @@ where $X_j$ is feature $j$ stored as an integer with $b=8$ fractional bits, $S$ 
 \section{Implementation}
 \label{sec:impl}
 
-Stock \xv~\citep{xv6} never evicts a page: it has no swap space and no replacement policy. We added demand paging, a 32\,MiB swap area, a memory limit for each program, FIFO, \clock, Aging and LFU, prefetching, a tracer, and a system call (\texttt{vmctl}) that sets a program's limit, policy and weights, about 4,400 lines of kernel code in all. Every workload gives the same output under all nine policies, so paging never changes a program's results. PageScore itself (Algorithm~\ref{alg:choose}) is about 100 lines. It adds 40 bytes to the record of each page in memory and 12 bytes to each swap slot, where it keeps what Linux keeps in its workingset entries, and its weights are an 88-byte record per program, set with \texttt{vmctl} and passed on to child processes.
-%%% we cant refer an old code, and specify gpu
-We made the scoring code about a quarter faster without changing which page it picks: we store two logarithms instead of recomputing them, inline the feature code, and use a lookup table to find the highest set bit. Choosing among 68 pages dropped from about 22,800 to 16,800 instructions, and with 32 samples from about 11,300 to 8,500 (Appendix, Table~\ref{tab:fastcode}). Most fault counts in this paper were measured with the old code; we reran all 405 of those runs with the new code and got identical results.
+Stock \xv~\citep{xv6} never evicts a page: it has no swap space and no replacement policy. We added demand paging, a 32\,MiB swap area, a memory limit for each program, FIFO, \clock, Aging and LFU, prefetching, a tracer, and a system call (\texttt{vmctl}) that sets a program's limit, policy and weights, about 4,400 lines of kernel code in all. Every workload gives the same output under every policy, so paging never changes a program's results. PageScore itself (Algorithm~\ref{alg:choose}) is about 100 lines. It adds 40 bytes to the record of each page in memory and 12 bytes to each swap slot, where it keeps what Linux keeps in its workingset entries, and its weights are an 88-byte record per program, set with \texttt{vmctl} and passed on to child processes.
+To keep each decision cheap, the scoring code stores two logarithms instead of recomputing them, inlines the feature code, and uses a lookup table to find the highest set bit; together these cut the cost of a decision by about a quarter without changing which page is chosen (Appendix, Table~\ref{tab:fastcode}).
 
 ARC, LHD, S3-FIFO and LeCaR~\citep{vietri2018lecar} expect to see every access, which a kernel never does. We adapted each the same way: at every eviction the kernel reads and clears each page's accessed bit and counts a set bit as one access since the last check; everything else follows the published algorithm. In the simulator they match independent implementations exactly (Appendix~\ref{app:sim}).
 
-Each workload records every read and write to its data, so each stream is the complete access sequence that \belady's policy needs, and we choose features in a C simulator that we checked against independent implementations and against the kernel (Appendices~\ref{app:data} and~\ref{app:sim}). We count each decision's instructions exactly by running QEMU in its instruction-counting mode. The 4,489 kernel runs were split between a desktop and cloud machines; 498 runs done on both gave identical results. Training takes seconds: about 2\,s for the linear model and 3\,s for the tree models on the CPU, and 48--69\,s for the neural networks on one GPU.
-%% "we will release", no future tense, release and link in appendix
-We will release the kernel, workloads, traces, simulator and training code as open source and submit them for artifact evaluation (Appendix~\ref{app:repro}). Streams derived from the Twitter traces will keep their CC~BY~4.0 licence and attribution.
+Each workload records every read and write to its data, so each stream is the complete access sequence that \belady's policy needs, and we choose features in a C simulator that we checked against independent implementations and against the kernel (Appendices~\ref{app:data} and~\ref{app:sim}). We count each decision's instructions exactly by running QEMU in its instruction-counting mode. The 4,489 kernel runs were split between a desktop and cloud machines; 498 runs done on both gave identical results. Training takes seconds: about 2\,s for the linear model and 3\,s for the tree models on a desktop CPU (AMD Ryzen~5 5600), and 48--69\,s for the neural networks on one NVIDIA GeForce RTX~3060~Ti GPU.
+The kernel, workloads, simulator and training code are released as open source, together with the dataset of traces; Appendix~\ref{app:repro} gives the links. Streams derived from the Twitter traces keep their CC~BY~4.0 licence and attribution.
 
 \section{Evaluation}
 \label{sec:eval}
 
-The four research questions of \S\ref{sec:bg-rq} is analysed to understand which parts of the design matter.
+The four research questions of \S\ref{sec:bg-rq} are analysed to understand which parts of the design matter.
 
 \subsection{Setup}
 \label{sec:eval-setup}
 
-We run \xv on QEMU 8.2.2 with one CPU core and 128\,MB of memory, on the fourteen workloads of \S\ref{sec:bg-headroom}. Each program may keep 5, 10 or 20\% of its pages in memory, between 2 and 820 pages, and we use the same 74 streams at every size, for 4,489 kernel runs in total. A run always gives the same result, so the uncertainty we report comes from which programs and inputs we tested, not from noise between runs.
+We run \xv on QEMU 8.2.2 with one CPU core and 128\,MB of memory, on the fourteen workloads of \S\ref{sec:bg-headroom}. Each program may keep 5, 10 or 20\% of its pages in memory, between 2 and 820 pages, plus code and stack, and we use the same 74 streams at every size, for 4,489 kernel runs in total. A run always gives the same result, so the uncertainty we report comes from which programs and inputs we tested, not from noise between runs.
 
 Besides PageScore, we run FIFO, \clock, Aging and LFU, and three stronger classical policies, ARC~\citep{megiddo2003arc}, LHD~\citep{beckmann2018lhd} and S3-FIFO~\citep{yang2023s3fifo}, changed to use only the accessed bit, as a kernel must (\S\ref{sec:impl}). We also run PageScore over every page instead of 32, the five larger models, and LeCaR~\citep{vietri2018lecar}, a learned cache policy. \belady's optimal policy runs only in simulation.
 
-We report page faults as a fraction of \clock's faults on the same stream and memory size, so below 1 is better. We average over each workload's streams and then over the 14 workloads, each counting equally. Our 95\% intervals come from resampling workloads and streams. For the main result, PageScore against \clock, we also give p-values, corrected for testing three memory sizes along with exactly how many instructions each eviction decision takes (\S\ref{sec:impl}). We only call a difference real when its whole interval is on one side of 1, and not when it comes within 0.01 of 1. 
+We report page faults as a fraction of \clock's faults on the same stream and memory size, so below 1 is better. We average over each workload's streams and then over the 14 workloads, each counting equally. Our 95\% intervals come from resampling workloads and streams. For the main result, PageScore against \clock, we also give p-values, corrected for testing three memory sizes; the other comparisons are not corrected for repeated testing. We only call a difference real when its whole interval is on one side of 1, and not when it comes within 0.01 of 1. We count exactly how many instructions each eviction decision takes (\S\ref{sec:impl}). 
 
 \subsection{Answering the Research Questions}
 \label{sec:eval-results}
 
 \rqbox{RQ1: Information}{Is what the kernel already knows enough, or does a learned policy need information only a full trace has?}{What the kernel knows is enough. Extra information only helps on the programs a model was trained on, and the most useful signal, how long a page has sat unused, is one the kernel already keeps.}\label{sec:eval-info}
 
-Given the same information as PageScore, larger models are no better (\S\ref{sec:eval-ablate}). Some models were also given information a kernel never has, such as exactly when each page was used. On the programs they were trained on, the best of them beat the linear score by 2--6\% (Appendix, Table~\ref{tab:info}). On real Redis and SQLite traces, the three larger models we ran there, with or without that extra information, do 22--41\% worse than the linear score, although on the Twitter replays a tree model trained on kv beats a linear model trained on kv. LeCaR~\citep{vietri2018lecar}, a learned cache policy, needs information the kernel does not have: seeing every access, it beats \clock in simulation, though by less than the linear score does (Appendix, Table~\ref{tab:lecar}), but given only what the kernel sees, it does worse than \clock at every memory size in the kernel (Table~\ref{tab:teaser}). The signal that matters most is how long a page has sat unused: it cuts faults sharply on graph, btree and kv, but barely on LZW (Appendix, Figure~\ref{fig:marginal}), and Linux already tracks it.
+Given the same information as PageScore, larger models are no better (\S\ref{sec:eval-ablate}). Some models were also given information a kernel never has, such as exactly when each page was used. On the programs they were trained on, the best of them beat PageScore's linear score by 2--6\% (Appendix, Table~\ref{tab:info}). On real Redis and SQLite traces, the three larger models we ran there, with or without that extra information, do 22--41\% worse than it, although on the Twitter replays a tree model trained on kv beats a linear model trained on kv. LeCaR~\citep{vietri2018lecar}, a learned cache policy, needs information the kernel does not have: seeing every access, it beats \clock in simulation, though by less than PageScore does (Appendix, Table~\ref{tab:lecar}), but given only what the kernel sees, it does worse than \clock at every memory size in the kernel (Table~\ref{tab:teaser}). The signal that matters most is how long a page has sat unused: it cuts faults sharply on graph, btree and kv, but barely on LZW (Appendix, Figure~\ref{fig:marginal}), and Linux already tracks it.
 
 \rqbox{RQ2: Effect in the kernel}{Inside a real kernel, does PageScore beat \clock and the best classical policies a kernel can run?}{It beats \clock at 10\% and 20\% memory and is level with ARC and LHD, but it is still far from optimal.}\label{sec:eval-kernel}
 
@@ -520,7 +516,7 @@ Eight of the 14 workloads were never used in training. At 10\% memory PageScore 
 
 \finding{Larger models do not pay off.} The five larger models of \S\ref{sec:design-int}, trained on the same six workloads and run in the kernel, show no gain: the CNN, MLP and set-attention cause about as many faults as PageScore but cost up to 400 times as much per decision with 68 pages to choose from; ranking trees do worse, and boosted trees are no better. Training them on one workload instead of six makes three of the five worse (Appendix, Tables~\ref{tab:heavy} and~\ref{tab:trainedall}).
 
-\finding{How the training data is recorded matters.} Recording the most recently used pages and adding probation (\S\ref{sec:design-train}) fixes the failure of \S\ref{sec:bg-naive} for most feature sets. Probation helps a lot on graph, though it hurts when memory is very small (\S\ref{sec:eval-loss}). One round of retraining on the policy's own decisions (DAgger) on the final training data gave no consistent gain.
+\finding{How the training data is recorded matters.} Recording the most recently used pages and adding probation (\S\ref{sec:design-train}) fixes the failure of \S\ref{sec:bg-naive} for most feature sets. Probation helps a lot on graph, though it hurts when memory is very small (\S\ref{sec:eval-loss}). One round of retraining on the policy's own decisions (DAgger) on PageScore's training data gave no consistent gain.
 
 \finding{How many pages to sample.} In the kernel, scoring 32 random pages works about as well as scoring every page, at half the cost or less, and 16 pages is about 1\% worse; Table~\ref{tab:samples} gives the other sample sizes. Other ways of picking the sample make little difference (Appendix, Table~\ref{tab:sampling}), and other random seeds change single streams by about 1\% at most.
 
@@ -533,7 +529,7 @@ Eight of the 14 workloads were never used in training. At 10\% memory PageScore 
 
 \finding{Learning inside operating systems.} The closest work, LearnedCache~\citep{qi2026learnedcache}, ranks file pages with a perceptron in the Linux page cache, using the eBPF hooks of cache\_ext~\citep{zussman2025cacheext}, and LPR~\citep{kim2025lpr} uses a bandit to choose between LRU and MRU in a user-level graph engine. Other learned memory policies place data across memory or storage tiers~\citep{doudali2019kleio,singh2022sibyl,ramaswamy2026xtier}, tune settings~\citep{lagarcavilla2019farmemory,akgun2021kml}, or predict accesses and object lifetimes~\citep{hashemi2018learning,maas2020llama,qiu2021rmt}. LinnOS~\citep{hao2020linnos}, LAKE~\citep{fingler2023lake} and SOL~\citep{wang2022sol} run or guard models in the kernel's I/O path and in node agents. At MLSys, learned policies work above the kernel~\citep{mallick2022matchmaker,barbalho2023vmalloc,qiu2024flash,ling2025lava,wang2025protorail,yang2025byom,zhao2026catur,gohil2026uncertain}. PageScore picks every page to evict from a program's own memory, on the kernel's fault path. There, each choice must cost far less than a fault, the inputs are hardware bits, and the model can use only integers.
 
-\finding{Paging with predictions.} Work on learning-augmented paging limits how much wrong predictions can cost~\citep{rohatgi2020,wei2020,lykouris2021jacm,im2022parsimonious}, also when pages have different weights~\citep{bansal2022weighted}. This work assumes a prediction for every request or, in parsimonious caching, for every miss; PageScore learns from from kernel signals.
+\finding{Paging with predictions.} Work on learning-augmented paging limits how much wrong predictions can cost~\citep{rohatgi2020,wei2020,lykouris2021jacm,im2022parsimonious}, also when pages have different weights~\citep{bansal2022weighted}. This work assumes a prediction for every request or, in parsimonious caching, for every miss; PageScore learns from kernel signals.
 \section{Discussion and Limitations}
 \label{sec:discussion}
 
@@ -543,23 +539,19 @@ Eight of the 14 workloads were never used in training. At 10\% memory PageScore 
 
 \finding{Where PageScore does not help.}\label{sec:eval-loss} In a few cases PageScore is unable to beat \clock.
 \begin{itemize}[topsep=3pt, itemsep=2pt, parsep=0pt]
-\item \textbf{Very little memory.} With only two or three pages in memory there is almost no choice, and because PageScore protects new pages for a few scans, it often has to evict one that is needed again soon.
+\item \textbf{Very little memory.} With only two to five pages in memory, as for matrix multiply at 5 and 10\% memory, there is almost no choice, and because PageScore protects new pages for a few scans, it often has to evict one that is needed again soon.
 \item \textbf{One set of weights for all programs.} The same weights are used for every program, so they cannot suit all of them; on graph at 20\% memory they lose to \clock.
-\item \textbf{Indirect access.} SpMV finds its data through an index, so the page it needs next depends on the data, not on how recently or how often a page was used. The kernel's signals say little about this, and at 5\% memory PageScore is slightly worse than \clock.
+\item \textbf{Indirect access.} SpMV and the hash join in the app suite find their data through an index, so the page it needs next depends on the data, not on how recently or how often a page was used. The kernel's signals say little about this, and PageScore is slightly worse than \clock on SpMV at 5\% memory and on the hash join at 20\%.
 \item \textbf{Random access.} The Bloom filter uses pages almost at random, so no policy can predict the next one and none beats \clock.
-\item \textbf{A real trace without write information.} On the real Redis trace, recorded on Linux without marking writes, PageScore does worse than \clock in simulation, while LRU does better.
-\item \textbf{Extra disk writes.} PageScore is trained to avoid faults, not writes, so it ignores whether a page was written to. On some workloads, such as matrix multiply, it evicts many more changed pages, and each must be saved to disk first. Future work may include to incorporate learning writes as well.
+\item \textbf{A real trace without write information.} On the real Redis trace, recorded on Linux without marking writes, PageScore does worse than \clock in simulation, while LRU does better (Appendix, Table~\ref{tab:transfer}).
+\item \textbf{Extra disk writes.} PageScore is trained to avoid faults, not writes, and it learned to evict pages that were written to sooner. On some workloads, such as matrix multiply, it evicts many more changed pages, and each must be saved to disk first. Future work could also train it to avoid writes.
 \item \textbf{Fast storage, slow processor.} PageScore takes longer than \clock to choose a page. With a fast SSD and a slow processor, this extra time cancels out the time saved by having fewer faults.
 \end{itemize}
 
 \finding{Limits of this study.}
 \begin{itemize}[topsep=3pt, itemsep=2pt, parsep=0pt]
 \item \textbf{We measured only part of the cost of a fault.} We counted instructions exactly, and measured how long one SSD and one hard disk take to read a page and how fast the scoring code runs on one desktop x86 core (leaving out some kernel overheads, such as the TLB flush and locks). We did not measure a whole xv6 fault on real hardware, so the break-even results add these parts together.
-%% the following doesnt contribute much, so skip? 
-%%\item \textbf{We have few workloads, and some are close variants of each other.} There are fourteen, six of them used for training, and each runs alone with a small amount of memory (at most 3.2\,MiB). Many comparisons reuse the same 74 streams, and only the three main ones are corrected for repeated testing; the rest follow the rule of \S\ref{sec:eval-setup}.
 \item \textbf{The other policies are adapted and not tuned.} Using only the accessed bit changes how ARC, LHD, S3-FIFO and LeCaR behave, S3-FIFO's most of all, and we kept their published settings while we tuned ours on validation streams.
-%% skipping the next too
-%% \item \textbf{Our traces record only each program's data pages.} The few other pages a program uses, such as its code and stack (typically 4), are present in the kernel runs but not in the traces, so the simulator and \belady's policy never see them.
 \end{itemize}
 
 \section{Conclusion}
@@ -590,7 +582,7 @@ Table~\ref{tab:dataset} lists the simulator dataset. Each stream records every a
 \finding{Twitter replays.} Our key-value store holds at most 1,024 keys, so each of the six clusters is cut down to about 1,000 keys, chosen by key hash, with each kept key's full request sequence, and to 4,751--40,000 requests. Only key ids and read/write flags are kept; the original traces are CC~BY~4.0~\citep{yang2020twitter}.
 
 \begin{table}[h!]
-\caption{The simulator dataset: 199 streams, 77 of them held out. \texttt{patb} is a second, independently written pattern suite; kv includes the six Twitter replays (kv-T).}
+\caption{The simulator dataset: 199 streams, 77 of them held out. \texttt{patb} is a second, independently written pattern suite; kv includes the six Twitter replays (kv-T), all held out.}
 \label{tab:dataset}
 \vskip 0.05in
 \begin{center}
@@ -683,7 +675,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Instructions the kernel spends choosing one page to evict, counted exactly by QEMU, on a benchmark where every eviction has the given number of pages to choose from; last column: extra instructions per extra page from 68 to 516. FIFO, \clock, S3-FIFO and the sampled scores grow slowly. A switch between sampling rules (Table~\ref{tab:sampling}), added after these counts, adds 14--16 instructions to a sampled decision; with it, 32 samples cost 8,832 instructions with 824 pages, the largest set in the evaluation, where ARC needs 129,555.}
+\caption{Instructions the kernel spends choosing one page to evict, counted exactly by QEMU, on a benchmark where every eviction has the given number of pages to choose from; last column: extra instructions per extra page from 68 to 516. FIFO, \clock, S3-FIFO and the sampled scores grow slowly. With 824 pages, the largest set in the evaluation, 32 samples cost 8,832 instructions, where ARC needs 129,555.}
 \label{tab:cost}
 \vskip 0.05in
 \begin{center}
@@ -701,7 +693,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{The sampled scores charged their own measured speed (0.062\,ns per instruction for 32 samples) instead of the 0.047\,ns of PageScore over every page: time relative to \clock at 10\% memory, counting device reads only.}
+\caption{The sampled scores charged their own measured speed (0.062\,ns per instruction for 32 samples) instead of the 0.047\,ns measured for PageScore over every page on our desktop core: time relative to \clock at 10\% memory, counting device reads only.}
 \label{tab:breakeven-own}
 \vskip 0.05in
 \begin{center}
@@ -710,7 +702,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Faults relative to \clock and break-even fault cost per workload at 10\% memory, on the measured desktop core (0.047\,ns per instruction): over the streams that saved faults, the median of the extra decision time divided by the faults saved per eviction. ``PageScore'' here scores every page. Compare with 63\,\textmu s (SSD) and 8.9\,ms (hard disk); ``never'': no stream saved faults.}
+\caption{Faults relative to \clock and break-even fault cost per workload at 10\% memory, on the measured desktop core (0.047\,ns per instruction): over the streams that saved faults, the median of the extra decision time divided by the faults saved per eviction. Compare with 63\,\textmu s (SSD) and 8.9\,ms (hard disk); ``never'': no stream saved faults.}
 \label{tab:breakeven-wl}
 \vskip 0.05in
 \begin{center}
@@ -719,7 +711,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Exact instructions per candidate (Aging to PageScore over every page) and per eviction
+\caption{Exact instructions per page scored (Aging to PageScore over every page) and per eviction
 (\clock and the sampled scores) on one stream of each workload at 10\% memory, against the
 uniform benchmark (first row). The benchmark is representative except on the two smallest
 workloads, where the fixed part of an eviction weighs more.}
@@ -731,7 +723,7 @@ workloads, where the fixed part of an eviction weighs more.}
 \end{table}
 
 \begin{table}[h!]
-\caption{Making PageScore cheaper without changing a victim (exact instructions,
+\caption{Making PageScore cheaper without changing which page is evicted (exact instructions,
 uniform benchmark; measured on a copy of the kernel, then A1 + A3 + A4 put in the kernel).
 Every row gives fault counts identical to the original.}
 \label{tab:fastcode}
@@ -751,7 +743,7 @@ Every row gives fault counts identical to the original.}
 \end{table}
 
 \begin{table}[h!]
-\caption{Three rounds of DAgger on the first version of the training data (simulator,
+\caption{Three rounds of DAgger when each recorded eviction holds \belady's choice plus 31 randomly chosen pages (\S\ref{sec:bg-naive}; simulator,
 PageRank at 10\% memory; faults relative to \clock, runs stopped at 3$\times$).}
 \label{tab:dagger}
 \vskip 0.05in
@@ -879,7 +871,7 @@ all six & held-out & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \begin{tikzpicture}
 \begin{axis}[paperplot, xmode=log, width=0.85\linewidth, height=2.6in, tick pos=left,
   xmin=150, xmax=2e7, ymin=0.84, ymax=1.43, log basis x=10, xminorticks=false,
-  xlabel={instructions to choose one victim (68 candidates)},
+  xlabel={instructions to choose one page (68 pages to choose from)},
   ylabel={faults / \clock, 10\%}, xlabel style={yshift=3pt}, ylabel style={yshift=-4pt},
   ymajorgrids, ytick={0.9,1.0,1.1,1.2,1.3,1.4}, minor x tick num=0,
   every node near coord/.append style={font=\scriptsize, inner sep=0.5pt},
@@ -911,7 +903,7 @@ all six & held-out & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \section{Reproducing the Results}
 \label{app:repro}
 
-All kernel runs are resumable and finished runs are skipped. (1) Run the policies in the kernel at each memory size with \texttt{tools/ml2/kernel\_eval.py} (the pattern and application programs with \texttt{--accesses 50000}). One run uses one core; at 10\% memory a \clock run takes from seconds (sort, kv) to about half an hour (Bloom filter, pointer chasing, LZW), and up to about 1.3 hours at 5\% and 1 hour at 20\%; a heavier model takes up to about four hours. All 4,489 runs took about 715 core-hours (302 of them outside the ten heavier models), split between a 6-core desktop and cloud notebooks. (2) Merge every result file into one with \texttt{merge\_kernel\_results.py}, compute the intervals with \texttt{kernel\_ci\_classic.py}, and regenerate every table with \texttt{report\_w15.py}, \texttt{report\_w16.py}, \texttt{make\_figdata.py} and \texttt{make\_figdata2.py}. (3) Decision cost comes from \texttt{cost\_grid.py} under QEMU's instruction-counting mode, native timing from \texttt{native\_timing.c}, and the break-even from \texttt{cost\_benefit.py} with the measured device latencies. The simulator checks (\texttt{validate.py}, \texttt{validate\_kernel.py}, \texttt{test\_baselines.py}) must pass after any change.
+The code is available at \textcolor{red}{[repository link]} and the dataset of traces at \textcolor{red}{[dataset link]}. All kernel runs are resumable and finished runs are skipped. (1) Run the policies in the kernel at each memory size with \texttt{tools/ml2/kernel\_eval.py} (the pattern and application programs with \texttt{--accesses 50000}). One run uses one core; at 10\% memory a \clock run takes from seconds (sort, kv) to about half an hour (Bloom filter, pointer chasing, LZW), and up to about 1.3 hours at 5\% and 1 hour at 20\%; a heavier model takes up to about four hours. All 4,489 runs took about 715 core-hours (302 of them outside the five larger models, each trained on all workloads and on one workload), split between a 6-core desktop and cloud notebooks. (2) Merge every result file into one with \texttt{merge\_kernel\_results.py}, compute the intervals with \texttt{kernel\_ci\_classic.py}, and regenerate every table with \texttt{report\_w15.py}, \texttt{report\_w16.py}, \texttt{make\_figdata.py} and \texttt{make\_figdata2.py}. (3) Decision cost comes from \texttt{cost\_grid.py} under QEMU's instruction-counting mode, native timing from \texttt{native\_timing.c}, and the break-even from \texttt{cost\_benefit.py} with the measured device latencies. The simulator checks (\texttt{validate.py}, \texttt{validate\_kernel.py}, \texttt{test\_baselines.py}) must pass after any change.
 \fi
 
 \end{document}
