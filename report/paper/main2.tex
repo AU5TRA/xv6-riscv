@@ -332,10 +332,11 @@ where $X_j$ is feature $j$ stored as an integer with $b=8$ fractional bits, $S$ 
 \finding{Larger models.} To test whether a larger model helps, we also converted five larger models (a CNN over the aging bits, a deeper MLP, set-attention, boosted trees and ranking trees) to integer arithmetic; they run in both the kernel and the simulator.
 
 \finding{When the model is wrong.} The worst possible case is that the policy causes more faults than \clock, not corruption: the policy can never evict another process's pages. The model can only pick the program's own pages to be evicted and the kernel checks every page it picks and falls back to \clock if the choice is not allowed. \emph{Probation} keeps new pages from being evicted, which removes the failure of \S\ref{sec:bg-naive}. Features and probation are chosen on validation streams, never on the test streams, because many feature sets fail badly. At 10\% memory, more than a third of them cause at least three times \clock's faults on graph. Nothing switches PageScore off while it runs, so it can still be worse than \clock on some workloads (\S\ref{sec:eval-loss}).
+
 \finding{A fixed sample.} Scoring takes about the same work for every page, so scoring all of them gets slower as memory grows. PageScore therefore scores only $n$ randomly chosen pages, or all of them if there are fewer; in our implementation in xv6, $n=32$. A fixed $n$ is enough because how good a random sample is depends on its size, not on how many pages it is drawn from: the best page in a random sample of 32 is, on average, among the top 3\% of pages to evict, however many pages the program has (\S\ref{sec:discussion} discusses much larger memories). Table~\ref{tab:samples} shows the trade-off: fewer pages cost fewer instructions but cause more faults, while more than 32 pages cost more and save almost nothing, so 32 is where the curve flattens. We first picked 32 by trying several sample sizes on the test streams; a rule fixed in advance and applied only to the validation streams, the smallest sample within 1\% of scoring every page at all three memory sizes, also picks 32 (Figure~\ref{fig:dist}, right).
 
 \begin{table}[t]
-\caption{What each sample size costs and saves. Instructions to choose one page to evict in the kernel with 68, 516 and 824 pages to choose from, and faults relative to scoring every page (simulator, validation streams, at 5, 10 and 20\% memory). 32 is the smallest sample within 1\% of scoring every page at every size.}
+\caption{What each sample size costs and saves. Left: instructions the kernel needs to choose one page to evict when 68, 516 or 824 pages are in memory. Right: faults relative to scoring every page (simulator, validation streams) at each memory size. 32 is the smallest sample within 1\% of scoring every page at all three sizes.}
 \label{tab:samples}
 \vskip 0.05in
 \begin{center}
@@ -415,11 +416,11 @@ Given the same information as PageScore, larger models are no better (\S\ref{sec
 \end{table*}
 
 \begin{table}[t]
-\caption{The main comparisons, with 95\% intervals. Bold: the whole interval is below 0.99 (\S\ref{sec:eval-setup}). Every cell covers all 74 streams. All comparisons: Appendix, Table~\ref{tab:ci-full}.}
+\caption{PageScore against the main policies in the kernel: its faults relative to the other policy's (below 1: PageScore has fewer), over all 74 streams, with the 95\% interval underneath. Bold: the whole interval is below 0.99 (\S\ref{sec:eval-setup}). Last row: ARC against \clock. All comparisons: Appendix, Table~\ref{tab:ci-full}.}
 \label{tab:ci}
 \vskip 0.1in
 \begin{center}
-\adjustbox{max width=\linewidth}{\footnotesize \input{\figdata/ci_body2.tex}}
+{\small \input{\figdata/ci_body2.tex}}
 \end{center}
 \vskip -0.1in
 \end{table}
@@ -465,7 +466,7 @@ PageScore causes 8.8\% fewer faults than \clock at 10\% memory and 9.8\% fewer a
 \node[font=\scriptsize\bfseries, text=cGood, anchor=south west] at (axis cs:3.7,0.9805) {within 1\% of every page};
 \end{axis}
 \end{tikzpicture}
-\caption{Left: for each policy, the share of the 74 streams (up) whose faults relative to \clock are at or below a given ratio (across), in the kernel at 10\% memory. A curve further to the left is better; PageScore has fewer faults than \clock on 65 streams and more on 9. Right: faults when scoring a random sample of pages instead of every page (simulator, validation streams). 32 is the smallest sample within 1\% of scoring every page (green band) at every memory size.}
+\caption{Left: for each policy, the share of the 74 streams (vertical axis) whose faults relative to \clock are at or below a given value (horizontal axis), in the kernel at 10\% memory. A curve further to the left is better; PageScore has fewer faults than \clock on 65 streams and more on 9. Right: faults when scoring a random sample of pages instead of every page (simulator, validation streams). 32 is the smallest sample within 1\% of scoring every page (green band) at every memory size.}
 \label{fig:dist}
 \end{figure*}
 
@@ -519,6 +520,8 @@ Eight of the 14 workloads were never used in training. At 10\% memory PageScore 
 \finding{How the training data is recorded matters.} Recording the most recently used pages and adding probation (\S\ref{sec:design-train}) fixes the failure of \S\ref{sec:bg-naive} for most feature sets. Probation helps a lot on graph, though it hurts when memory is very small (\S\ref{sec:eval-loss}). One round of retraining on the policy's own decisions (DAgger) on PageScore's training data gave no consistent gain.
 
 \finding{How many pages to sample.} In the kernel, scoring 32 random pages works about as well as scoring every page, at half the cost or less, and 16 pages is about 1\% worse; Table~\ref{tab:samples} gives the other sample sizes. Other ways of picking the sample make little difference (Appendix, Table~\ref{tab:sampling}), and other random seeds change single streams by about 1\% at most.
+
+\finding{Which workloads to train on.} We refit PageScore's weights, with the same features, probation and sample size, on five different hand-picked splits of the 14 workloads, and ran each in the kernel on the workloads it did not train on (Appendix, Table~\ref{tab:splits}). On those workloads these models cause at most 3.7\% more faults than PageScore, and 1.6\% more on average, so which workloads we train on matters little.
 
 \section{Related Work}
 \label{sec:related}
@@ -632,7 +635,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \label{app:results}
 
 \begin{table}[h!]
-\caption{Every comparison with its 95\% interval (Table~\ref{tab:ci} shows the main ones). Bold: the whole interval is below 0.99. Every row covers all 74 streams at each memory size where it was run (the 16-sample score only at 10\%).}
+\caption{Every comparison in the kernel with its 95\% interval: faults of the first policy relative to the second, over all 74 streams (below 1: the first has fewer). Bold: the whole interval is below 0.99. The 16-page score ran only at 10\% memory. Table~\ref{tab:ci} shows the main rows.}
 \label{tab:ci-full}
 \vskip 0.05in
 \begin{center}
@@ -641,41 +644,41 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Faults relative to \clock at 5\% memory (74 streams), same layout as Table~\ref{tab:kernel}.}
+\caption{Every policy on every workload, in the kernel at 5\% memory: faults relative to \clock, averaged over each workload's streams, with the average over the 14 workloads in the last column (as in Table~\ref{tab:kernel} for 10\%).}
 \vskip 0.05in
 \begin{center}
-\adjustbox{max width=\linewidth}{\small \input{\wsixteen/kmain_A_005}}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_A_005}}
 \end{center}
 \end{table}
 
 \begin{table}[h!]
-\caption{Faults relative to \clock at 20\% memory (74 streams), same layout as Table~\ref{tab:kernel}.}
+\caption{Every policy on every workload, in the kernel at 20\% memory: faults relative to \clock, averaged over each workload's streams, with the average over the 14 workloads in the last column (as in Table~\ref{tab:kernel} for 10\%).}
 \vskip 0.05in
 \begin{center}
-\adjustbox{max width=\linewidth}{\small \input{\wsixteen/kmain_A_02}}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_A_02}}
 \end{center}
 \end{table}
 
 \begin{table}[h!]
-\caption{Page writes (pages saved to swap) relative to \clock at 10\% memory, same layout as Table~\ref{tab:kernel}.}
+\caption{Page writes (evicted pages that must first be saved to swap) relative to \clock, in the kernel at 10\% memory, per workload as in Table~\ref{tab:kernel}.}
 \label{tab:writes}
 \vskip 0.05in
 \begin{center}
-\adjustbox{max width=\linewidth}{\small \input{\wsixteen/kmain_WA_01}}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_WA_01}}
 \end{center}
 \end{table}
 
 \begin{table}[h!]
-\caption{The larger models in the kernel at 10\% memory, all 74 streams, same layout as Table~\ref{tab:kernel}.}
+\caption{The five larger models in the kernel at 10\% memory: faults relative to \clock per workload, as in Table~\ref{tab:kernel}, with PageScore over every page, ARC and LHD for comparison.}
 \label{tab:heavy}
 \vskip 0.05in
 \begin{center}
-\adjustbox{max width=\linewidth}{\small \input{\wsixteen/kmain_B_01}}
+\resizebox{\textwidth}{!}{\input{\wsixteen/kmain_B_01}}
 \end{center}
 \end{table}
 
 \begin{table}[h!]
-\caption{Instructions the kernel spends choosing one page to evict, counted exactly by QEMU, on a benchmark where every eviction has the given number of pages to choose from; last column: extra instructions per extra page from 68 to 516. FIFO, \clock, S3-FIFO and the sampled scores grow slowly. With 824 pages, the largest set in the evaluation, 32 samples cost 8,832 instructions, where ARC needs 129,555.}
+\caption{Instructions the kernel needs to choose one page to evict, counted exactly in QEMU, on a test program where every eviction has 20, 68, 260 or 516 pages to choose from. Last column: extra instructions for each extra page, from 68 to 516 pages; FIFO, \clock, S3-FIFO and the sampled scores barely grow. With 824 pages, the most in the evaluation, PageScore needs 8,832 instructions and ARC 129,555.}
 \label{tab:cost}
 \vskip 0.05in
 \begin{center}
@@ -684,7 +687,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Total time relative to \clock at 10\% memory, averaged over the 14 workloads, counting disk reads, disk writes and decision time (\S\ref{sec:eval-cost}). Measured disk times: SSD 63\,\textmu s per read and 22\,\textmu s per write, hard disk 8.9\,ms and 2.6\,ms. Decisions are charged 0.047\,ns per instruction (our desktop core) or 1\,ns (a slow core). Bold: faster than \clock. With the desktop core PageScore is faster on 11 of the 14 workloads on the SSD, and on 8 with the slow core. Leaving out the writes changes PageScore's values by at most 0.01, and no value crosses 1. Per workload: Table~\ref{tab:breakeven-wl}; the sampled scores at their own speed: Table~\ref{tab:breakeven-own}.}
+\caption{Total time relative to \clock at 10\% memory, averaged over the 14 workloads: the time to read pages back from disk, to write evicted pages out and to choose pages (\S\ref{sec:eval-cost}). Below 1 is faster than \clock (bold). Disk times are measured: the SSD takes 63\,\textmu s per read and 22\,\textmu s per write, the hard disk 8.9\,ms and 2.6\,ms. Choosing is charged 1\,ns per instruction on a slow core and 0.047\,ns on our desktop core. With the desktop core PageScore is faster than \clock on 11 of the 14 workloads on the SSD, and on 8 with the slow core. Leaving out the writes changes PageScore's values by at most 0.01. Per workload: Table~\ref{tab:breakeven-wl}; the sampled scores at their own speed: Table~\ref{tab:breakeven-own}.}
 \label{tab:breakeven}
 \vskip 0.05in
 \begin{center}
@@ -693,7 +696,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{The sampled scores charged their own measured speed (0.062\,ns per instruction for 32 samples) instead of the 0.047\,ns measured for PageScore over every page on our desktop core: time relative to \clock at 10\% memory, counting device reads only.}
+\caption{Time relative to \clock at 10\% memory, counting disk reads and choosing time, when the sampled scores are charged their own measured speed (0.062\,ns per instruction for a 32-page sample) instead of the 0.047\,ns measured for scoring every page on our desktop core. The values change by at most 0.002.}
 \label{tab:breakeven-own}
 \vskip 0.05in
 \begin{center}
@@ -702,7 +705,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Faults relative to \clock and break-even fault cost per workload at 10\% memory, on the measured desktop core (0.047\,ns per instruction): over the streams that saved faults, the median of the extra decision time divided by the faults saved per eviction. Compare with 63\,\textmu s (SSD) and 8.9\,ms (hard disk); ``never'': no stream saved faults.}
+\caption{Per workload at 10\% memory, on our desktop core: faults relative to \clock, and the break-even cost of one fault, above which the faults a policy saves pay for its extra decision time (median over the streams that saved faults). Measured costs are 63\,\textmu s on the SSD and 8.9\,ms on the hard disk, so a break-even below 63\,\textmu s pays off on both. ``never'': no stream saved faults.}
 \label{tab:breakeven-wl}
 \vskip 0.05in
 \begin{center}
@@ -711,10 +714,7 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Exact instructions per page scored (Aging to PageScore over every page) and per eviction
-(\clock and the sampled scores) on one stream of each workload at 10\% memory, against the
-uniform benchmark (first row). The benchmark is representative except on the two smallest
-workloads, where the fixed part of an eviction weighs more.}
+\caption{Exact instructions in the kernel at 10\% memory, on one stream of each workload: per page scored for the policies that look at every page, and per eviction for \clock and the sampled scores. First row: the test program of Table~\ref{tab:cost} with 68 pages. It matches the workloads, except the two smallest (matmul and sort, 8--9 pages), where the fixed cost of an eviction weighs more.}
 \label{tab:costexact}
 \vskip 0.05in
 \begin{center}
@@ -723,9 +723,7 @@ workloads, where the fixed part of an eviction weighs more.}
 \end{table}
 
 \begin{table}[h!]
-\caption{Making PageScore cheaper without changing which page is evicted (exact instructions,
-uniform benchmark; measured on a copy of the kernel, then A1 + A3 + A4 put in the kernel).
-Every row gives fault counts identical to the original.}
+\caption{Code changes that make PageScore cheaper without changing which page it evicts: exact instructions per eviction on the test program of Table~\ref{tab:cost}, with the change against no change in brackets. The kernel uses A1 + A3 + A4. Every row gives the same fault counts.}
 \label{tab:fastcode}
 \vskip 0.05in
 \begin{center}
@@ -734,7 +732,7 @@ Every row gives fault counts identical to the original.}
 \end{table}
 
 \begin{table}[h!]
-\caption{Ways of choosing the sample, in the kernel (74 streams, 10\% memory, one build): faults relative to scoring every page, to \clock and to random sampling of the same size. Bold: the whole interval is below 0.99. Nothing beats random.}
+\caption{Other ways of choosing which pages to score, in the kernel at 10\% memory (74 streams): faults relative to scoring every page, to \clock, and to a random sample of the same size, with 95\% intervals. Bold: the whole interval is below 0.99. None does better than a random sample.}
 \label{tab:sampling}
 \vskip 0.05in
 \begin{center}
@@ -743,8 +741,7 @@ Every row gives fault counts identical to the original.}
 \end{table}
 
 \begin{table}[h!]
-\caption{Three rounds of DAgger when each recorded eviction holds \belady's choice plus 31 randomly chosen pages (\S\ref{sec:bg-naive}; simulator,
-PageRank at 10\% memory; faults relative to \clock, runs stopped at 3$\times$).}
+\caption{Three rounds of retraining on the policy's own decisions (DAgger) when each recorded eviction holds \belady's choice plus 31 randomly chosen pages (\S\ref{sec:bg-naive}). Rows: the best and the median of 300 linear models with different feature sets, and the model with all twelve features. Faults relative to \clock on a PageRank stream at 10\% memory (simulator); runs are stopped at 3 times \clock's faults.}
 \label{tab:dagger}
 \vskip 0.05in
 \begin{center}
@@ -753,12 +750,20 @@ PageRank at 10\% memory; faults relative to \clock, runs stopped at 3$\times$).}
 \end{table}
 
 \begin{table}[h!]
-\caption{Trained on one workload against trained on all six (simulator, 24 cells, faults
-relative to \clock).}
+\caption{Each larger model trained on one workload or on all six training workloads, with the linear score over every page for comparison (simulator): faults relative to \clock over 24 combinations of stream and memory size (ten streams at 5, 10 and 20\% memory, keeping those every model finished).}
 \label{tab:trainedall}
 \vskip 0.05in
 \begin{center}
 \adjustbox{max width=\linewidth}{\small \input{\wsixteen/trainedall}}
+\end{center}
+\end{table}
+
+\begin{table}[h!]
+\caption{Training on other sets of workloads, in the kernel (555 runs besides the 4,489 of the main evaluation). Each split refits only PageScore's weights, with the same features, probation and sample size, on the workloads listed, and is tested on the others; kv and kv-T always stay together. Each cell: that model's faults relative to PageScore's on the same streams (13 to 52 streams); above 1 means more faults than PageScore.}
+\label{tab:splits}
+\vskip 0.05in
+\begin{center}
+\adjustbox{max width=\linewidth}{\small \input{\figdata/splits.tex}}
 \end{center}
 \end{table}
 
@@ -787,7 +792,7 @@ relative to \clock).}
 \end{figure}
 
 \begin{table}[h!]
-\caption{More information against a larger model (simulator). Faults relative to \clock, averaged over 5, 10 and 20\% memory, on the cells every model ran (e.g.\ 15 of kv's 18 test cells), so \belady differs slightly from Figure~\ref{fig:headroom}. K: models given only what a kernel can collect; FK: models also given exact information from a full trace. Over all six workloads, the linear score is level with the larger kernel-information models.}
+\caption{Does more information or a larger model help? Faults relative to \clock in the simulator, averaged over 5, 10 and 20\% memory and over the streams every model finished (for example 15 of kv's 18 test combinations of stream and memory size), so \belady differs slightly from Figure~\ref{fig:headroom}. ``kernel'': only what a kernel can collect; ``+ trace'': also exact information from a full trace. Over all six workloads, the linear score is level with the trees on kernel information.}
 \label{tab:info}
 \vskip 0.05in
 \begin{center}
@@ -795,7 +800,7 @@ relative to \clock).}
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}llrrrrr@{}}
 \toprule
-Workload & Split & linear score & trees K & trees FK & NN FK & \belady \\
+workload & split & linear score & trees, kernel & trees, + trace & NN, + trace & \belady \\
 \midrule
 btree  & test & 0.835 & 0.834 & 0.829 & 0.811 & 0.550 \\
 graph  & test & 0.847 & 0.847 & 0.806 & 0.844 & 0.456 \\
@@ -819,7 +824,7 @@ all six & held-out & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \end{table}
 
 \begin{table}[h!]
-\caption{LeCaR in the simulator, faults relative to \clock, on the cells of Table~\ref{tab:info}. ``As published'': choosing between exact LRU and exact LFU, which needs every access. ``Kernel form'': choosing between \clock and the kernel's frequency count, using only the accessed bit. Both use LeCaR's original settings (learning rate 0.45, a history of half the cache per policy). ARC here sees every access.}
+\caption{LeCaR in the simulator: faults relative to \clock on the streams of Table~\ref{tab:info}. ``As published'': LeCaR chooses between exact LRU and exact LFU, which needs every access. ``Kernel form'': it chooses between \clock and the kernel's frequency count, using only the accessed bit. Both use LeCaR's original settings (learning rate 0.45, a history half the size of memory per policy). ARC here sees every access.}
 \label{tab:lecar}
 \vskip 0.05in
 \begin{center}
@@ -828,7 +833,7 @@ all six & held-out & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \end{table}
 
 \begin{table}[h!]
-\caption{Workloads no model was trained on, in the simulator: faults relative to \clock, averaged over streams and the three memory sizes. ARC and S3-FIFO here are the versions that see every access; LHD uses only the accessed bit.}
+\caption{Workloads no model was trained on (simulator): faults relative to \clock, averaged over each workload's streams and the three memory sizes. ARC and S3-FIFO here see every access; LHD uses only the accessed bit. ``linear score, F+K'': also given exact information from a full trace. ``kv weights'': the linear score trained on kv alone, run on the Twitter replays.}
 \label{tab:transfer}
 \vskip 0.05in
 \begin{center}
@@ -903,7 +908,7 @@ all six & held-out & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \section{Reproducing the Results}
 \label{app:repro}
 
-The code is available at \textcolor{red}{[repository link]} and the dataset of traces at \textcolor{red}{[dataset link]}. All kernel runs are resumable and finished runs are skipped. (1) Run the policies in the kernel at each memory size with \texttt{tools/ml2/kernel\_eval.py} (the pattern and application programs with \texttt{--accesses 50000}). One run uses one core; at 10\% memory a \clock run takes from seconds (sort, kv) to about half an hour (Bloom filter, pointer chasing, LZW), and up to about 1.3 hours at 5\% and 1 hour at 20\%; a heavier model takes up to about four hours. All 4,489 runs took about 715 core-hours (302 of them outside the five larger models, each trained on all workloads and on one workload), split between a 6-core desktop and cloud notebooks. (2) Merge every result file into one with \texttt{merge\_kernel\_results.py}, compute the intervals with \texttt{kernel\_ci\_classic.py}, and regenerate every table with \texttt{report\_w15.py}, \texttt{report\_w16.py}, \texttt{make\_figdata.py} and \texttt{make\_figdata2.py}. (3) Decision cost comes from \texttt{cost\_grid.py} under QEMU's instruction-counting mode, native timing from \texttt{native\_timing.c}, and the break-even from \texttt{cost\_benefit.py} with the measured device latencies. The simulator checks (\texttt{validate.py}, \texttt{validate\_kernel.py}, \texttt{test\_baselines.py}) must pass after any change.
+The code is available at \textcolor{red}{[repository link]} and the dataset of traces at \textcolor{red}{[dataset link]}. All kernel runs are resumable and finished runs are skipped. (1) Run the policies in the kernel at each memory size with \texttt{tools/ml2/kernel\_eval.py} (the pattern and application programs with \texttt{--accesses 50000}). One run uses one core; at 10\% memory a \clock run takes from seconds (sort, kv) to about half an hour (Bloom filter, pointer chasing, LZW), and up to about 1.3 hours at 5\% and 1 hour at 20\%; a heavier model takes up to about four hours. All 4,489 runs took about 715 core-hours (302 of them outside the five larger models, each trained on all workloads and on one workload), split between a 6-core desktop and cloud notebooks. (2) Merge every result file into one with \texttt{merge\_kernel\_results.py}, compute the intervals with \texttt{kernel\_ci\_classic.py}, and regenerate every table with \texttt{report\_w15.py}, \texttt{report\_w16.py}, \texttt{make\_figdata.py} and \texttt{make\_figdata2.py}. (3) Decision cost comes from \texttt{cost\_grid.py} and, for the sampled scores, \texttt{recost\_sampled.py} under QEMU's instruction-counting mode, native timing from \texttt{native\_timing.c}, and the break-even from \texttt{cost\_benefit.py} with the measured device latencies. (4) The study of training on other sets of workloads (Table~\ref{tab:splits}) is \texttt{exp\_splits.py} (\texttt{build}, \texttt{fit}, \texttt{run}, \texttt{report}); its 555 runs took about 32 core-hours. The simulator checks (\texttt{validate.py}, \texttt{validate\_kernel.py}, \texttt{test\_baselines.py}) must pass after any change.
 \fi
 
 \end{document}

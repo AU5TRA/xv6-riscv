@@ -1,6 +1,8 @@
 \begin{tabular}{lrrrrr}
 \toprule
-policy & faults / Clock & SSD, 1 ns & disk, 1 ns & SSD, 0.047 ns & disk, 0.047 ns \\
+ & & \multicolumn{2}{c}{\shortstack{slow core\\(1 ns per instr.)}} & \multicolumn{2}{c}{\shortstack{desktop core\\(0.047 ns per instr.)}} \\
+\cmidrule(lr){3-4}\cmidrule(l){5-6}
+policy & faults / Clock & SSD & hard disk & SSD & hard disk \\
 \midrule
 PageScore, every page & 0.914 & 1.21 & \best{0.92} & \best{0.93} & \best{0.92} \\
 PageScore & 0.912 & 1.01 & \best{0.91} & \best{0.92} & \best{0.91} \\

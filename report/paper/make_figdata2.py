@@ -91,7 +91,7 @@ def ci_tables():
     for pairs, name in ((BODY_PAIRS, "ci_body2.tex"), (FULL_PAIRS, "ci_full2.tex")):
         body, n_bold = [], 0
         for a, b in pairs:
-            line = [f"{NAME[a]} vs.\\ " + ("every page" if b == "ml:global" else NAME[b])] if name == "ci_body2.tex" else [f"{NAME[a]} against " + ("scoring every page" if b == "ml:global" else NAME[b])]
+            line = [f"{NAME[a]} vs.\\ " + ("scoring every page" if b == "ml:global" else NAME[b])] if name == "ci_body2.tex" else [f"{NAME[a]} against " + ("scoring every page" if b == "ml:global" else NAME[b])]
             for fr in ("0.05", "0.1", "0.2"):
                 r = ci.get((a, b, fr))
                 if not r:
@@ -102,7 +102,26 @@ def ci_tables():
                 n_bold += bold
                 line.append(f"\\best{{{cell}}}" if bold else cell)
             body.append(line)
-        (OUT / name).write_text(table(["comparison", "5\\% memory", "10\\% memory", "20\\% memory"], body), encoding="utf-8")
+        if name == "ci_body2.tex":      # main-text table is one column wide: the interval goes on a second, smaller line
+            lines = ["\\begin{tabular}{lccc}", "\\toprule", "PageScore against & 5\\% & 10\\% & 20\\% memory \\\\", "\\midrule"]
+            for row in body:
+                vals, ivs = [], []
+                for c in row[1:]:
+                    bold = c.startswith("\\best{")
+                    c = c[6:-1] if bold else c
+                    if c == "--":
+                        vals.append("--"); ivs.append(""); continue
+                    v, iv = c.split(" ", 1)
+                    vals.append(f"\\best{{{v}}}" if bold else v)
+                    ivs.append(f"{{\\scriptsize {iv}}}")
+                if not row[0].startswith("PageScore vs."):
+                    lines += ["\\midrule"]
+                lines.append(" & ".join([row[0].replace("PageScore vs.\\ ", "").replace("ARC vs.\\ Clock", "\\emph{ARC against Clock}")] + vals) + " \\\\")
+                lines.append(" & ".join([""] + ivs) + " \\\\[2pt]")
+            lines += ["\\bottomrule", "\\end{tabular}", ""]
+            (OUT / name).write_text("\n".join(lines), encoding="utf-8")
+        else:
+            (OUT / name).write_text(table(["comparison", "5\\% memory", "10\\% memory", "20\\% memory"], body), encoding="utf-8")
         print(name, len(body), "rows,", n_bold, "bold cells")
 
 
@@ -122,8 +141,12 @@ def breakeven_writes():
                                                           (b, "time_vs_clock_ssd"), (b, "time_vs_clock_hdd"))]
         body.append([n, f"{gm(float(r['faults_over_clock']) for r in a):.3f}"] +
                     [f"\\best{{{c:.2f}}}" if c < 0.995 else f"{c:.2f}" for c in cells])
-    (OUT / "breakeven_writes.tex").write_text(table(["policy", "faults / Clock", "SSD, 1 ns", "disk, 1 ns", "SSD, 0.047 ns",
-                                                      "disk, 0.047 ns"], body), encoding="utf-8")
+    lines = ["\\begin{tabular}{lrrrrr}", "\\toprule",
+             " & & \\multicolumn{2}{c}{\\shortstack{slow core\\\\(1 ns per instr.)}} & \\multicolumn{2}{c}{\\shortstack{desktop core\\\\(0.047 ns per instr.)}} \\\\",
+             "\\cmidrule(lr){3-4}\\cmidrule(l){5-6}",
+             "policy & faults / Clock & SSD & hard disk & SSD & hard disk \\\\", "\\midrule"]
+    lines += [" & ".join(r) + " \\\\" for r in body] + ["\\bottomrule", "\\end{tabular}", ""]
+    (OUT / "breakeven_writes.tex").write_text("\n".join(lines), encoding="utf-8")
     print("breakeven_writes.tex", len(body), "rows")
 
 
@@ -152,6 +175,58 @@ def renamed_tables():
     print("renamed copies:", ", ".join(names))
 
 
+def polish_tables():
+    """Clearer headers for the renamed copies: grouped columns, one number format per column."""
+    import re
+    d = OUT / "w16"
+
+    def rows(name):
+        txt = (d / f"{name}.tex").read_text()
+        body = txt.split("\\midrule\n", 1)[1].split("\\bottomrule", 1)[0]
+        return [[c.strip() for c in ln.rstrip(" \\\\").split(" & ")] for ln in body.strip().split("\n") if ln.strip()]
+
+    def write(name, head, body, cols):
+        lines = ["\\begin{tabular}{" + cols + "}", "\\toprule"] + head + ["\\midrule"]
+        lines += [" & ".join(r) + " \\\\" for r in body] + ["\\bottomrule", "\\end{tabular}", ""]
+        (d / f"{name}.tex").write_text("\n".join(lines))
+
+    # Table 16: faults and break-even cost per policy, fixed decimals
+    num = lambda s, k: s if not re.match(r"^[0-9.]+$", s) else f"{float(s):.{k}f}"
+    body = []
+    for r in rows("breakeven_by_workload"):
+        body.append([r[0], num(r[1], 3), num(r[2], 1), num(r[3], 3), num(r[4], 1), num(r[5], 3), r[6] if not re.match(r"^[0-9.]+$", r[6]) else num(r[6], 0)])
+    write("breakeven_by_workload",
+          [" & \\multicolumn{2}{c}{PageScore, every page} & \\multicolumn{2}{c}{ARC} & \\multicolumn{2}{c}{CNN} \\\\",
+           "\\cmidrule(lr){2-3}\\cmidrule(lr){4-5}\\cmidrule(l){6-7}",
+           "workload & faults & break-even ($\\mu$s) & faults & break-even ($\\mu$s) & faults & break-even ($\\mu$s) \\\\"], body, "lrrrrrr")
+
+    # Table 15: same speed vs own speed, grouped by device
+    write("breakeven_own_speed",
+          [" & \\multicolumn{2}{c}{SSD} & \\multicolumn{2}{c}{hard disk} \\\\", "\\cmidrule(lr){2-3}\\cmidrule(l){4-5}",
+           "policy & 0.047 ns & own speed & 0.047 ns & own speed \\\\"], rows("breakeven_own_speed"), "lrrrr")
+
+    # Table 17: per page scored vs per eviction
+    write("cost_exact",
+          [" & & \\multicolumn{5}{c}{per page scored} & \\multicolumn{3}{c}{per eviction} \\\\",
+           "\\cmidrule(lr){3-7}\\cmidrule(l){8-10}",
+           "workload & pages & Aging & LeCaR & ARC & LHD & \\shortstack[r]{PageScore,\\\\every page} & Clock & PageScore & \\shortstack[r]{PageScore,\\\\16 pages} \\\\"],
+          rows("cost_exact"), "lrrrrrrrrr")
+
+    # Table 21: simulator, so the every-page model is called the linear score, as in the other simulator tables
+    write("trainedall", ["model & trained on one workload & trained on all six \\\\"],
+          [["linear score" if r[0] == "PageScore, every page" else r[0]] + r[1:] for r in rows("trainedall")], "lrr")
+
+    # Table 24: workload names as elsewhere
+    write("lecar", ["workload & split & LRU & ARC & LHD & \\shortstack[r]{LeCaR,\\\\as published} & \\shortstack[r]{LeCaR,\\\\kernel form} & linear score \\\\"],
+          [["all six" if r[0] == "global" else r[0]] + r[1:] for r in rows("lecar")], "llrrrrrr")
+
+    # Table 20: say what the rows are
+    write("dagger", ["linear model & round 0 & round 1 & round 2 & round 3 \\\\"],
+          [[{"best of 300": "best of the 300", "median of 300": "median of the 300", "all features": "all twelve features"}.get(r[0], r[0])] + r[1:]
+           for r in rows("dagger")], "lrrrr")
+    print("polished: breakeven_by_workload, breakeven_own_speed, cost_exact, trainedall, lecar, dagger")
+
+
 def sample_sizes():
     """Cost and faults of each sample size: instructions from cost_grid.csv, faults from the validation k-curve."""
     cost = {}
@@ -166,7 +241,7 @@ def sample_sizes():
     for k in (4, 8, 16, 32, 64, None):
         m = f"global@{k}" if k else "global"
         cells = [f"{cost[(m, n)]:,}".replace(",", "\\,") for n in (64, 512, 820)]
-        f = [f"{kv[(k, fr)]:.3f}" if k else "1" for fr in ("0.05", "0.1", "0.2")]
+        f = [f"{kv[(k, fr)]:.3f}" if k else "1.000" for fr in ("0.05", "0.1", "0.2")]
         body.append([str(k) if k else "every page"] + cells + f)
     head = ["\\begin{tabular}{lrrrrrr}", "\\toprule",
             " & \\multicolumn{3}{c}{instructions} & \\multicolumn{3}{c}{faults vs.\\ every page} \\\\",
@@ -175,6 +250,23 @@ def sample_sizes():
     lines = head + [" & ".join(r) + " \\\\" for r in body] + ["\\bottomrule", "\\end{tabular}", ""]
     (OUT / "sample_sizes.tex").write_text("\n".join(lines), encoding="utf-8")
     print("sample_sizes.tex", len(body), "rows")
+
+
+def split_table():
+    """Training-variety study: each split model against PageScore on the workloads the split did not train on (splits_summary.csv)."""
+    rows = list(csv.DictReader(open(R / "splits_summary.csv")))
+    by = {}
+    for r in rows:
+        by.setdefault(r["split"], {"train": r["train"], "test": r["test"]})[r["fraction"]] = float(r["split_vs_pagescore"])
+    names = lambda s: ", ".join(s.split("+"))
+    body = [[k, names(v["train"]), names(v["test"])] + [f"{v[f]:.3f}" for f in ("0.05", "0.1", "0.2")] for k, v in sorted(by.items())]
+    allv = [float(r["split_vs_pagescore"]) for r in rows]
+    head = ["\\begin{tabular}{l>{\\raggedright\\arraybackslash}p{4.6cm}>{\\raggedright\\arraybackslash}p{5.0cm}rrr}", "\\toprule",
+            "split & trained on & tested on & \\multicolumn{3}{c}{faults vs.\\ PageScore} \\\\",
+            "\\cmidrule(l){4-6}", " & & & 5\\% & 10\\% & 20\\% \\\\", "\\midrule"]
+    lines = head + [" & ".join(r) + " \\\\" for r in body] + ["\\bottomrule", "\\end{tabular}", ""]
+    (OUT / "splits.tex").write_text("\n".join(lines), encoding="utf-8")
+    print("splits.tex", len(body), "rows; ratio min %.3f max %.3f mean %.3f" % (min(allv), max(allv), sum(allv) / len(allv)))
 
 
 def workload_gains():
@@ -242,7 +334,9 @@ if __name__ == "__main__":
     ci_tables()
     breakeven_writes()
     sample_sizes()
+    split_table()
     renamed_tables()
+    polish_tables()
     workload_gains()
     sampling_kernel_table()
     tradeoff_labels()

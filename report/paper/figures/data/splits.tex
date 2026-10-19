@@ -1,0 +1,13 @@
+\begin{tabular}{l>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{5.0cm}rrr}
+\toprule
+split & trained on & tested on & \multicolumn{3}{c}{faults vs.\ PageScore} \\
+\cmidrule(l){4-6}
+ & & & 5\% & 10\% & 20\% \\
+\midrule
+s1 & heap, join, spmv, chase, bloom, pat, app & btree, graph, kv, lzw, matmul, sort, kv-T & 1.010 & 1.011 & 1.030 \\
+s2 & graph, kv, kv-T, chase, spmv, join, heap & btree, lzw, matmul, sort, bloom, pat, app & 1.002 & 1.010 & 1.031 \\
+s3 & btree, lzw, matmul, sort, bloom, pat, app & graph, kv, kv-T, heap, join, spmv, chase & 1.012 & 1.018 & 1.011 \\
+s4 & btree, kv, kv-T, lzw, sort, join, chase, bloom, pat, app & graph, matmul, heap, spmv & 1.023 & 1.017 & 0.998 \\
+s5 & graph, kv, sort & btree, lzw, matmul, kv-T, heap, join, spmv, chase, bloom, pat, app & 1.011 & 1.013 & 1.037 \\
+\bottomrule
+\end{tabular}

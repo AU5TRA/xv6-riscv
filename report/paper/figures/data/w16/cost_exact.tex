@@ -1,6 +1,8 @@
 \begin{tabular}{lrrrrrrrrr}
 \toprule
-workload & pages & Aging & LeCaR & ARC & LHD & PageScore, every page & Clock & PageScore & PageScore, 16 pages \\
+ & & \multicolumn{5}{c}{per page scored} & \multicolumn{3}{c}{per eviction} \\
+\cmidrule(lr){3-7}\cmidrule(l){8-10}
+workload & pages & Aging & LeCaR & ARC & LHD & \shortstack[r]{PageScore,\\every page} & Clock & PageScore & \shortstack[r]{PageScore,\\16 pages} \\
 \midrule
 patbench (68 pages) & 68 & 119 & 120 & 176 & 212 & 247 & 410 & 8\,480 & 4\,251 \\
 app & 52 & 120 & 123 & 195 & 240 & 242 & 593 & 8\,316 & 4\,181 \\

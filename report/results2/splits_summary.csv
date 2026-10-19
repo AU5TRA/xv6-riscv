@@ -1,6 +1,16 @@
 split,fraction,train,test,streams,split_vs_clock,pagescore_vs_clock,split_vs_pagescore
+s1,0.05,heap+join+spmv+chase+bloom+pat+app,btree+graph+kv+lzw+matmul+sort+kv-T,46,1.003,0.993,1.01
 s1,0.1,heap+join+spmv+chase+bloom+pat+app,btree+graph+kv+lzw+matmul+sort+kv-T,46,0.911,0.901,1.011
+s1,0.2,heap+join+spmv+chase+bloom+pat+app,btree+graph+kv+lzw+matmul+sort+kv-T,46,0.975,0.947,1.03
+s2,0.05,graph+kv+kv-T+chase+spmv+join+heap,btree+lzw+matmul+sort+bloom+pat+app,40,1.04,1.038,1.002
 s2,0.1,graph+kv+kv-T+chase+spmv+join+heap,btree+lzw+matmul+sort+bloom+pat+app,40,0.967,0.957,1.01
+s2,0.2,graph+kv+kv-T+chase+spmv+join+heap,btree+lzw+matmul+sort+bloom+pat+app,40,0.966,0.937,1.031
+s3,0.05,btree+lzw+matmul+sort+bloom+pat+app,graph+kv+kv-T+heap+join+spmv+chase,34,0.921,0.91,1.012
 s3,0.1,btree+lzw+matmul+sort+bloom+pat+app,graph+kv+kv-T+heap+join+spmv+chase,34,0.886,0.87,1.018
+s3,0.2,btree+lzw+matmul+sort+bloom+pat+app,graph+kv+kv-T+heap+join+spmv+chase,34,0.877,0.868,1.011
+s4,0.05,btree+kv+kv-T+lzw+sort+join+chase+bloom+pat+app,graph+matmul+heap+spmv,13,1.136,1.11,1.023
 s4,0.1,btree+kv+kv-T+lzw+sort+join+chase+bloom+pat+app,graph+matmul+heap+spmv,13,0.917,0.902,1.017
+s4,0.2,btree+kv+kv-T+lzw+sort+join+chase+bloom+pat+app,graph+matmul+heap+spmv,13,0.886,0.888,0.998
+s5,0.05,graph+kv+sort,btree+lzw+matmul+kv-T+heap+join+spmv+chase+bloom+pat+app,52,0.992,0.981,1.011
 s5,0.1,graph+kv+sort,btree+lzw+matmul+kv-T+heap+join+spmv+chase+bloom+pat+app,52,0.937,0.925,1.013
+s5,0.2,graph+kv+sort,btree+lzw+matmul+kv-T+heap+join+spmv+chase+bloom+pat+app,52,0.906,0.874,1.037

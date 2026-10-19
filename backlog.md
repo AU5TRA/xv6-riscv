@@ -31,7 +31,7 @@ Diff it against `main.tex` and merge what you accept. What is still open:
     `\textcolor{red}{[repository link]}` and `\textcolor{red}{[dataset link]}`. Before submission: decide anonymous mirror
     (review) vs public link (camera-ready), upload the repository (strip .tex comments, item 3) and `traces2/` (4 GB; e.g. Zenodo,
     keep the Twitter CC BY 4.0 attribution), then replace both placeholders. See item 1.
-14. **Training-variety study: add to the paper when the 5%/20% runs finish (2026-10-19).** `tools/ml2/exp_splits.py`, five
+14. ~~**Training-variety study: add to the paper when the 5%/20% runs finish (2026-10-19).**~~ — done 2026-10-20: all 555 runs ok; §5.3 "Which workloads to train on" and Appendix Table 22 (splits.tex from make_figdata2.py). Split models vs PageScore on unseen workloads 0.998-1.037, mean 1.016. `tools/ml2/exp_splits.py`, five
     hand-picked train/test splits of the 14 workloads (s1-s5), weights refit only (same features, probation 4, n=32), kernel runs.
     10% done (185 runs): split model vs Clock 0.886-0.967; on workloads neither model saw, split/PageScore = 1.001-1.013, i.e.
     which workloads are trained on barely matters for unseen programs. 5% and 20% (370 runs) running since 2026-10-19

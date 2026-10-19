@@ -364,3 +364,16 @@ and GPU (RTX 3060 Ti); two slips ("levelwith", "is analysed").
    matters on unseen programs (within 1.3% of PageScore). 5% and 20% are running; when done it gets one paragraph in §5.3 and an
    appendix table, and it changes the "few workloads" limitation you commented out.
 
+### GawwyG, 2026-10-20: training-variety study added, tables made readable
+
+* **Study done** (555 kernel runs, all ok). §5.3 has a new paragraph "Which workloads to train on" and the appendix a new Table 22:
+  on workloads a split did not train on, its model causes at most 3.7% more faults than PageScore (1.6% on average). So the
+  limitation you cut ("few workloads") is now partly answered by data.
+* **Tables:** Table 5 now puts each interval under its value (it was shrunk to tiny type); the per-workload appendix tables are
+  full width; Tables 14–17 have grouped headers (core speed, device, per page vs per eviction) and one number format per column;
+  Table 21 calls the simulator model "linear score" like the other simulator tables; most table captions are rewritten in plain
+  words (no "cells", "one build", "first version").
+* **Instruction counts:** all sampled-score counts were re-measured on the current kernel (+14–16 instructions), so Tables 1, 3
+  and 13 come from one kernel and their notes are gone.
+* The main text now ends exactly on page 10 (the limit): anything added to the main text needs a cut elsewhere.
+
