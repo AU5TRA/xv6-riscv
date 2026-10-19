@@ -18,5 +18,10 @@ static const struct ml_model ml_models[] = {
   { "matmul", { 5, { 1, 3, 5, 6, 7, 0, 0, 0 }, { 375, 489, 291, 19, 355, 0, 0, 0 }, 0 } },  // aging+idle+dirty+refaults+rdist
   { "sort-k", { 1, { 1, 0, 0, 0, 0, 0, 0, 0 }, { -2257, 0, 0, 0, 0, 0, 0, 0 }, 0 } },  // aging
   { "sort", { 4, { 0, 5, 6, 7, 0, 0, 0, 0 }, { -657, 97, -241, 200, 0, 0, 0, 0 }, 4 } },  // ref+dirty+refaults+rdist
+  { "split-s1", { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 223, -149, -131, -153, 20, 0, 0, 0 }, 4 } },  // training-variety ablation (exp_splits.py)
+  { "split-s2", { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 240, -139, -77, -143, 32, 0, 0, 0 }, 4 } },  // training-variety ablation (exp_splits.py)
+  { "split-s3", { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 189, -127, 5, -146, 96, 0, 0, 0 }, 4 } },  // training-variety ablation (exp_splits.py)
+  { "split-s4", { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 202, -139, -77, -160, 62, 0, 0, 0 }, 4 } },  // training-variety ablation (exp_splits.py)
+  { "split-s5", { 5, { 3, 4, 5, 6, 7, 0, 0, 0 }, { 265, -117, 100, -196, 77, 0, 0, 0 }, 4 } },  // training-variety ablation (exp_splits.py)
 };
 #define ML_NMODELS (sizeof(ml_models) / sizeof(ml_models[0]))

@@ -1,0 +1,182 @@
+{
+ "s1": {
+  "train": [
+   "heap",
+   "join",
+   "spmv",
+   "chase",
+   "bloom",
+   "pat",
+   "app"
+  ],
+  "test": [
+   "btree",
+   "graph",
+   "kv",
+   "lzw",
+   "matmul",
+   "sort",
+   "kv-T"
+  ],
+  "features": [
+   "idle",
+   "age",
+   "dirty",
+   "refaults",
+   "rdist"
+  ],
+  "qa": [
+   223,
+   -149,
+   -131,
+   -153,
+   20
+  ],
+  "protect_age": 4,
+  "rows": 9469248
+ },
+ "s2": {
+  "train": [
+   "graph",
+   "kv",
+   "kv-T",
+   "chase",
+   "spmv",
+   "join",
+   "heap"
+  ],
+  "test": [
+   "btree",
+   "lzw",
+   "matmul",
+   "sort",
+   "bloom",
+   "pat",
+   "app"
+  ],
+  "features": [
+   "idle",
+   "age",
+   "dirty",
+   "refaults",
+   "rdist"
+  ],
+  "qa": [
+   240,
+   -139,
+   -77,
+   -143,
+   32
+  ],
+  "protect_age": 4,
+  "rows": 4744285
+ },
+ "s3": {
+  "train": [
+   "btree",
+   "lzw",
+   "matmul",
+   "sort",
+   "bloom",
+   "pat",
+   "app"
+  ],
+  "test": [
+   "graph",
+   "kv",
+   "kv-T",
+   "heap",
+   "join",
+   "spmv",
+   "chase"
+  ],
+  "features": [
+   "idle",
+   "age",
+   "dirty",
+   "refaults",
+   "rdist"
+  ],
+  "qa": [
+   189,
+   -127,
+   5,
+   -146,
+   96
+  ],
+  "protect_age": 4,
+  "rows": 10606512
+ },
+ "s4": {
+  "train": [
+   "btree",
+   "kv",
+   "kv-T",
+   "lzw",
+   "sort",
+   "join",
+   "chase",
+   "bloom",
+   "pat",
+   "app"
+  ],
+  "test": [
+   "graph",
+   "matmul",
+   "heap",
+   "spmv"
+  ],
+  "features": [
+   "idle",
+   "age",
+   "dirty",
+   "refaults",
+   "rdist"
+  ],
+  "qa": [
+   202,
+   -139,
+   -77,
+   -160,
+   62
+  ],
+  "protect_age": 4,
+  "rows": 13695557
+ },
+ "s5": {
+  "train": [
+   "graph",
+   "kv",
+   "sort"
+  ],
+  "test": [
+   "btree",
+   "lzw",
+   "matmul",
+   "kv-T",
+   "heap",
+   "join",
+   "spmv",
+   "chase",
+   "bloom",
+   "pat",
+   "app"
+  ],
+  "features": [
+   "idle",
+   "age",
+   "dirty",
+   "refaults",
+   "rdist"
+  ],
+  "qa": [
+   265,
+   -117,
+   100,
+   -196,
+   77
+  ],
+  "protect_age": 4,
+  "rows": 2842454
+ }
+}

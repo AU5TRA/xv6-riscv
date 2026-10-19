@@ -60,7 +60,7 @@ def kval():
                 by = defaultdict(list)
                 for s, v in res[(k, fr)].items():
                     by[s.split("-")[0]].append(gm(v))
-                w.writerow([k, round(gm(gm(v) for v in by.values()), 4)])
+                w.writerow([k, round(gm(gm(v) for v in by.values()), 6)])
 
 
 NAME = {"arck": "ARC", "lhd": "LHD", "s3fifo": "S3-FIFO", "clock": "Clock", "lecar": "LeCaR", "ml:global": "PageScore, every page",

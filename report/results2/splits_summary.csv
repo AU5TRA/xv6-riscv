@@ -1,0 +1,6 @@
+split,fraction,train,test,streams,split_vs_clock,pagescore_vs_clock,split_vs_pagescore
+s1,0.1,heap+join+spmv+chase+bloom+pat+app,btree+graph+kv+lzw+matmul+sort+kv-T,46,0.911,0.901,1.011
+s2,0.1,graph+kv+kv-T+chase+spmv+join+heap,btree+lzw+matmul+sort+bloom+pat+app,40,0.967,0.957,1.01
+s3,0.1,btree+lzw+matmul+sort+bloom+pat+app,graph+kv+kv-T+heap+join+spmv+chase,34,0.886,0.87,1.018
+s4,0.1,btree+kv+kv-T+lzw+sort+join+chase+bloom+pat+app,graph+matmul+heap+spmv,13,0.917,0.902,1.017
+s5,0.1,graph+kv+sort,btree+lzw+matmul+kv-T+heap+join+spmv+chase+bloom+pat+app,52,0.937,0.925,1.013
