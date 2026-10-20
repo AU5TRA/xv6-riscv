@@ -109,7 +109,7 @@ Learned policies have improved caching in CPUs and content-delivery networks, bu
 \label{sec:intro}
 
 \begin{table}[t]
-\caption{\textbf{Measured in the xv6 kernel:} page faults relative to \clock (lower is better) when each program may keep 5, 10 or 20\% of its pages, averaged over 14 workloads, and the instructions needed to choose one page to evict among 68 and 516 pages. Bold: the whole 95\% interval is below 0.99 (\S\ref{sec:eval-setup}). $^\dagger$Using only the accessed bit (\S\ref{sec:impl}). PageScore, our policy, beats \clock at 10\% and 20\%, is level with ARC, and its cost barely grows with memory.}
+\caption{\textbf{Measured in the xv6 kernel:} page faults relative to \clock (lower is better) when each program may keep 5, 10 or 20\% of its pages, averaged over 14 workloads, and the instructions the kernel runs to pick one page to evict when 68 pages (a small program) or 516 pages (a large program) are in memory. Bold: the whole 95\% interval is below 0.99 (\S\ref{sec:eval-setup}). $^\dagger$Using only the accessed bit (\S\ref{sec:impl}). PageScore, our policy, scores 32 random pages per eviction, or all pages in the last row; it beats \clock at 10\% and 20\%, is level with ARC, and its cost barely grows with memory.}
 \label{tab:teaser}
 \vskip 0.1in
 \begin{center}
@@ -117,9 +117,9 @@ Learned policies have improved caching in CPUs and content-delivery networks, bu
 \setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
- & \multicolumn{3}{c}{faults / \clock} & \multicolumn{2}{c}{instr./eviction} \\
+ & \multicolumn{3}{c}{faults / \clock} & \multicolumn{2}{c}{instr. per eviction} \\
 \cmidrule(lr){2-4}\cmidrule(l){5-6}
-Policy & 5\% & 10\% & 20\% & 68 & 516 \\
+Policy & 5\% & 10\% & 20\% & 68 pages & 516 pages \\
 \midrule
 FIFO                 & 1.228 & 1.253 & 1.345 & 384    & 2,624 \\
 Aging                & 1.043 & 1.066 & 1.166 & 8,124  & 60,978 \\
@@ -130,8 +130,8 @@ S3-FIFO$^\dagger$    & 1.086 & 1.016 & 1.086 & 1,395  & 6,452 \\
 LHD$^\dagger$        & 1.005 & 0.951 & 0.949 & 14,397 & 111,705 \\
 ARC$^\dagger$        & \textbf{0.947} & \textbf{0.943} & 0.984 & 11,934 & 81,070 \\
 \midrule
-PageScore (ours) & 0.972 & \textbf{0.912} & \textbf{0.902} & 8,480 & 8,895 \\
-\quad every page & 0.976 & \textbf{0.914} & 0.882 & 16,818 & 134,392 \\
+PageScore, 32 pages & 0.972 & \textbf{0.912} & \textbf{0.902} & 8,480 & 8,895 \\
+PageScore, all pages & 0.976 & \textbf{0.914} & 0.882 & 16,818 & 134,392 \\
 \bottomrule
 \end{tabular}
 \end{small}
