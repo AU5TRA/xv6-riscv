@@ -188,7 +188,9 @@ Each program may keep only a limited number of pages in memory. When it touches 
 \subsection{Simple Rules Are Far from Optimal}
 \label{sec:bg-headroom}
 
-\finding{Workloads.} We use fourteen workloads, each run on several inputs that we call streams (Table~\ref{tab:workloads}). The models are trained on six: a B+-tree (btree), BFS and PageRank on a graph (graph), a hash table (kv), LZW compression (lzw), matrix multiply (matmul) and merge sort (sort). The other eight were never used to train or choose a model: the hash table replaying real Twitter cache traces~\citep{yang2020twitter} taken from \citet{zussman2025cacheext} (kv-T), heap allocation churn (heap), a hash join (join), sparse matrix--vector product (spmv), pointer chasing (chase), Bloom-filter lookups (bloom), simple synthetic access patterns (pat) and four programs that imitate real applications (app). Not all of these are new programs: kv-T runs the trained hash table on real traffic. Each workload's streams are split into training, validation and test streams, and some whole variants are kept for testing only (held out); Appendix~\ref{app:data} gives the details.
+% CHANGED 2026-10-21 (splits review): added ", except in one ablation (\S\ref{sec:eval-ablate})". Was: "The other eight were never used to train or choose a model:".
+%   Why: the training-variety ablation (§5.3, Table tab:splits) trains its split models on these eight workloads, so "never ... a model" was no longer true.
+\finding{Workloads.} We use fourteen workloads, each run on several inputs that we call streams (Table~\ref{tab:workloads}). The models are trained on six: a B+-tree (btree), BFS and PageRank on a graph (graph), a hash table (kv), LZW compression (lzw), matrix multiply (matmul) and merge sort (sort). The other eight were never used to train or choose a model, except in one ablation (\S\ref{sec:eval-ablate}): the hash table replaying real Twitter cache traces~\citep{yang2020twitter} taken from \citet{zussman2025cacheext} (kv-T), heap allocation churn (heap), a hash join (join), sparse matrix--vector product (spmv), pointer chasing (chase), Bloom-filter lookups (bloom), simple synthetic access patterns (pat) and four programs that imitate real applications (app). Not all of these are new programs: kv-T runs the trained hash table on real traffic. Each workload's streams are split into training, validation and test streams, and some whole variants are kept for testing only (held out); Appendix~\ref{app:data} gives the details.
 
 \begin{table}[t]
 \caption{Workloads. The learned models are trained on the six marked ``train'' and run
@@ -390,7 +392,9 @@ The four research questions of \S\ref{sec:bg-rq} are analysed to understand whic
 \subsection{Setup}
 \label{sec:eval-setup}
 
-We run \xv on QEMU 8.2.2 with one CPU core and 128\,MB of memory, on the fourteen workloads of \S\ref{sec:bg-headroom}. Each program may keep 5, 10 or 20\% of its pages in memory, between 2 and 820 pages, plus code and stack, and we use the same 74 streams at every size, for 4,489 kernel runs in total. A run always gives the same result, so the uncertainty we report comes from which programs and inputs we tested, not from noise between runs.
+% CHANGED 2026-10-21 (splits review): "for 4,489 kernel runs in total." -> "for 4,489 kernel runs, plus 555 for one ablation (\S\ref{sec:eval-ablate})."
+%   Why: with the training-variety ablation the paper reports 4,489 + 555 kernel runs, so "in total" was no longer true. src: report/results2/kernel_eval_splits.csv (555 rows, all ok); Table tab:splits caption.
+We run \xv on QEMU 8.2.2 with one CPU core and 128\,MB of memory, on the fourteen workloads of \S\ref{sec:bg-headroom}. Each program may keep 5, 10 or 20\% of its pages in memory, between 2 and 820 pages, plus code and stack, and we use the same 74 streams at every size, for 4,489 kernel runs, plus 555 for one ablation (\S\ref{sec:eval-ablate}). A run always gives the same result, so the uncertainty we report comes from which programs and inputs we tested, not from noise between runs.
 
 Besides PageScore, we run FIFO, \clock, Aging and LFU, and three stronger classical policies, ARC~\citep{megiddo2003arc}, LHD~\citep{beckmann2018lhd} and S3-FIFO~\citep{yang2023s3fifo}, changed to use only the accessed bit, as a kernel must (\S\ref{sec:impl}). We also run PageScore over every page instead of 32, the five larger models, and LeCaR~\citep{vietri2018lecar}, a learned cache policy. \belady's optimal policy runs only in simulation.
 
@@ -496,7 +500,9 @@ PageScore causes 8.8\% fewer faults than \clock at 10\% memory and 9.8\% fewer a
 \node[font=\scriptsize\bfseries, text=cGood, anchor=south east] at (axis cs:41,14.05) {never seen in training};
 \end{axis}
 \end{tikzpicture}
-\caption{How much each workload gains over \clock in the kernel at 10\% memory. Bars: PageScore (green: fewer faults, red: more); markers: ARC and LHD. Blue rows are the six training workloads, green rows the eight that no model saw in training.}
+% CHANGED 2026-10-21 (splits review): "green rows the eight that no model saw in training" -> "green rows the eight PageScore never saw in training".
+%   Why: the split models of Table tab:splits (§5.3) were trained on some of these eight, so "no model" was no longer true; the figure shows PageScore only.
+\caption{How much each workload gains over \clock in the kernel at 10\% memory. Bars: PageScore (green: fewer faults, red: more); markers: ARC and LHD. Blue rows are the six training workloads, green rows the eight PageScore never saw in training.}
 \label{fig:gains}
 \end{figure}
 
@@ -521,7 +527,15 @@ Eight of the 14 workloads were never used in training. At 10\% memory PageScore 
 
 \finding{How many pages to sample.} In the kernel, scoring 32 random pages works about as well as scoring every page, at half the cost or less, and 16 pages is about 1\% worse; Table~\ref{tab:samples} gives the other sample sizes. Other ways of picking the sample make little difference (Appendix, Table~\ref{tab:sampling}), and other random seeds change single streams by about 1\% at most.
 
-\finding{Which workloads to train on.} We refit PageScore's weights, with the same features, probation and sample size, on five different hand-picked splits of the 14 workloads, and ran each in the kernel on the workloads it did not train on (Appendix, Table~\ref{tab:splits}). On those workloads these models cause at most 3.7\% more faults than PageScore, and 1.6\% more on average, so which workloads we train on matters little.
+% CHANGED 2026-10-21 (splits review): the last sentence is now three. Was: "On those workloads these models cause at most 3.7\% more faults than PageScore, and 1.6\% more on average, so which workloads we train on matters little."
+%   Why (1): PageScore itself was trained on btree, graph, kv, lzw, matmul and sort, which are test workloads of s1, s2, s3, s4 and s5, so part of each gap is PageScore having trained on the workload and the split model not.
+%     The three largest cells (s5 1.037, s2 1.031, s1 1.030) are all at 20%; workloads PageScore trained on give +2.6, +4.1 and +2.8 points of them, and matmul is the largest workload in each (1.235, 1.218, 1.168; sort 1.102 and 1.090 in s2 and s1).
+%     Not quoted in the text (kept short so the paragraph does not spill into the next column): on test workloads PageScore was not trained on (so neither model was),
+%     the split model is closer to PageScore than on PageScore's training workloads in 13 of the 15 cells (not in s4 at 5% and 20%).
+%   Why (2): only the weights were refit (features and probation were chosen on the original six), so the conclusion now says "the weights are fit on".
+%   src: per-workload geometric means of split/PageScore faults (swap + zero-fill), report/results2/kernel_eval_splits.csv against ml global@32 in kernel_eval_all.csv, averaged like exp_splits.py report.
+%     These are check values recomputed from GawwyG's files, not yet in a generated table; ask GawwyG to add the two columns (PageScore trained on / neither) to splits.tex if the paper should quote them.
+\finding{Which workloads to train on.} We refit PageScore's weights, with the same features, probation and sample size, on five different hand-picked splits of the 14 workloads, and ran each in the kernel on the workloads it did not train on (Appendix, Table~\ref{tab:splits}). On those workloads these models cause at most 3.7\% more faults than PageScore, and 1.6\% more on average. The largest gaps, all at 20\% memory, come mostly from workloads PageScore itself was trained on, above all matrix multiply. So which workloads the weights are fit on matters little.
 
 \section{Related Work}
 \label{sec:related}
@@ -759,7 +773,13 @@ Feature selection needs tens of thousands of full replays, so it runs in a C sim
 \end{table}
 
 \begin{table}[h!]
-\caption{Training on other sets of workloads, in the kernel (555 runs besides the 4,489 of the main evaluation). Each split refits only PageScore's weights, with the same features, probation and sample size, on the workloads listed, and is tested on the others; kv and kv-T always stay together. Each cell: that model's faults relative to PageScore's on the same streams (13 to 52 streams); above 1 means more faults than PageScore.}
+% CHANGED 2026-10-21 (splits review): two changes to this caption.
+%   (1) "kv and kv-T always stay together" -> "kv and kv-T stay together except in s5". s5 trains on kv and tests on kv-T (src: report/results2/split_models.json; also the s5 row of splits.tex).
+%       The same wrong sentence is in the docstring and the SPLITS comment of tools/ml2/exp_splits.py (not changed here).
+%   (2) Was: "above 1 means more faults than PageScore." Added ", which was itself trained on btree, graph, kv, lzw, matmul and sort": these six are
+%       among each split's test workloads, which a reader needs to read cells above 1 (see the §5.3 paragraph "Which workloads to train on").
+%   Kept short on purpose: two more caption lines push Table tab:lecar off this page and add a page to the appendix.
+\caption{Training on other sets of workloads, in the kernel (555 runs besides the 4,489 of the main evaluation). Each split refits only PageScore's weights, with the same features, probation and sample size, on the workloads listed, and is tested on the others; kv and kv-T stay together except in s5. Each cell: that model's faults relative to PageScore's on the same streams (13 to 52 streams); above 1 means more faults than PageScore, which was itself trained on btree, graph, kv, lzw, matmul and sort.}
 \label{tab:splits}
 \vskip 0.05in
 \begin{center}
@@ -833,7 +853,9 @@ all six & held-out & 0.896 & 0.894 & 0.854 & 0.847 & 0.558 \\
 \end{table}
 
 \begin{table}[h!]
-\caption{Workloads no model was trained on (simulator): faults relative to \clock, averaged over each workload's streams and the three memory sizes. ARC and S3-FIFO here see every access; LHD uses only the accessed bit. ``linear score, F+K'': also given exact information from a full trace. ``kv weights'': the linear score trained on kv alone, run on the Twitter replays.}
+% CHANGED 2026-10-21 (splits review): "Workloads no model was trained on" -> "Workloads none of these models was trained on".
+%   Why: the split models of Table tab:splits were trained on app, pat (s1, s3, s4) and kv-T (s2, s4), which are rows of this table.
+\caption{Workloads none of these models was trained on (simulator): faults relative to \clock, averaged over each workload's streams and the three memory sizes. ARC and S3-FIFO here see every access; LHD uses only the accessed bit. ``linear score, F+K'': also given exact information from a full trace. ``kv weights'': the linear score trained on kv alone, run on the Twitter replays.}
 \label{tab:transfer}
 \vskip 0.05in
 \begin{center}

@@ -1,0 +1,236 @@
+MLSYS 2027 REVIEW
+"Can Lightweight ML-Guided Page Replacement Manage Memory Better Than Classical Policies?"
+
+Reviewed: report/paper/main2.tex at 9c48f14 plus the uncommitted edits of 21 Oct 2026; every point
+checked against the repo's data, code or cited papers.
+
+Rating: weak reject. Confidence 4/5. Novelty 2/5, quality 3/5, interest 3/5, impact 2/5.
+
+
+SUMMARY
+
+The paper adds demand paging and swap to xv6 and builds PageScore, which at each eviction scores 32
+randomly sampled resident pages with an integer linear model over five kernel-visible features,
+fitted offline by ridge regression to predict log time-to-next-use (imitating Belady). On one
+emulated core, over 14 workloads, 74 streams and 5/10/20% memory, it has about 9% fewer faults than
+Clock at 10% and 20%, no significant difference from accessed-bit ARC and LHD, and cheaper decisions
+than both. Larger models do no better.
+
+
+STRENGTHS
+
+1. Honest scoping: no claim to beat ARC or LHD; it admits covering a fifth of the gap to Belady,
+   lists its failures and reports negative results.
+2. Real implementation work: nine policies on one kernel fault path, including integer versions of
+   five neural and tree models; exact instruction counts; outputs checked identical under every
+   policy.
+3. Care with the data: streams checked against independent program models and the simulator against
+   the kernel; held-out workloads, two-level bootstrap intervals, a multiplicity correction for the
+   primary claim.
+4. Useful findings: training on random samples learns to evict the page just loaded, which probation
+   fixes (Obs. 3); idle time dominates; extra information is separated from model size.
+5. Clear writing and a full artifact.
+
+
+MAJOR WEAKNESSES
+
+W1. Novelty: the core recipe is LRB's and the sampling argument is LHD's; neither is acknowledged.
+- LRB (NSDI'20) "randomly samples cached objects to gain eviction candidates" (64), evicts the one
+  predicted to be requested last, and regresses "log(time-to-next-request)". PageScore does the same
+  with 32 samples and a linear model, yet §6 lists LRB only among caches that "see every access".
+- LHD (NSDI'18): "evictions instead sample 64 random objects", because "the quality of a random
+  sample depends on its size, not the size of the underlying population", almost word for word
+  §3.3's "A fixed sample". Redis's approximated LRU, Hyperbolic caching (ATC'17) and Psounis &
+  Prabhakar (ToN'02) aren't cited for sampling either.
+- LearnedCache already runs a learned eviction model in Linux via cache_ext (a non-archival MLSys
+  2026 poster plus arXiv). The stated difference, "file pages rather than a program's own memory",
+  isn't argued; the real one is visibility: read() and write() reach the kernel, while anonymous
+  memory exposes only accessed and dirty bits. Lead with it.
+- So "sample and regress log reuse distance" is known; the contribution is its adaptation to
+  accessed bits only, integer scoring and the probation and recent-page fixes, plus the study. Say
+  so.
+
+W2. The baselines are weaker than needed, and the cost advantage comes from how they were adapted.
+- Published LHD samples 64 candidates; the kernel's LHD scores every page (14,397 to 111,705
+  instructions from 68 to 516 pages, Table 13). So §4's "everything else follows the published
+  algorithm" is false for LHD, and "matches them at a lower cost per decision … a cost that barely
+  grows with memory" (abstract, §1, §8) is an artifact of the adaptation.
+- The adapted ARC also scans every page per eviction (129,555 instructions at 824 pages). CAR (ARC's
+  accessed-bit version, by one of its authors) and CLOCK-Pro (LIRS's accessed-bit form, built on
+  reuse distance) are cited in §6 but run nowhere, so "ARC and LHD, the best classical policies a
+  kernel can run" (§1, §5.2, §8) is unsupported.
+- No Linux-style baseline (active/inactive lists with refault distance, or MGLRU), even simulated,
+  though §7 argues transfer because Linux keeps these signals.
+- No trivial-predictor baseline (sample 32, apply probation, evict the longest-idle page). Idle
+  dominates (Fig. 6), so how much of the 9% is learning, not sampling plus probation, is unknown.
+- No best-of-classical oracle, though winners differ by workload: at 10%, LHD reaches 0.63 on graph
+  against PageScore's 0.77, and ARC (0.97) and LHD (0.87) beat PageScore (1.10) on matmul (Table 4).
+  A selector among Clock, ARC and LHD (LeCaR- or Catur-style) is the obvious learned competitor.
+- Unequal tuning: baselines kept published settings while PageScore was tuned on validation streams
+  (§7).
+- Every number is divided by Clock's, yet the kernel's Clock is not textbook
+  (kernel/vmpage.c:172-190): its index hand over a load-ordered list skips the page after each
+  victim, since the victim is removed and the new page appended. Obs. 1 suggests it is close to LRU;
+  describe it and check textbook Clock.
+
+W3. The effect is modest, "matches ARC" is not shown, and the worst cases are on training workloads.
+- At 5% memory the gain over Clock is not significant, but ARC's is (Table 8): ARC vs Clock 0.947
+  [0.92, 0.98]; PageScore vs Clock 0.972 [0.90, 1.08]; PageScore vs ARC 1.027 [0.97, 1.13].
+- "Matches" ARC and LHD rests on intervals that include 1 (vs ARC at 20%: [0.83, 1.00]); that is not
+  equivalence. Test equivalence with a stated margin, or say "no significant difference".
+- Writes at 10% (Table 11): PageScore writes 5% more pages than Clock, ARC and LHD about 12% fewer
+  (1.05 vs 0.88/0.89; matmul 4.75×, SpMV 1.75×), because the learned weights evict written pages
+  sooner (§3.3), against clean-first practice. On write-sensitive storage ARC wins.
+- PageScore has 1.72× Clock's faults on matmul at 5% (Table 9) and 1.22× on graph at 20% (Table 10),
+  both training workloads. RQ4's "fails only in a few specific cases, each with a clear cause"
+  undersells a 72% regression.
+
+W4. Platform and scale are far below the current bar.
+- xv6 under QEMU: one core, one program at a time, 2–824 resident pages (at most 3.3 MB), no page
+  cache, huge pages or multicore. Comparable work: cache_ext on Linux 6.6 with 1–10 GiB cgroups,
+  xTier on Linux 6.11, LRB with 64 GB–1 TB caches.
+- 5–20% of each program's pages is deep thrashing; nothing above 20% is tested.
+- Many runs are short or degenerate, yet each workload weighs 1/14 of the headline: some app runs
+  cause only 37–50 evictions; Twitter replays (cut to about 1,000 keys and 40,000 requests) cause
+  859–6,189; sort runs with 2–24 resident pages, matmul with 2, 5 or 10. Appendix B: the simulator's
+  start state changes one model's faults 14-fold on a stream.
+- The Linux evidence is two Valgrind traces in the simulator, and PageScore loses to Clock on Redis
+  (1.106, Table 25).
+- "Inside a real kernel" (RQ2) overstates a teaching kernel under emulation; say "in the xv6
+  kernel".
+
+W5. Overhead and end-to-end benefit are modeled, not measured.
+- Decision time is QEMU's instruction count times ns per instruction from a host user-space
+  benchmark (tools/ml2/native_timing.c) that omits the page-table walk, accessed-bit clearing, TLB
+  flush and locks, with data in a hot static array. 0.047 ns per instruction is about 4.8
+  instructions per cycle at 4.4 GHz, a hot-cache figure; a real kernel's 32 random page records and
+  page-table entries will miss in cache and TLB. The 1 ns "slow core" is assumed.
+- No per-decision latency distribution in a real kernel and no runtime for any workload; Baleen
+  (FAST'24) criticizes miss-ratio-only results.
+- Only an SSD (63 µs per read) and a hard disk (8.9 ms). Many Linux systems swap to compressed RAM
+  (zram/zswap, the default on Android, ChromeOS and Fedora) or far memory, at roughly 1–10 µs per
+  fault. Table 16's break-even fault costs are 3–35 µs on most workloads for scoring every page, and
+  roughly half for the 32-page sample at small sizes, so the pay-off claim probably fails there.
+- Clearing accessed bits needs TLB shootdowns across cores; one emulated core hides this, and §7
+  leaves the TLB flush out of the cost.
+- PageScore adds 40 bytes per resident page and 12 per swap slot (§4); Linux's whole struct page is
+  64 bytes. Show the mapping onto Linux state (MGLRU generation bits, workingset shadow entries) and
+  the cost of fewer bits.
+
+W6. No safeguard against a wrong model.
+§3.3: "Nothing switches PageScore off while it runs"; the fallback fires only on invalid choices.
+Accepted ML-for-OS papers all handle mispredictions (rate-based revert, shadow default policy, safe
+action space, out-of-distribution detection), and there is no wrong-model or noise-injection test.
+With 1.72× and 1.22× regressions and the Redis loss, reviewers will ask first. Guardrails (HotOS'25)
+is in references.bib but uncited.
+
+W7. Gaps in the ML methodology.
+- Belady labels need full access traces; there is no story for labels or retraining in production
+  (e.g., refaults as delayed labels), the crux of deployment.
+- Distribution shift: training decisions come from LRU replay, but deployed, PageScore decides what
+  stays. The DAgger evidence is one PageRank stream (Table 20); §5.3 gives "no consistent gain"
+  without numbers.
+- Missing training details: the ridge λ, how often decisions are recorded ("at some of the
+  evictions"), the scaling σⱼ, how never-reused pages are labelled, and one list of the five
+  features (idle, age, dirty, refaults, rdist).
+- Selection risk: features come from a large search (300 linear models, Table 20); the sample size
+  32 was first picked on test streams (§3.3); probation's sensitivity isn't shown in the kernel.
+- "Time" is counted in evictions, so idle and age depend on the fault rate, hence on the policy and
+  memory size.
+
+W8. Some claims go beyond the evidence.
+- The conclusion blames "what the kernel can see and how little time it can spend", not learning.
+  But models given full-trace features reach only 0.847–0.856 of Clock's faults against Belady's
+  0.56–0.59 (Table 23), and slower, larger models gain nothing (§5.3), so neither is shown to be the
+  limit.
+- "The kernel already sees enough": enough to tie an adapted ARC, not to approach optimal. Say
+  which.
+- §7 says cache_ext policies "use 10 to 20 pages per eviction", but the cache_ext paper's examples
+  use 32 candidates (its LFU picks 32 of the first 512 folios), and the repo's only source is the
+  handoff text. Verify or cut.
+- The abstract's third difficulty, "every eviction changes later faults", is true of every cache.
+
+
+MLSYS 2027 RISKS
+
+- Scope: the 2027 topics name nothing on OS memory management, and LLM tools screen for scope. None
+  of the 233 papers in the 2024–2026 proceedings is on OS paging; accepted ML-for-systems papers run
+  at fleet scale (LAVA, Catur). Lead with the learning problem.
+- Appendix: "reviewers are not required to read" it, yet arguments rest on Tables 8 (intervals), 11
+  (writes), 13 (cost growth), 14–16 (break-even), 22 (splits) and 23 (information vs model size).
+- AI policy: the disclosure is mandatory; MLSys adds one AI-generated review per paper and screens
+  for fabricated references. Ours says the agent "ran and monitored the experiments, computed the
+  statistics"; add how the authors checked them.
+- Anonymization: the red repository and dataset placeholders need anonymous mirrors.
+
+
+MISSING RELATED WORK
+
+- Should cite: for sampling, LRB (credit sampling and label), LHD, Hyperbolic caching, Redis's
+  approximated LRU, Psounis & Prabhakar; CAR and CLOCK-Pro as accessed-bit baselines; PageFlex
+  (ATC'25) and Guardrails (HotOS'25), both in references.bib but uncited; Heimdall (EuroSys'25),
+  FetchBPF (ATC'24), and Baleen (FAST'24) on end-to-end metrics.
+- Context: MGLRU decision overhead and run-to-run variation (IISWC'24, ROSS'25); tiering and
+  offloading (TPP, Memtis, Colloid, Nomad, TMO); other learned replacement (MUSTACHE, ML-CLOCK,
+  Raven, Cold-RL); LLM-written heuristics (PolicySmith, Vulcan), since the 2027 topics name
+  "LLM-based … system optimization".
+
+
+MINOR ISSUES
+
+- The title asks a question whose answer is "Partly".
+- Say "geometric mean", and define a fault (swap faults plus zero-fill).
+- Report stream lengths and evictions per workload; flag runs with 2 resident pages.
+- The kernel form of LeCaR (Clock vs a frequency count) isn't really LeCaR; present it as a failed
+  adaptation.
+- Give the larger models' "50–400×" cost in microseconds.
+- Move the per-stream simulator–kernel spread (up to 72%) into the main text; features were chosen
+  in the simulator.
+
+
+QUESTIONS FOR THE AUTHORS
+
+1. How does PageScore compare with CAR, CLOCK-Pro and a sampled LHD, using the same accessed bits?
+2. How much of the gain comes from sampling plus probation alone?
+3. What does a decision cost in a real kernel, with cold caches and multicore TLB shootdowns?
+4. How would labels be collected for a new workload without full traces?
+5. What happens at 30–50% memory, and with swap to compressed RAM or far memory?
+6. Does the 9% fault reduction show up in any workload's runtime?
+
+
+WHAT WOULD MOST IMPROVE THE PAPER BEFORE 30 OCT
+
+1. Wording and credit (hours): credit LRB and LHD; sharpen the difference from LearnedCache; replace
+   "matches" with "no significant difference" or test equivalence; fix the conclusion, "real kernel"
+   and RQ4; mention writes against ARC; fix the cache_ext figure; describe the Clock variant.
+2. From existing data (GawwyG, hours): a per-stream best-of-classical oracle; equivalence bounds
+   against ARC and LHD; break-even at 1–10 µs fault costs; the headline without the tiny runs.
+3. New runs (GawwyG, 1–3 days): sampled LHD (64), CAR and CLOCK-Pro at 10% memory; the sampled
+   max-idle-plus-probation baseline; textbook Clock and 30–50% memory in the simulator.
+4. A safeguard and a wrong-model test (2–3 days).
+5. Later: Linux (cache_ext batch scoring for file pages, or a hook in anonymous-page reclaim) with
+   runtime results.
+
+
+SOURCES
+
+- MLSys 2027 call for papers: https://mlsys.org/Conferences/2027/CallForResearchPapers
+- LRB, NSDI'20: https://www.usenix.org/conference/nsdi20/presentation/song
+- LHD, NSDI'18: https://www.pdl.cmu.edu/PDL-FTP/associated/2018.nsdi.lhd.pdf
+- cache_ext, SOSP'25: https://par.nsf.gov/servlets/purl/10647289
+- LearnedCache: https://arxiv.org/abs/2605.26168
+- Hyperbolic caching, ATC'17:
+  https://www.usenix.org/conference/atc17/technical-sessions/presentation/blankstein
+- Redis eviction: https://redis.io/docs/latest/develop/reference/eviction/
+- Psounis & Prabhakar: https://web.stanford.edu/~balaji/papers/02efficientrandomized.pdf
+- PageFlex, ATC'25: https://www.usenix.org/conference/atc25/presentation/yelam
+- Heimdall, EuroSys'25: https://par.nsf.gov/servlets/purl/10636351
+- Baleen, FAST'24: https://www.usenix.org/conference/fast24/presentation/wong
+- xTier: https://arxiv.org/html/2609.27266v1
+- MGLRU study, IISWC'24: https://par.nsf.gov/servlets/purl/10549440
+- ROSS'25: https://sc25.supercomputing.org/proceedings/workshops/workshop_pages/ws_ross104.html
+- PolicySmith: https://arxiv.org/abs/2510.08803 ; Vulcan: https://arxiv.org/abs/2512.25065
+- LAVA, MLSys'25:
+  https://proceedings.mlsys.org/paper_files/paper/2025/hash/9de62e421d58234dbf773abf43268630-Abstract-Conference.html
+- Catur, MLSys'26:
+  https://proceedings.mlsys.org/paper_files/paper/2026/hash/4e3157021c5f833bb2204081f1dda573-Abstract-Conference.html
